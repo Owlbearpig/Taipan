@@ -40,6 +40,12 @@ class DataSink(ComponentBase):
         raise NotImplementedError("process() needs to implemented for DataSinks!")
 
 class Manipulator(ComponentBase):
+    def __init__(self):
+        super().__init__()
+        self._minimumValue = 0
+        self._maximumValue = 0
+        self._step = 0
+
     @property
     def unit(self):
         return None
@@ -75,23 +81,46 @@ class Manipulator(ComponentBase):
     def step(self, val):
         self._step = val
 
-    async def scan(self):
-        pass
-
 class PostProcessor(DataSource, DataSink):
-     @property
-     def source(self):
-         return self._source
+    def __init__(self):
+        super().__init__()
+        self._source = None
 
-     @source.setter
-     def source(self, source):
-         self._source = source
+    @property
+    def source(self):
+        return self._source
 
-     def start(self):
-         return self._source.start()
+    @source.setter
+    def source(self, source):
+        self._source = source
 
-     def stop(self):
-         return self._source.stop()
+    def start(self):
+        return self._source.start()
 
-     async def readDataSet(self):
-         return self.process(await self._source.readDataSet())
+    def stop(self):
+        return self._source.stop()
+
+    async def readDataSet(self):
+        return self.process(await self._source.readDataSet())
+
+class DataSet:
+    def __init__(self, data = None, axes = None):
+        super().__init__()
+        self._data = data
+        self._axes = axes
+
+    @property
+    def data(self):
+        return self._data
+
+    @data.setter
+    def data(self, val):
+        self._data = val
+
+    @property
+    def axes(self):
+        return self._axes
+
+    @axes.setter
+    def axes(self, val):
+        self._axes = val
