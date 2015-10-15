@@ -24,7 +24,8 @@ class DataSource(ComponentBase):
         self.start()
 
     async def readDataSet(self):
-        raise NotImplementedError("readDataSet() needs to implemented for DataSources!")
+        raise NotImplementedError("readDataSet() needs to implemented for "
+                                  "DataSources!")
 
 class DAQDevice(DataSource):
     @property
@@ -37,7 +38,8 @@ class DAQDevice(DataSource):
 
 class DataSink(ComponentBase):
     def process(self, data):
-        raise NotImplementedError("process() needs to implemented for DataSinks!")
+        raise NotImplementedError("process() needs to implemented for "
+                                  "DataSinks!")
 
 class Manipulator(ComponentBase):
     def __init__(self):
@@ -71,13 +73,16 @@ class Manipulator(ComponentBase):
         return None
 
     async def beginScan(self, minimumValue):
-        """ Moves the manipulator to the starting value of a following continuous scan.
+        """ Moves the manipulator to the starting value of a following
+        continuous scan.
 
-        Typically, this will only need to be re-implemented by manipulators emitting trigger signals: If
-        `minimumValue` coincides with a trigger position, the initial trigger pulse might not be emitted at all
+        Typically, this will only need to be re-implemented by manipulators
+        emitting trigger signals: If `minimumValue` coincides with a trigger
+        position, the initial trigger pulse might not be emitted at all
         if movement started at exactly `minimumValue`.
-        Hence, this method should move the manipulator slightly in front of `minimumValue` so that the first
-        trigger actually corresponds to `minimumValue`.
+        Hence, this method should move the manipulator slightly in front of
+        `minimumValue` so that the first trigger actually corresponds to
+        `minimumValue`.
 
         The default implementation simply awaits ``moveTo(minimumValue)``.
 
@@ -121,7 +126,7 @@ class PostProcessor(DataSource, DataSink):
         return self.process(await self._source.readDataSet())
 
 class DataSet:
-    def __init__(self, data = None, axes = None):
+    def __init__(self, data = np.array(0.0), axes = []):
         super().__init__()
         self._data = data
         self._axes = axes
@@ -141,6 +146,20 @@ class DataSet:
     @axes.setter
     def axes(self, val):
         self._axes = val
+
+    @property
+    def isConsistent(self):
+        return len(self._axes) == self._data.ndim and
+               all([ len(ax) == shape
+                     for (ax, shape) in zip(self._axes, self._data.shape) ])
+
+   def checkConsistency(self):
+       if not isConsistent:
+           raise Exception("DataSet is inconsistent!"
+                           "Number of axes: %d, data dimension: %d, "
+                           "axes lengths: %d, data shape: %d" %
+                           (len(self._axes), self._data.ndim,
+                           [ len(ax) for ax in self._axes ], self._data.shape))
 
     def __repr__(self):
         return 'DataSet(%s, %s)' % (repr(self.data), repr(self.axes))

@@ -32,5 +32,6 @@ class DummyContinuousDataSource(DataSource):
         self.count = count
 
     async def readDataSet(self):
-        dataSet = DataSet(np.arange(self.init, self.init + self.count), [ np.arange(0, self.count) ])
+        dataSet = DataSet(np.arange(self.init, self.init + self.count),
+                          [ np.arange(0, self.count) ])
         return dataSet

@@ -2,7 +2,7 @@
 """
 Created on Wed Oct 14 11:18:53 2015
 
-@author: pumphaus
+@author: Arno Rehn
 """
 
 from common import DataSource, DataSet
@@ -29,7 +29,8 @@ class Scan(DataSource):
 
         dataSet = await self.dataSource.readDataSet()
         if dataSet.data.ndim != len(dataSet.axes):
-            raise Exception("Axes/data mismatch. Data dimension: %d, number of axes: %d" %
+            raise Exception("Axes/data mismatch. Data dimension: %d, number of"
+                            " axes: %d" %
                             (dataSet.data.ndim, len(dataSet.axes)))
 
         dataSet.axes = dataSet.axes.copy()
@@ -39,13 +40,14 @@ class Scan(DataSource):
 
         # Oops, we have more data points than axis points...
         if dataSet.data.shape[0] != expectedLength:
-            # If we're only off by one, then the maximumValue has probably triggered another acquisition.
-            # Simply drop the last one.
+            # If we're only off by one, then the maximumValue has probably
+            # triggered another acquisition. Simply drop the last one.
             if dataSet.data.shape[0] == expectedLength + 1:
                 dataSet.data = dataSet.data[:-1]
             else:
-                raise Exception("Length of recorded data set does not match expectation. "
-                                "Actual length: %d, expected length: %d" %
+                raise Exception("Length of recorded data set does not match "
+                                "expectation. Actual length: %d, expected "
+                                "length: %d" %
                                 (dataSet.data.shape[0], expectedLength))
 
         return dataSet
