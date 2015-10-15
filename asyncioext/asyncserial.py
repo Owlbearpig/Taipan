@@ -3,9 +3,9 @@ import asyncio.futures as futures
 import serial
 
 class Serial(serial.Serial):
-    def __init__(self, loop = asyncio.get_event_loop(), *args, **kwargs):
+    def __init__(self, *args, loop = asyncio.get_event_loop(), **kwargs):
         kwargs['timeout'] = 0
-        super(serial.Serial, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._loop = loop
         self._waiter = None
         asyncio.get_event_loop().add_reader(self.fileno(), self._readyRead)
@@ -57,12 +57,17 @@ class Serial(serial.Serial):
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
-    ser = Serial(port='/dev/pts/2')
+    ser = Serial('/tmp/pistage', 9600, timeout=1, loop=loop)
 
-    def doSomething():
+    async def doSomething():
         while True:
-            theLine = yield from ser.async_readline()
+            theLine = await ser.async_readline()
             print(theLine)
 
-    asyncio.async(doSomething())
+    async def requestIdentification():
+        print("requesting ID");
+        ser.write(b"*IDN?\n")
+
+    asyncio.ensure_future(doSomething())
+    asyncio.ensure_future(requestIdentification())
     loop.run_forever()
