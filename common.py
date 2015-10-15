@@ -5,6 +5,8 @@ Created on Tue Oct 13 13:08:57 2015
 @author: Arno Rehn
 """
 
+import numpy as np
+
 class ComponentBase:
     def saveConfiguration(self):
         pass
@@ -149,17 +151,18 @@ class DataSet:
 
     @property
     def isConsistent(self):
-        return len(self._axes) == self._data.ndim and
+        return len(self._axes) == self._data.ndim and \
                all([ len(ax) == shape
                      for (ax, shape) in zip(self._axes, self._data.shape) ])
 
-   def checkConsistency(self):
-       if not isConsistent:
-           raise Exception("DataSet is inconsistent!"
-                           "Number of axes: %d, data dimension: %d, "
-                           "axes lengths: %d, data shape: %d" %
-                           (len(self._axes), self._data.ndim,
-                           [ len(ax) for ax in self._axes ], self._data.shape))
+    def checkConsistency(self):
+        if not self.isConsistent():
+            raise Exception("DataSet is inconsistent!"
+                            "Number of axes: %d, data dimension: %d, "
+                            "axes lengths: %d, data shape: %d" %
+                            (len(self._axes), self._data.ndim,
+                            [ len(ax) for ax in self._axes ],
+                            self._data.shape))
 
     def __repr__(self):
         return 'DataSet(%s, %s)' % (repr(self.data), repr(self.axes))
