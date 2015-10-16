@@ -6,6 +6,7 @@ Created on Tue Oct 13 13:08:57 2015
 """
 
 import numpy as np
+import enum
 
 class ComponentBase:
     def saveConfiguration(self):
@@ -73,6 +74,16 @@ class Manipulator(ComponentBase):
     @property
     def value(self):
         return None
+
+    class Status(enum.Enum):
+        Undefined = 0
+        TargetReached = 1
+        Moving = 2
+        Error = 3
+
+    @property
+    def status(self):
+        return Manipulator.Status.Undefined
 
     async def beginScan(self, minimumValue):
         """ Moves the manipulator to the starting value of a following
