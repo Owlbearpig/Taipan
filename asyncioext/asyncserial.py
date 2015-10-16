@@ -8,7 +8,13 @@ class Serial(serial.Serial):
         super().__init__(*args, **kwargs)
         self._loop = loop
         self._waiter = None
+
+    def open(self):
+        super().open()
         asyncio.get_event_loop().add_reader(self.fileno(), self._readyRead)
+
+    def close(self):
+        asyncio.get_event_loop().remove_reader(self.fileno())
 
     def _readyRead(self):
         if self._waiter != None:
