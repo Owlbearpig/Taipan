@@ -6,10 +6,11 @@ Created on Wed Oct 14 15:04:51 2015
 """
 
 from scan import Scan
-from dummy import DummyManipulator, DummySimpleDataSource,
+from dummy import DummyManipulator, DummySimpleDataSource, \
                   DummyContinuousDataSource
 import numpy as np
 import asyncio
+from stages import PI
 
 async def testRun():
     manip = DummyManipulator()
@@ -22,5 +23,14 @@ async def testRun():
     dataSet = await scanB.readDataSet()
     print(dataSet)
 
+async def testComm():
+    conn = PI.Connection()
+    conn.port = '/tmp/pistage'
+    conn.open()
+    reply = await conn.send("SVO 1 1")
+    reply = await conn.send("SVO?")
+    print("got reply: %s" % repr(reply))
+    conn.close()
+
 loop = asyncio.get_event_loop()
-loop.run_until_complete(testRun())
+loop.run_until_complete(testComm())
