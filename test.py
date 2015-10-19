@@ -28,7 +28,10 @@ async def testComm():
     conn.port = '/tmp/pistage'
     conn.open()
     controller = PI.AxisAtController(conn)
-    print(await controller.send("SVO 1 1"))
+    await controller.initialize()
+    await controller.send("SVO", 1)
+    print("Servo on: %d" % await controller.send("SVO?"))
+    print(controller._identification)
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(testComm())

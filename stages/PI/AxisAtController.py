@@ -9,6 +9,7 @@ from common import Manipulator
 import re
 
 _replyExpression = re.compile(b'([0-9]+) ([0-9]+) (.*)')
+_axisValueExpression = re.compile(b'([0-9\\.]+)=([0-9\\.]+)')
 
 class AxisAtController(Manipulator):
     def __init__(self, connection = None, address = 1, axis = 1):
@@ -26,14 +27,17 @@ class AxisAtController(Manipulator):
         else:
             raise Exception("Unhandled error code %d on PI Controller %s "
                             "(axis %d)" %
-                            errorCode, self._identification, self.axis)
+                            (errorCode, self._identification, self.axis))
 
-    async def send(self, command):
+    async def send(self, command, value = None):
         # convert `command` to a bytearray
         if isinstance(command, str):
             command = bytearray(command, 'ascii')
 
         command = b'%d %s' % (self.address, command)
+        if value is not None:
+            command = b'%s %d %a' % (command, self.axis, value)
+
         ret = await self.connection.send(command)
 
         if command[-1] != ord(b'?'):
@@ -53,7 +57,24 @@ class AxisAtController(Manipulator):
                             "is %d (sent: %s)" %
                             (msg, dest, self.address, command))
 
-        return msg
+        match = _axisValueExpression.match(msg)
+        if match:
+            (axis, value) = match.groups()
+            axis = int(axis)
+            if axis != self.axis:
+                raise Exception("Got value %s for axis %d, but expected axis "
+                                "is %d (sent: %s)" %
+                                (value, axis, self.axis, command))
+            try:
+                return int(value)
+            except ValueError:
+                return float(value)
+        else:
+            return msg
 
     async def initialize(self):
-        self._identification = await self.send('*IDN?')
+        self._identification = await self.send(b'*IDN?')
+        self._hardwareMinimum = await self.send(b'TMN?')
+        self._hardwareMaximum = await self.send(b'TMX?')
+        self._position = await self.send(b'POS?')
+        self._velocity = await self.send(b'VEL?')
