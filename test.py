@@ -32,6 +32,8 @@ async def testComm():
     await controller.send("SVO", 1)
     print("Servo on: %d" % await controller.send("SVO?"))
     print(controller._identification)
+    await asyncio.sleep(5)
+    del controller
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(testComm())

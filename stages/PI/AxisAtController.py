@@ -6,7 +6,10 @@ Created on Fri Oct 16 14:23:33 2015
 """
 
 from common import Manipulator
+import asyncio
+import functools
 import re
+import weakref
 
 _replyExpression = re.compile(b'([0-9]+) ([0-9]+) (.*)')
 _axisValueExpression = re.compile(b'([0-9\\.]+)=([0-9\\.]+)')
@@ -17,6 +20,15 @@ class AxisAtController(Manipulator):
         self.connection = connection
         self.address = address
         self.axis = axis
+        self._identification = None
+        asyncio.ensure_future(
+            functools.partial(
+                AxisAtController.updateStatus, weakref.ref(self)
+            )()
+        )
+
+    def __del__(self):
+        print("deleted AxisAtController!")
 
     def handleError(self, msg):
         errorCode = int(msg)
@@ -28,6 +40,12 @@ class AxisAtController(Manipulator):
             raise Exception("Unhandled error code %d on PI Controller %s "
                             "(axis %d)" %
                             (errorCode, self._identification, self.axis))
+
+    async def updateStatus(self):
+        while True:
+            await asyncio.sleep(1)
+            if self() is None: break
+            print("IN updateStatus with self: " + str(self()))
 
     async def send(self, command, value = None):
         # convert `command` to a bytearray
