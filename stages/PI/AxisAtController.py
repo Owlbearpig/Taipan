@@ -174,3 +174,25 @@ class AxisAtController(Manipulator):
     @property
     def isReferenced(self):
         return self._isReferenced
+
+    @property
+    def status(self):
+        if (self.isOnTarget):
+            return self.Status.TargetReached
+        elif (self.isMoving):
+            return self.Status.Moving
+
+    @property
+    def value(self):
+        return self._position
+
+    async def moveTo(self, val):
+        self._movementStopped = False
+        await self.send("MOV", val)
+        while self.isMoving:
+            await asyncio.sleep(0.25)
+        return self.isOnTarget and not self._movementStopped
+
+    def stop(self):
+        self._movementStopped = True
+        asyncio.ensure_future(self.send("HLT"))

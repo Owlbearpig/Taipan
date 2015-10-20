@@ -108,6 +108,9 @@ class Manipulator(ComponentBase):
     async def moveTo(self, val):
         pass
 
+    def stop():
+        pass
+
     @property
     def step(self):
         return self._step
