@@ -82,6 +82,21 @@ class AxisAtController(Manipulator):
             self._isReferenced = bool(await self.send(b'FRF?'))
 
     async def send(self, command, *args, includeAxis=True):
+        """ Send a command to the controller. The axis ID will automatically
+        appended, unless specified otherwise. If the command is a request,
+        the reply will be parsed (if possible) and returned. Otherwise,
+        an error request is automatically sent and its reply passed to the
+        ``handleError`` method.
+
+        Parameters
+        ----------
+        command (convertible to bytearray) : The command to be sent.
+
+        *args : The arguments transmitted with the command.
+
+        includeAxis (bool, optional) : Whether to transmit the axis id as the
+        first argument to the command. Defaults to ``True``
+        """
         if self.connection is None:
             return None
 

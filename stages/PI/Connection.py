@@ -38,6 +38,8 @@ class Connection(ComponentBase):
         Parameters
         ----------
         command (convertible to bytearray) : The command to be sent.
+
+        *args : Arguments to the command.
         """
 
         # convert `command` to a bytearray
