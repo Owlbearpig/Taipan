@@ -31,7 +31,7 @@ class Connection(ComponentBase):
         if self.serial.isOpen():
             self.serial.close()
 
-    async def send(self, command):
+    async def send(self, command, *args):
         """ Send a command over the Connection. If the command is a request,
         returns the reply.
 
@@ -46,12 +46,17 @@ class Connection(ComponentBase):
         else:
             command = bytearray(command)
 
-        if command[-1] != b'\n': command += b'\n'
+        isRequest = command[-1] == ord(b'?')
+
+        for arg in args:
+            command += b' %a' % arg
+
+        command += b'\n'
 
         self.serial.write(command)
 
         # no request -> no reply. just return.
-        if command[-2] != ord(b'?'):
+        if not isRequest:
             return
 
         # read reply. lines ending with ' \n' are part of a multiline reply.
