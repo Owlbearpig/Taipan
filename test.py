@@ -29,11 +29,13 @@ async def testComm():
     conn.open()
     controller = PI.AxisAtController(conn)
     await controller.initialize()
-    await controller.send("SVO", 1)
-    print("Servo on: %d" % await controller.send("SVO?"))
     print(controller._identification)
-    await asyncio.sleep(5)
-    del controller
+    print(controller.value)
+    success = await controller.reference()
+    print("Reference: %s" % str(success), flush=True)
+    print("Velocity: %s" % controller._velocity, flush=True)
+    success = await controller.moveTo(34.3)
+    print("Moving: %s, now at %f" % (str(success), controller.value), flush=True)
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(testComm())

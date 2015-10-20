@@ -17,21 +17,21 @@ _axisStatusRegExpression = re.compile(b'([0-9\\.]+) ([0-9\\.]+)=([0-9\\.x]+)')
 
 class AxisAtController(Manipulator):
     class StatusBits(enum.Enum):
-        NegativeLimitSwitch = 0x1,
-        ReferenceSwitch = 0x2,
-        PositiveLimitSwitch = 0x4,
+        NegativeLimitSwitch = 0x1
+        ReferenceSwitch = 0x2
+        PositiveLimitSwitch = 0x4
         # 0x8 not used
-        DigInput_1 = 0x10,
-        DigInput_2 = 0x20,
-        DigInput_3 = 0x40,
-        DigInput_4 = 0x80,
-        ErrorFlag = 0x100,
+        DigInput_1 = 0x10
+        DigInput_2 = 0x20
+        DigInput_3 = 0x40
+        DigInput_4 = 0x80
+        ErrorFlag = 0x100
         # 0x200 not used
         # 0x400 not used
         # 0x800 not used
-        ServoMode = 0x1000,
-        Moving = 0x2000,
-        Referencing = 0x4000,
+        ServoMode = 0x1000
+        Moving = 0x2000
+        Referencing = 0x4000
         OnTarget = 0x8000
 
     def __init__(self, connection = None, address = 1, axis = 1):
@@ -65,21 +65,25 @@ class AxisAtController(Manipulator):
             if (self.connection is None):
                 continue
 
-            ret = await self.send("SRG?", 1)
-            match = _axisStatusRegExpression.match(ret)
-            if not match:
-                raise Exception("Unexpected reply %s to status request!" %
-                                repr(ret))
+            await self.singleUpdate()
 
-            (axis, reg, val) = match.groups()
-            axis = int(axis)
-            reg = int(reg)
-            val = int(val, 16)
-            self._status = val
+    async def singleUpdate(self):
+        ret = await self.send("SRG?", 1)
+        match = _axisStatusRegExpression.match(ret)
+        if not match:
+            raise Exception("Unexpected reply %s to status request!" %
+                            repr(ret))
 
-            self._position = await self.send(b'POS?')
-            self._velocity = await self.send(b'VEL?')
-            self._isReferenced = bool(await self.send(b'FRF?'))
+        (axis, reg, val) = match.groups()
+        axis = int(axis)
+        reg = int(reg)
+        val = int(val, 16)
+        self._status = val
+
+        self._position = await self.send(b'POS?')
+        self._velocity = await self.send(b'VEL?')
+        self._isReferenced = bool(await self.send(b'FRF?'))
+
 
     async def send(self, command, *args, includeAxis=True):
         """ Send a command to the controller. The axis ID will automatically
@@ -154,22 +158,25 @@ class AxisAtController(Manipulator):
         self._velocity = await self.send(b'VEL?')
         self._isReferenced = bool(await self.send(b'FRF?'))
 
+        await self.send("RON", 1);
+        await self.send("SVO", 1);
+
     @property
     def isMoving(self):
-        return bool(self._status & self.StatusBits.Moving) or \
+        return bool(self._status & self.StatusBits.Moving.value) or \
                self.isReferencing
 
     @property
     def isServoOn(self):
-        return bool(self._status & self.StatusBits.ServoMode)
+        return bool(self._status & self.StatusBits.ServoMode.value)
 
     @property
     def isReferencing(self):
-        return bool(self._status & self.StatusBits.Referencing)
+        return bool(self._status & self.StatusBits.Referencing.value)
 
     @property
     def isOnTarget(self):
-        return bool(self._status & self.StatusBits.OnTarget)
+        return bool(self._status & self.StatusBits.OnTarget.value)
 
     @property
     def isReferenced(self):
@@ -189,6 +196,7 @@ class AxisAtController(Manipulator):
     async def moveTo(self, val):
         self._movementStopped = False
         await self.send("MOV", val)
+        await self.singleUpdate()
         while self.isMoving:
             await asyncio.sleep(0.25)
         return self.isOnTarget and not self._movementStopped
@@ -196,3 +204,10 @@ class AxisAtController(Manipulator):
     def stop(self):
         self._movementStopped = True
         asyncio.ensure_future(self.send("HLT"))
+
+    async def reference(self):
+        await self.send("FRF")
+        await self.singleUpdate()
+        while self.isReferencing:
+            await asyncio.sleep(0.25)
+        return self.isReferenced
