@@ -5,6 +5,7 @@ Created on Fri Oct 16 09:14:38 2015
 @author: Arno Rehn
 """
 
+import asyncio
 from common import ComponentBase
 from asyncioext.asyncserial import Serial
 
@@ -14,6 +15,7 @@ class Connection(ComponentBase):
         self.port = port
         self.baudRate = baudRate
         self.serial = Serial()
+        self._blocked = False
 
     def __del__(self):
         self.close()
@@ -42,28 +44,37 @@ class Connection(ComponentBase):
         *args : Arguments to the command.
         """
 
-        # convert `command` to a bytearray
-        if isinstance(command, str):
-            command = bytearray(command, 'ascii')
-        else:
-            command = bytearray(command)
+        while self._blocked:
+            await asyncio.sleep(0.01)
 
-        isRequest = command[-1] == ord(b'?')
+        self._blocked = True
 
-        for arg in args:
-            command += b' %a' % arg
+        try:
+            # convert `command` to a bytearray
+            if isinstance(command, str):
+                command = bytearray(command, 'ascii')
+            else:
+                command = bytearray(command)
 
-        command += b'\n'
+            isRequest = command[-1] == ord(b'?')
 
-        self.serial.write(command)
+            for arg in args:
+                command += b' %a' % arg
 
-        # no request -> no reply. just return.
-        if not isRequest:
-            return
+            command += b'\n'
 
-        # read reply. lines ending with ' \n' are part of a multiline reply.
-        replyLines = []
-        while len(replyLines) == 0 or replyLines[-1][-2:] == ' \n':
-            replyLines.append(await self.serial.async_readline())
+            self.serial.write(command)
 
-        return b''.join(replyLines)
+            # no request -> no reply. just return.
+            if not isRequest:
+                return
+
+            # read reply. lines ending with ' \n' are part of a multiline reply.
+            replyLines = []
+            while len(replyLines) == 0 or replyLines[-1][-2:] == ' \n':
+                replyLines.append(await self.serial.async_readline())
+
+            return b''.join(replyLines)
+
+        finally:
+            self._blocked = False
