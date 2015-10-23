@@ -92,9 +92,10 @@ class Manipulator(ComponentBase):
             waited += 0.1
 
         if (self.status != self.Status.TargetReached):
-            raise TimeoutException("Timed out after waiting %s seconds for "
-                                   "the manipulator %s to reach the target "
-                                   "value." % (str(timeout), str(self)))
+            raise asyncio.TimeoutError("Timed out after waiting %s seconds for"
+                                       " the manipulator %s to reach the "
+                                       "target value." %
+                                       (str(timeout), str(self)))
 
 
     async def beginScan(self, start, stop):

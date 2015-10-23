@@ -42,6 +42,8 @@ class AxisAtController(Manipulator):
         self._identification = None
         self._status = 0x0
         self._isReferenced = False
+        self._isMovingFuture = asyncio.Future()
+
         ensure_weakly_binding_future(self.updateStatus)
 
     def __del__(self):
@@ -83,7 +85,8 @@ class AxisAtController(Manipulator):
         self._position = await self.send(b'POS?')
         self._velocity = await self.send(b'VEL?')
         self._isReferenced = bool(await self.send(b'FRF?'))
-
+        if not self._isMovingFuture.done() and not self.isMoving:
+            self._isMovingFuture.set_result(self._movementStopped)
 
     async def send(self, command, *args, includeAxis=True):
         """ Send a command to the controller. The axis ID will automatically
@@ -196,9 +199,8 @@ class AxisAtController(Manipulator):
     async def moveTo(self, val):
         self._movementStopped = False
         await self.send("MOV", val)
-        await self.singleUpdate()
-        while self.isMoving:
-            await asyncio.sleep(0.25)
+        self._isMovingFuture = asyncio.Future()
+        await self._isMovingFuture
         return self.isOnTarget and not self._movementStopped
 
     def stop(self):
@@ -206,10 +208,10 @@ class AxisAtController(Manipulator):
         asyncio.ensure_future(self.send("HLT"))
 
     async def reference(self):
+        self._movementStopped = False
         await self.send("FRF")
-        await self.singleUpdate()
-        while self.isReferencing:
-            await asyncio.sleep(0.25)
+        self._isMovingFuture = asyncio.Future()
+        await self._isMovingFuture
         return self.isReferenced
 
     async def configureTrigger(self, step, start = None, stop = None,
