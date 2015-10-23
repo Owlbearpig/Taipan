@@ -211,3 +211,36 @@ class AxisAtController(Manipulator):
         while self.isReferencing:
             await asyncio.sleep(0.25)
         return self.isReferenced
+
+    async def configureTrigger(self, step, start = None, stop = None,
+                               triggerId = 1):
+        if start is None or stop is None:
+            raise Exception("The start and stop parameters are mandatory!")
+
+        # enable trig output on axis
+        await self.send(b"CTO", triggerId, 2, self.axis, includeAxis=False)
+
+        # set trig output to pos+offset mode
+        await self.send(b"CTO", triggerId, 3, 7, includeAxis=False)
+
+        # set trig distance to ``step``
+        await self.send(b"CTO", triggerId, 1, step, includeAxis=False)
+
+        # trigger start position
+        await self.send_param(b"CTO", triggerId, 10, start, includeAxis=False)
+
+        # trigger stop position
+        await self.send_param(b"CTO", triggerId, 9, stop, includeAxis=False)
+
+        # enable trigger output
+        await self.send(b"TRO", triggerId, 1, includeAxis=False)
+
+        # ask for the actually set start, stop and step parameters
+        self._trigStep = await self.send(b"CTO?", triggerId, 1,
+                                         includeAxis=False)
+        self._trigStart = await self.send(b"CTO?", triggerId, 10,
+                                          includeAxis=False)
+        self._trigStop = await self.send(b"CTO?", triggerId, 9,
+                                         includeAxis=False)
+
+        return self._trigStep, self._trigStart, self._trigStop
