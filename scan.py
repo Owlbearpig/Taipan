@@ -89,15 +89,3 @@ class Scan(DataSource):
             asyncio.ensure_future(self.manipulator.moveTo(realStart))
 
         return dataSet
-
-    def processAndAdvance(self):
-        pass
-
-    def setAxisOnDataSet(self):
-        pass
-
-    def accumulateCurrentDataPoint(self):
-        pass
-
-    def createDataSetForCurrentScan(self):
-        pass
