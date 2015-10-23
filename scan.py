@@ -5,6 +5,7 @@ Created on Wed Oct 14 11:18:53 2015
 @author: Arno Rehn
 """
 
+import asyncio
 from common import DataSource, DataSet
 import numpy as np
 
@@ -68,6 +69,7 @@ class Scan(DataSource):
 
     async def readDataSet(self):
         self.dataSource.stop()
+        await self.manipulator.waitForTargetReached()
 
         realStep, realStart, realStop = \
             await self.manipulator.configureTrigger(self.step,
@@ -84,7 +86,7 @@ class Scan(DataSource):
             dataSet = await self._doSteppedScan(axis)
 
         if self.retractAtEnd:
-            await self.manipulator.moveTo(realStart)
+            asyncio.ensure_future(self.manipulator.moveTo(realStart))
 
         return dataSet
 

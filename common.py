@@ -5,8 +5,12 @@ Created on Tue Oct 13 13:08:57 2015
 @author: Arno Rehn
 """
 
-import numpy as np
+import asyncio
 import enum
+import numpy as np
+
+class TimeoutException(Exception):
+    pass
 
 class ComponentBase:
     def saveConfiguration(self):
@@ -69,6 +73,30 @@ class Manipulator(ComponentBase):
     def status(self):
         return Manipulator.Status.Undefined
 
+    async def waitForTargetReached(self, timeout = 30):
+        """ Wait for the Manipulator's status to become ``TargetReached``.
+        Throws a TimeoutException if the method has been waiting for longer
+        than ``timeout`` seconds.
+
+        The default implementation simply polls the ``status`` property every
+        100 ms. Subclasses can implement a more efficient waiting method.
+
+        Parameters
+        ----------
+        timeout (numeric) : The time in seconds after which the method throws a
+        TimeoutException.
+        """
+        waited = 0
+        while self.status != self.Status.TargetReached and waited < timeout:
+            await asyncio.sleep(0.1)
+            waited += 0.1
+
+        if (self.status != self.Status.TargetReached):
+            raise TimeoutException("Timed out after waiting %s seconds for "
+                                   "the manipulator %s to reach the target "
+                                   "value." % (str(timeout), str(self)))
+
+
     async def beginScan(self, start, stop):
         """ Moves the manipulator to the starting value of a following
         continuous scan.
@@ -87,7 +115,7 @@ class Manipulator(ComponentBase):
         ----------
         start (numeric) : The initial value.
 
-        stop (numeric) : The final value. Used to determine direction of
+        stop (numeric) : The final value. Used to determine the direction of
         movement.
         """
         await self.moveTo(start)

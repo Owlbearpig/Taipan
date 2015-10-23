@@ -9,7 +9,9 @@ from common import DataSource, Manipulator, DataSet
 import numpy as np
 
 class DummyManipulator(Manipulator):
-    pass
+    @property
+    def status(self):
+        return self.Status.TargetReached
 
 class DummySimpleDataSource(DataSource):
     def __init__(self, init = 0):
