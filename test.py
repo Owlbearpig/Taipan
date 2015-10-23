@@ -38,4 +38,4 @@ async def testComm():
     print("Moving: %s, now at %f" % (str(success), controller.value), flush=True)
 
 loop = asyncio.get_event_loop()
-loop.run_until_complete(testComm())
+loop.run_until_complete(testRun())

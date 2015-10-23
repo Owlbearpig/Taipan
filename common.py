@@ -47,29 +47,13 @@ class DataSink(ComponentBase):
 class Manipulator(ComponentBase):
     def __init__(self):
         super().__init__()
-        self._minimumValue = 0
-        self._maximumValue = 0
-        self._step = 0
+        self._trigStart = None
+        self._trigStop = None
+        self._trigStep = 0
 
     @property
     def unit(self):
         return None
-
-    @property
-    def minimumValue(self):
-        return self._minimumValue
-
-    @minimumValue.setter
-    def minimumValue(self, val):
-        self._minimumValue = val
-
-    @property
-    def maximumValue(self):
-        return self._maximumValue
-
-    @maximumValue.setter
-    def maximumValue(self, val):
-        self._maximumValue = val
 
     @property
     def value(self):
@@ -85,39 +69,73 @@ class Manipulator(ComponentBase):
     def status(self):
         return Manipulator.Status.Undefined
 
-    async def beginScan(self, minimumValue):
+    async def beginScan(self, start, stop):
         """ Moves the manipulator to the starting value of a following
         continuous scan.
 
         Typically, this will only need to be re-implemented by manipulators
-        emitting trigger signals: If `minimumValue` coincides with a trigger
+        emitting trigger signals: If `start` coincides with a trigger
         position, the initial trigger pulse might not be emitted at all
-        if movement started at exactly `minimumValue`.
+        if movement started at exactly `start`.
         Hence, this method should move the manipulator slightly in front of
-        `minimumValue` so that the first trigger actually corresponds to
-        `minimumValue`.
+        `start` so that the first trigger actually corresponds to
+        `start`.
 
-        The default implementation simply awaits ``moveTo(minimumValue)``.
+        The default implementation simply awaits ``moveTo(start)``.
 
         Parameters
         ----------
-        minimumValue (numeric) : The initial position.
+        start (numeric) : The initial value.
+
+        stop (numeric) : The final value. Used to determine direction of
+        movement.
         """
-        await self.moveTo(minimumValue)
+        await self.moveTo(start)
 
     async def moveTo(self, val):
         pass
 
-    def stop():
-        pass
+    async def configureTrigger(self, step, start = None, stop = None):
+        """ Configure the trigger output.
+
+        Paramters
+        ---------
+        step (numeric) : The trigger distance.
+
+        start (numeric, optional) : The trigger start value.
+
+        stop (numeric, optional) : The trigger stop value.
+
+        Returns
+        -------
+        tuple(triggerStep, triggerStart, triggerStop) : The effectively set
+        trigger parameters
+        """
+        self._trigStep = step
+        self._trigStart = start
+        self._trigStop = stop
+        return (self._trigStep, self._trigStart, self._trigStop)
 
     @property
-    def step(self):
-        return self._step
+    def triggerStart(self):
+        """ The trigger start value.
+        """
+        return self._trigStart
 
-    @step.setter
-    def step(self, val):
-        self._step = val
+    @property
+    def triggerStop(self):
+        """ The trigger stop value.
+        """
+        return self._trigStop
+
+    @property
+    def triggerStep(self):
+        """ The trigger distance.
+        """
+        return self._trigStep
+
+    def stop():
+        pass
 
 class PostProcessor(DataSource, DataSink):
     def __init__(self):

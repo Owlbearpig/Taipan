@@ -22,9 +22,9 @@ class Scan(DataSource):
         self.retractAtEnd = False
 
     async def _doContinuousScan(self, axis):
-        await self.manipulator.beginScan(self.minimumValue)
+        await self.manipulator.beginScan(axis[0], axis[-1])
         self.dataSource.start()
-        await self.manipulator.moveTo(self.maximumValue)
+        await self.manipulator.moveTo(axis[-1])
         self.dataSource.stop()
 
         dataSet = await self.dataSource.readDataSet()
@@ -68,9 +68,13 @@ class Scan(DataSource):
 
     async def readDataSet(self):
         self.dataSource.stop()
-        self.manipulator.step = self.step
 
-        axis = np.arange(self.minimumValue, self.maximumValue, self.step)
+        realStep, realStart, realStop = \
+            await self.manipulator.configureTrigger(self.step,
+                                                    self.minimumValue,
+                                                    self.maximumValue)
+
+        axis = np.arange(realStart, realStop, realStep)
 
         dataSet = None
 
@@ -80,7 +84,7 @@ class Scan(DataSource):
             dataSet = await self._doSteppedScan(axis)
 
         if self.retractAtEnd:
-            await self.manipulator.moveTo(self.minimumValue)
+            await self.manipulator.moveTo(realStart)
 
         return dataSet
 
