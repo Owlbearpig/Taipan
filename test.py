@@ -11,6 +11,8 @@ from dummy import DummyManipulator, DummySimpleDataSource, \
 import numpy as np
 import asyncio
 from stages import PI
+import time
+from asyncioext import threaded_async
 
 async def testRun():
     manip = DummyManipulator()
@@ -37,5 +39,19 @@ async def testComm():
     success = await controller.moveTo(34.3)
     print("Moving: %s, now at %f" % (str(success), controller.value), flush=True)
 
+async def doSomething():
+    await asyncio.sleep(0.5)
+    print("done something!", flush=True)
+
+@threaded_async
+def testExecutor(s):
+    time.sleep(2)
+    print("hello" + s, flush=True)
+
+async def wait_secs(n):
+    await asyncio.sleep(n)
+
 loop = asyncio.get_event_loop()
-loop.run_until_complete(testRun())
+asyncio.ensure_future(doSomething())
+asyncio.ensure_future(testExecutor(" WORLD!"))
+loop.run_until_complete(wait_secs(3))
