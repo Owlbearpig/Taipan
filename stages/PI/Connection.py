@@ -15,7 +15,8 @@ class Connection(ComponentBase):
         self.port = port
         self.baudRate = baudRate
         self.serial = Serial()
-        self._blocked = False
+        self._lock = asyncio.Lock()
+        self._lock.__aenter__
 
     def __del__(self):
         self.close()
@@ -44,12 +45,7 @@ class Connection(ComponentBase):
         *args : Arguments to the command.
         """
 
-        while self._blocked:
-            await asyncio.sleep(0.01)
-
-        self._blocked = True
-
-        try:
+        async with self._lock:
             # convert `command` to a bytearray
             if isinstance(command, str):
                 command = bytearray(command, 'ascii')
@@ -75,6 +71,3 @@ class Connection(ComponentBase):
                 replyLines.append(await self.serial.async_readline())
 
             return b''.join(replyLines)
-
-        finally:
-            self._blocked = False
