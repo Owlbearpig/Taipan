@@ -32,6 +32,7 @@ else:
 def _find_listeners():
     """Find GPIB listeners.
     """
+    oldTimeout = gpib_prologix_device.timeout
     gpib_prologix_device.timeout = 0.015
     gpib_prologix_device.write(b'++read_tmo_ms 10\n')
     for i in range(31):
@@ -39,14 +40,20 @@ def _find_listeners():
         result = gpib_prologix_device.readline()
         if (result):
             yield i
+    gpib_prologix_device.timeout = oldTimeout
 
 StatusCode = constants.StatusCode
 SUCCESS = StatusCode.success
 
 @Session.register(constants.InterfaceType.gpib, 'INSTR')
 class GPIBSession(Session):
-    """A GPIB Session that uses linux-gpib to do the low level communication.
+    """A GPIB Session that uses the Prologix-GPIB adapters to do the low level communication.
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._termchar = None
+        self._termchar_en = False
 
     @staticmethod
     def list_resources():
@@ -55,83 +62,98 @@ class GPIBSession(Session):
     @classmethod
     def get_low_level_info(cls):
         gpib_prologix_device.write(b'++ver\n')
+        gpib_prologix_device.write(b'++read eoi\n')
         ver = gpib_prologix_device.readline().strip().decode('ascii')
 
         return 'via %s' % ver
 
     def after_parsing(self):
-        minor = self.parsed.board
-        pad = self.parsed.primary_address
-        self.handle = gpib.dev(int(minor), int(pad))
-        self.interface = Gpib(self.handle)
+        pass
 
     @property
     def timeout(self):
-        gpib_prologix_device.write('++read_tmo_ms\n')
-        return float(gpib_prologix_device.readline().strip()) * 1e-3
+        return gpib_prologix_device.timeout * 1e3
 
     @timeout.setter
     def timeout(self, value):
-        if 0.001 <= value <= 3000:
-            gpib_prologix_device.write('++read_tmo_ms %d\n' % int(value * 1e3))
-        else:
-            raise Exception("Valid timeout values are only 1 .. 3000 ms")
+        if value < 1 or value > 3334:
+            raise Exception("Valid timeout values are only 2 .. 3334 ms")
+
+        gpib_prologix_device.timeout = value * 1e-3
+        gpib_prologix_device.write(b'++read_tmo_ms %d\n' % int(value * 0.9))
+        print("timeout is now %r" % gpib_prologix_device.timeout)
 
     def close(self):
         pass
-#
-#    def read(self, count):
-#        """Reads data from device or interface synchronously.
-#
-#        Corresponds to viRead function of the VISA library.
-#
-#        :param count: Number of bytes to be read.
-#        :return: data read, return value of the library call.
-#        :rtype: bytes, constants.StatusCode
-#        """
-#
-#        # 0x2000 = 8192 = END
-#        checker = lambda current: self.interface.ibsta() & 8192
-#
-#        reader = lambda: self.interface.read(1)
-#
-#        return self._read(reader, count, checker, False, None, False, gpib.GpibError)
-#
-#    def write(self, data):
-#        """Writes data to device or interface synchronously.
-#
-#        Corresponds to viWrite function of the VISA library.
-#
-#        :param data: data to be written.
-#        :type data: bytes
-#        :return: Number of bytes actually transferred, return value of the library call.
-#        :rtype: int, VISAStatus
-#        """
-#
-#        logger.debug('GPIB.write %r' % data)
-#
-#        try:
-#            self.interface.write(data)
-#
-#            return SUCCESS
-#
-#        except gpib.GpibError:
-#            # 0x4000 = 16384 = TIMO
-#            if self.interface.ibsta() & 16384:
-#                return 0, StatusCode.error_timeout
-#            else:
-#                return 0, StatusCode.error_system_error
-#
-#    def _get_attribute(self, attribute):
-#        """Get the value for a given VISA attribute for this session.
-#
-#        Use to implement custom logic for attributes.
-#
-#        :param attribute: Resource attribute for which the state query is made
-#        :return: The state of the queried attribute for a specified resource, return value of the library call.
-#        :rtype: (unicode | str | list | int, VISAStatus)
-#        """
-#
+
+    def read(self, count):
+        """Reads data from device or interface synchronously.
+
+        Corresponds to viRead function of the VISA library.
+
+        :param count: Number of bytes to be read.
+        :return: data read, return value of the library call.
+        :rtype: bytes, constants.StatusCode
+        """
+
+        gpib_prologix_device.write(b"++read eoi\n")
+
+        # shortcut for reading without termination character
+        if not self._termchar_en:
+            out = gpib_prologix_device.read(count)
+            status = constants.StatusCode.error_timeout if len(out) < count \
+                     else constants.StatusCode.success_max_count_read
+            return out, status
+
+        out = b''
+
+        while True:
+            current = gpib_prologix_device.read(1)
+            if not current:
+                break
+
+            out += current
+            if self._termchar_en and self._termchar == current:
+                return (out,
+                       constants.StatusCode.success_termination_character_read)
+            elif len(out) >= count:
+                return (out,
+                       constants.StatusCode.success_max_count_read)
+
+        return out, constants.StatusCode.error_timeout
+
+    def write(self, data):
+        """Writes data to device or interface synchronously.
+
+        Corresponds to viWrite function of the VISA library.
+
+        :param data: data to be written.
+        :type data: bytes
+        :return: Number of bytes actually transferred, return value of the library call.
+        :rtype: int, VISAStatus
+        """
+
+        logger.debug('Prologix-GPIB.write %r' % data)
+        gpib_prologix_device.write(data)
+
+        return SUCCESS
+
+    def _get_attribute(self, attribute):
+        """Get the value for a given VISA attribute for this session.
+
+        Use to implement custom logic for attributes.
+
+        :param attribute: Resource attribute for which the state query is made
+        :return: The state of the queried attribute for a specified resource, return value of the library call.
+        :rtype: (unicode | str | list | int, VISAStatus)
+        """
+
+        if attribute == constants.VI_ATTR_TERMCHAR:
+            return ord(self._termchar), SUCCESS
+
+        elif attribute == constants.VI_ATTR_TERMCHAR_EN:
+            return type(constants.VI_TRUE)(self._termchar_en), SUCCESS
+
 #        if attribute == constants.VI_ATTR_GPIB_READDR_EN:
 #            # IbaREADDR 0x6
 #            # Setting has no effect in linux-gpib.
@@ -174,20 +196,28 @@ class GPIBSession(Session):
 #
 #        elif attribute == constants.VI_ATTR_INTF_TYPE:
 #            return constants.InterfaceType.gpib, SUCCESS
-#
-#        raise UnknownAttribute(attribute)
-#
-#    def _set_attribute(self, attribute, attribute_state):
-#        """Sets the state of an attribute.
-#
-#        Corresponds to viSetAttribute function of the VISA library.
-#
-#        :param attribute: Attribute for which the state is to be modified. (Attributes.*)
-#        :param attribute_state: The state of the attribute to be set for the specified object.
-#        :return: return value of the library call.
-#        :rtype: VISAStatus
-#        """
-#
+
+        raise UnknownAttribute(attribute)
+
+    def _set_attribute(self, attribute, attribute_state):
+        """Sets the state of an attribute.
+
+        Corresponds to viSetAttribute function of the VISA library.
+
+        :param attribute: Attribute for which the state is to be modified. (Attributes.*)
+        :param attribute_state: The state of the attribute to be set for the specified object.
+        :return: return value of the library call.
+        :rtype: VISAStatus
+        """
+
+        if attribute == constants.VI_ATTR_TERMCHAR:
+            self._termchar = chr(attribute_state).encode('ascii')
+            return SUCCESS
+
+        elif attribute == constants.VI_ATTR_TERMCHAR_EN:
+            self._termchar_en = bool(attribute_state)
+            return SUCCESS
+
 #        if attribute == constants.VI_ATTR_GPIB_READDR_EN:
 #            # IbcREADDR 0x6
 #            # Setting has no effect in linux-gpib.
@@ -232,6 +262,5 @@ class GPIBSession(Session):
 #                return SUCCESS
 #            else:
 #                return StatusCode.error_nonsupported_attribute_state
-#
-#        raise UnknownAttribute(attribute)
 
+        raise UnknownAttribute(attribute)
