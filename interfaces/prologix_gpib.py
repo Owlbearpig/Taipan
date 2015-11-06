@@ -32,18 +32,28 @@ else:
 def _find_listeners():
     """Find GPIB listeners.
     """
-    oldTimeout = gpib_prologix_device.timeout
-    gpib_prologix_device.timeout = 0.015
-    gpib_prologix_device.write(b'++read_tmo_ms 10\n')
+    setTimeout(20)
     for i in range(31):
         gpib_prologix_device.write(b'++spoll %d\n' % i)
         result = gpib_prologix_device.readline()
         if (result):
             yield i
-    gpib_prologix_device.timeout = oldTimeout
 
 StatusCode = constants.StatusCode
 SUCCESS = StatusCode.success
+
+_currentAddress = 0
+
+def setTimeout(timeout):
+    if gpib_prologix_device.timeout != timeout * 1e-3:
+        gpib_prologix_device.timeout = timeout * 1e-3
+        gpib_prologix_device.write(b'++read_tmo_ms %d\n' % int(timeout * 0.8))
+
+def setAddress(address):
+    global _currentAddress
+    if _currentAddress != address:
+        _currentAddress = address
+        gpib_prologix_device.write(b'++addr %d\n' % address)
 
 @Session.register(constants.InterfaceType.gpib, 'INSTR')
 class GPIBSession(Session):
@@ -54,6 +64,9 @@ class GPIBSession(Session):
         super().__init__(*args, **kwargs)
         self._termchar = None
         self._termchar_en = False
+        self._timeout = 0.015
+        self._pad = 0
+        self._sad = 0
 
     @staticmethod
     def list_resources():
@@ -62,26 +75,22 @@ class GPIBSession(Session):
     @classmethod
     def get_low_level_info(cls):
         gpib_prologix_device.write(b'++ver\n')
-        gpib_prologix_device.write(b'++read eoi\n')
         ver = gpib_prologix_device.readline().strip().decode('ascii')
-
         return 'via %s' % ver
 
     def after_parsing(self):
-        pass
+        self._pad = self.parsed.primary_address
 
     @property
     def timeout(self):
-        return gpib_prologix_device.timeout * 1e3
+        return self._timeout
 
     @timeout.setter
     def timeout(self, value):
-        if value < 1 or value > 3334:
-            raise Exception("Valid timeout values are only 2 .. 3334 ms")
+        if value < 2 or value > 3750:
+            raise Exception("Valid timeout values are only 2 .. 3750 ms")
 
-        gpib_prologix_device.timeout = value * 1e-3
-        gpib_prologix_device.write(b'++read_tmo_ms %d\n' % int(value * 0.9))
-        print("timeout is now %r" % gpib_prologix_device.timeout)
+        self._timeout = value
 
     def close(self):
         pass
@@ -95,6 +104,9 @@ class GPIBSession(Session):
         :return: data read, return value of the library call.
         :rtype: bytes, constants.StatusCode
         """
+
+        setTimeout(self._timeout)
+        setAddress(self._pad)
 
         gpib_prologix_device.write(b"++read eoi\n")
 
@@ -132,6 +144,9 @@ class GPIBSession(Session):
         :return: Number of bytes actually transferred, return value of the library call.
         :rtype: int, VISAStatus
         """
+
+        setTimeout(self._timeout)
+        setAddress(self._pad)
 
         logger.debug('Prologix-GPIB.write %r' % data)
         gpib_prologix_device.write(data)
