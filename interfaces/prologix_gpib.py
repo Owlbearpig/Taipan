@@ -33,6 +33,7 @@ def _find_listeners():
     """Find GPIB listeners.
     """
     setTimeout(20)
+    gpib_prologix_device.write(b'++read_tmo_ms %d\n' % 15)
     for i in range(31):
         gpib_prologix_device.write(b'++spoll %d\n' % i)
         result = gpib_prologix_device.readline()
@@ -47,7 +48,6 @@ _currentAddress = 0
 def setTimeout(timeout):
     if gpib_prologix_device.timeout != timeout * 1e-3:
         gpib_prologix_device.timeout = timeout * 1e-3
-        gpib_prologix_device.write(b'++read_tmo_ms %d\n' % int(timeout * 0.8))
 
 def setAddress(address):
     global _currentAddress
@@ -87,9 +87,6 @@ class GPIBSession(Session):
 
     @timeout.setter
     def timeout(self, value):
-        if value < 2 or value > 3750:
-            raise Exception("Valid timeout values are only 2 .. 3750 ms")
-
         self._timeout = value
 
     def close(self):
@@ -108,31 +105,34 @@ class GPIBSession(Session):
         setTimeout(self._timeout)
         setAddress(self._pad)
 
-        gpib_prologix_device.write(b"++read eoi\n")
+        gpib_prologix_device.write(b"++auto 1\n")
 
-        # shortcut for reading without termination character
-        if not self._termchar_en:
-            out = gpib_prologix_device.read(count)
-            status = constants.StatusCode.error_timeout if len(out) < count \
-                     else constants.StatusCode.success_max_count_read
-            return out, status
+        try:
+            # shortcut for reading without termination character
+            if not self._termchar_en:
+                out = gpib_prologix_device.read(count)
+                status = constants.StatusCode.error_timeout if len(out) < count \
+                         else constants.StatusCode.success_max_count_read
+                return out, status
 
-        out = b''
+            out = b''
 
-        while True:
-            current = gpib_prologix_device.read(1)
-            if not current:
-                break
+            while True:
+                current = gpib_prologix_device.read(1)
+                if not current:
+                    break
 
-            out += current
-            if self._termchar_en and self._termchar == current:
-                return (out,
-                       constants.StatusCode.success_termination_character_read)
-            elif len(out) >= count:
-                return (out,
-                       constants.StatusCode.success_max_count_read)
+                out += current
+                if self._termchar_en and self._termchar == current:
+                    return (out,
+                           constants.StatusCode.success_termination_character_read)
+                elif len(out) >= count:
+                    return (out,
+                           constants.StatusCode.success_max_count_read)
 
-        return out, constants.StatusCode.error_timeout
+            return out, constants.StatusCode.error_timeout
+        finally:
+            gpib_prologix_device.write(b"++auto 0\n")
 
     def write(self, data):
         """Writes data to device or interface synchronously.
@@ -174,9 +174,8 @@ class GPIBSession(Session):
 #            # Setting has no effect in linux-gpib.
 #            return self.interface.ask(6), SUCCESS
 #
-#        elif attribute == constants.VI_ATTR_GPIB_PRIMARY_ADDR:
-#            # IbaPAD 0x1
-#            return self.interface.ask(1), SUCCESS
+        elif attribute == constants.VI_ATTR_GPIB_PRIMARY_ADDR:
+            return self._pad, SUCCESS
 #
 #        elif attribute == constants.VI_ATTR_GPIB_SECONDARY_ADDR:
 #            # IbaSAD 0x2
@@ -242,13 +241,13 @@ class GPIBSession(Session):
 #            else:
 #                return StatusCode.error_nonsupported_attribute_state
 #
-#        elif attribute == constants.VI_ATTR_GPIB_PRIMARY_ADDR:
-#            # IbcPAD 0x1
-#            if isinstance(attribute_state, int) and 0 <= attribute_state <= 30:
-#                self.interface.config(1, attribute_state)
-#                return SUCCESS
-#            else:
-#                return StatusCode.error_nonsupported_attribute_state
+        elif attribute == constants.VI_ATTR_GPIB_PRIMARY_ADDR:
+            # IbcPAD 0x1
+            if isinstance(attribute_state, int) and 0 <= attribute_state <= 30:
+                self._pad = attribute_state
+                return SUCCESS
+            else:
+                return StatusCode.error_nonsupported_attribute_state
 #
 #        elif attribute == constants.VI_ATTR_GPIB_SECONDARY_ADDR:
 #            # IbcSAD 0x2
