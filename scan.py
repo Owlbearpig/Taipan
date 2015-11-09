@@ -10,12 +10,11 @@ from common import DataSource, DataSet
 import numpy as np
 
 class Scan(DataSource):
-    def __init__(self, manipulator = None, dataSource = None, dim = 0, \
+    def __init__(self, manipulator = None, dataSource = None,
                  minimumValue = 0, maximumValue = 0, step = 0):
         super().__init__()
         self.manipulator = manipulator
         self.dataSource = dataSource
-        self.dim = dim
         self.minimumValue = minimumValue
         self.maximumValue = maximumValue
         self.step = step
@@ -71,8 +70,13 @@ class Scan(DataSource):
         self.dataSource.stop()
         await self.manipulator.waitForTargetReached()
 
+        # ensure correct step sign
+        theStep = abs(self.step)
+        if (self.maximumValue < self.minimumValue):
+            theStep = -theStep
+
         realStep, realStart, realStop = \
-            await self.manipulator.configureTrigger(self.step,
+            await self.manipulator.configureTrigger(theStep,
                                                     self.minimumValue,
                                                     self.maximumValue)
 
