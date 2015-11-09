@@ -203,6 +203,13 @@ class AxisAtController(Manipulator):
         await self._isMovingFuture
         return self.isOnTarget and not self._movementStopped
 
+    # 1.5 mm buffer for acceleration and proper trigger position
+    async def beginScan(self, start, stop):
+        if stop > start:
+            await self.moveTo(start - 1.5)
+        else:
+            await self.moveTo(start + 1.5)
+
     def stop(self):
         self._movementStopped = True
         asyncio.ensure_future(self.send("HLT"))
