@@ -10,6 +10,7 @@ from common import DataSource, DataSet
 from asyncioext import threaded_async
 from pyvisa import constants
 import struct
+import enum
 
 class SR830(DataSource):
     def __init__(self, resource):
@@ -20,6 +21,31 @@ class SR830(DataSource):
 
     def identification(self):
         return self.resource.query('*IDN?')
+
+    class SampleRate(enum.Enum):
+        Rate_62_5_mHz = 0
+        Rate_125_mHz = 1
+        Rate_250_mHz = 2
+        Rate_500_mHz = 3
+        Rate_1_Hz = 4
+        Rate_2_Hz = 5
+        Rate_4_Hz = 6
+        Rate_8_Hz = 7
+        Rate_16_Hz = 8
+        Rate_32_Hz = 9
+        Rate_64_Hz = 10
+        Rate_128_Hz = 11
+        Rate_256_Hz = 12
+        Rate_512_Hz = 13
+        Trigger = 14
+
+    def setSampleRate(self, rate):
+        self.resource.write('SRAT %d' % rate.value)
+
+    @threaded_async
+    def getSampleRate(self):
+        val = int(self.resource.query('SRAT?'))
+        return [ item for item in SR830.SampleRate if item.value == val ][0]
 
     def start(self):
         self.resource.write('REST')

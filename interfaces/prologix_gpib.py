@@ -21,14 +21,7 @@ _pyvisa_py_sessions = importlib.import_module('pyvisa-py.sessions')
 Session = _pyvisa_py_sessions.Session
 UnknownAttribute = _pyvisa_py_sessions.UnknownAttribute
 
-from serial import Serial
-
-if not 'gpib_prologix_device' in globals():
-    gpib_prologix_device = Serial('/tmp/sr830', baudrate=115200, timeout=0.015)
-#    print('opened device: %s' % str(gpib_prologix_device))
-else:
-    pass
-#    print('re-using existing device: %s' % str(gpib_prologix_device))
+gpib_prologix_device = None
 
 def _find_listeners():
     """Find GPIB listeners.
