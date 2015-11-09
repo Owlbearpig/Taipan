@@ -11,6 +11,7 @@
 """
 
 from __future__ import division, unicode_literals, print_function, absolute_import
+from threading import Lock
 from bisect import bisect
 
 from pyvisa import constants, logger
@@ -67,6 +68,7 @@ class GPIBSession(Session):
         self._timeout = 0.015
         self._pad = 0
         self._sad = 0
+        self._lock = Lock()
 
     @staticmethod
     def list_resources():
@@ -102,37 +104,38 @@ class GPIBSession(Session):
         :rtype: bytes, constants.StatusCode
         """
 
-        setTimeout(self._timeout)
-        setAddress(self._pad)
+        with self._lock:
+            setTimeout(self._timeout)
+            setAddress(self._pad)
 
-        gpib_prologix_device.write(b"++auto 1\n")
+            gpib_prologix_device.write(b"++auto 1\n")
 
-        try:
-            # shortcut for reading without termination character
-            if not self._termchar_en:
-                out = gpib_prologix_device.read(count)
-                status = constants.StatusCode.error_timeout if len(out) < count \
-                         else constants.StatusCode.success_max_count_read
-                return out, status
+            try:
+                # shortcut for reading without termination character
+                if not self._termchar_en:
+                    out = gpib_prologix_device.read(count)
+                    status = constants.StatusCode.error_timeout if len(out) < count \
+                             else constants.StatusCode.success_max_count_read
+                    return out, status
 
-            out = b''
+                out = b''
 
-            while True:
-                current = gpib_prologix_device.read(1)
-                if not current:
-                    break
+                while True:
+                    current = gpib_prologix_device.read(1)
+                    if not current:
+                        break
 
-                out += current
-                if self._termchar_en and self._termchar == current:
-                    return (out,
-                           constants.StatusCode.success_termination_character_read)
-                elif len(out) >= count:
-                    return (out,
-                           constants.StatusCode.success_max_count_read)
+                    out += current
+                    if self._termchar_en and self._termchar == current:
+                        return (out,
+                               constants.StatusCode.success_termination_character_read)
+                    elif len(out) >= count:
+                        return (out,
+                               constants.StatusCode.success_max_count_read)
 
-            return out, constants.StatusCode.error_timeout
-        finally:
-            gpib_prologix_device.write(b"++auto 0\n")
+                return out, constants.StatusCode.error_timeout
+            finally:
+                gpib_prologix_device.write(b"++auto 0\n")
 
     def write(self, data):
         """Writes data to device or interface synchronously.
@@ -145,13 +148,14 @@ class GPIBSession(Session):
         :rtype: int, VISAStatus
         """
 
-        setTimeout(self._timeout)
-        setAddress(self._pad)
+        with self._lock:
+            setTimeout(self._timeout)
+            setAddress(self._pad)
 
-        logger.debug('Prologix-GPIB.write %r' % data)
-        gpib_prologix_device.write(data)
+            logger.debug('Prologix-GPIB.write %r' % data)
+            gpib_prologix_device.write(data)
 
-        return SUCCESS
+            return SUCCESS
 
     def _get_attribute(self, attribute):
         """Get the value for a given VISA attribute for this session.
