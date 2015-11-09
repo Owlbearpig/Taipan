@@ -16,7 +16,6 @@ class Connection(ComponentBase):
         self.baudRate = baudRate
         self.serial = Serial()
         self._lock = asyncio.Lock()
-        self._lock.__aenter__
 
     def __del__(self):
         self.close()
