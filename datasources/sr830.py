@@ -69,6 +69,8 @@ class SR830(DataSource):
     @threaded_async
     def readData(self):
         nPts = int(self.resource.query('SPTS?'))
+        if nPts == 0:
+            return []
         self.resource.write('TRCL? 1,0,%d' % nPts)
         data, s = self._readExactly(nPts * 4)
         if s != constants.StatusCode.success_max_count_read:
