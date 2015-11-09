@@ -37,11 +37,14 @@ class SR830(DataSource):
             ret.append(m * 2**(exp - 124))
         return ret
 
+    def _readExactly(self, size):
+        return self.resource.visalib.read(self.resource.session, size)
+
     @threaded_async
     def readData(self):
         nPts = int(self.resource.query('SPTS?'))
         self.resource.write('TRCL? 1,0,%d' % nPts)
-        data, s = self.resource.visalib.read(self.resource.session, nPts * 4)
+        data, s = self._readExactly(nPts * 4)
         if s != constants.StatusCode.success_max_count_read:
             raise Exception("Failed to read complete data set!")
         return SR830._internal2float(data)
