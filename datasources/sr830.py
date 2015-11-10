@@ -19,6 +19,7 @@ class SR830(DataSource):
         self.resource.timeout = 150
         self.resource.read_termination = '\n'
 
+    @property
     def identification(self):
         return self.resource.query('*IDN?')
 
