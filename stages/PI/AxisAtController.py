@@ -11,9 +11,9 @@ import asyncio
 import re
 import enum
 
-_replyExpression = re.compile(b'([0-9]+) ([0-9]+) (.*)')
-_axisValueExpression = re.compile(b'([0-9\\.]+)=([0-9\\.\\-]+)')
-_axisStatusRegExpression = re.compile(b'([0-9\\.]+) ([0-9\\.]+)=([0-9\\.x]+)')
+_replyExpression = re.compile(br'([0-9]+) ([0-9]+) (.*)')
+_axisValueExpression = re.compile(br'([0-9]+)=([0-9\.\-]+)')
+_axisStatusRegExpression = re.compile(br'([0-9]+) ([0-9]+)=([0-9a-fA-Fx]+)')
 
 class AxisAtController(Manipulator):
     class StatusBits(enum.Enum):
