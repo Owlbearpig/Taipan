@@ -12,7 +12,7 @@ import re
 import enum
 
 _replyExpression = re.compile(b'([0-9]+) ([0-9]+) (.*)')
-_axisValueExpression = re.compile(b'([0-9\\.]+)=([0-9\\.]+)')
+_axisValueExpression = re.compile(b'([0-9\\.]+)=([0-9\\.\\-]+)')
 _axisStatusRegExpression = re.compile(b'([0-9\\.]+) ([0-9\\.]+)=([0-9\\.x]+)')
 
 class AxisAtController(Manipulator):
@@ -43,6 +43,7 @@ class AxisAtController(Manipulator):
         self._status = 0x0
         self._isReferenced = False
         self._isMovingFuture = asyncio.Future()
+        self._movementStopped = True
 
         ensure_weakly_binding_future(self.updateStatus)
 
@@ -59,7 +60,6 @@ class AxisAtController(Manipulator):
             raise Exception("Unhandled error code %d on PI Controller %s "
                             "(axis %d)" %
                             (errorCode, self._identification, self.axis))
-
     async def updateStatus(self):
         while True:
             await asyncio.sleep(0.5)
