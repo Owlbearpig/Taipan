@@ -236,10 +236,10 @@ class AxisAtController(Manipulator):
         await self.send(b"CTO", triggerId, 1, step, includeAxis=False)
 
         # trigger start position
-        await self.send_param(b"CTO", triggerId, 10, start, includeAxis=False)
+        await self.send(b"CTO", triggerId, 10, start, includeAxis=False)
 
         # trigger stop position
-        await self.send_param(b"CTO", triggerId, 9, stop, includeAxis=False)
+        await self.send(b"CTO", triggerId, 9, stop, includeAxis=False)
 
         # enable trigger output
         await self.send(b"TRO", triggerId, 1, includeAxis=False)
