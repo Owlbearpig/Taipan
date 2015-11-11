@@ -65,20 +65,28 @@ class SR830(DataSource):
         return ret
 
     def _readExactly(self, size):
-        return self.resource.visalib.read(self.resource.session, size)
+        self.resource.read_termination = None
+        data = self.resource.visalib.read(self.resource.session, size)
+        self.resource.read_termination = '\n'
+        return data
+
+    @threaded_async
+    def dataPointCount(self):
+        return int(self.resource.query('SPTS?'))
 
     @threaded_async
     def readData(self):
         nPts = int(self.resource.query('SPTS?'))
+        print("reading %d points" % nPts)
         if nPts == 0:
             return []
-        self.resource.write('TRCL? 1,0,%d' % nPts)
+        self.resource.write('TRCL? 0,%d' % nPts)
         data, s = self._readExactly(nPts * 4)
         if s != constants.StatusCode.success_max_count_read:
-            raise Exception("Failed to read complete data set!")
+            raise Exception("Failed to read complete data set! Got %d bytes, expected %d." % (len(data), nPts * 4))
         return SR830._internal2float(data)
 
     async def readDataSet(self):
         data = np.array(await self.readData())
-        dataSet = DataSet(data, np.arange(0, len(data)))
+        dataSet = DataSet(data, [ np.arange(0, len(data)) ])
         return dataSet
