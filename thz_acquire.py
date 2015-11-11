@@ -11,10 +11,13 @@ from serial import Serial
 from datasources import SR830
 import asyncio
 from stages import PI
+from scan import Scan
 
-import asyncioext
+import matplotlib
+matplotlib.use('Qt4Agg')
+import matplotlib.pyplot as plt
 
-prologix_gpib.gpib_prologix_device = Serial('/tmp/sr830', baudrate=115200, timeout = 0.150)
+prologix_gpib.gpib_prologix_device = Serial('/tmp/sr830', baudrate=115200, timeout = 0.15)
 
 rm = visa.ResourceManager('@py')
 
@@ -27,6 +30,8 @@ async def setup():
 
     sr830 = SR830(rm.open_resource('GPIB0::10::INSTR'))
     print(sr830.identification)
+    sr830.setSampleRate(SR830.SampleRate.Trigger)
+    print(await sr830.getSampleRate())
 
     conn = PI.Connection(baudRate = 9600)
     conn.port = '/tmp/pistage'
@@ -35,20 +40,28 @@ async def setup():
     controller = PI.AxisAtController(conn)
     await controller.initialize()
     print("PI Controller is: %s" % controller._identification, flush=True)
-    print("PI position: %s" % str(controller.value))
+
+async def printStatus():
+    while True:
+        print("PI position: %s" % str(controller.value))
+        await asyncio.sleep(1)
 
 async def run():
     await setup()
 
-    realVals = await controller.configureTrigger(0.1, 10, 20)
-    print(realVals)
+    def ps2mm(ps):
+        c0 = 299792458.0
+        return c0 * ps * 1e-12 * 1e3 / 2
+
+    scan = Scan(manipulator = controller, dataSource = sr830)
+    scan.continuousScan = True
+    scan.minimumValue = ps2mm(270)
+    scan.maximumValue = ps2mm(350)
+    scan.step = ps2mm(0.1)
+    scan.retractAtEnd = True
+    asyncio.ensure_future(printStatus())
+    data = await scan.readDataSet()
+    plt.plot(data.axes[0], data.data)
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(run())
-
-del controller
-del conn
-del sr830
-del prologix_gpib.gpib_prologix_device
-
-loop.run_until_complete(asyncio.sleep(1))
