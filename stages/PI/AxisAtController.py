@@ -12,8 +12,7 @@ import re
 import enum
 
 _replyExpression = re.compile(br'([0-9]+) ([0-9]+) (.*)')
-_axisValueExpression = re.compile(br'([0-9]+)=([0-9\.\-]+)')
-_axisStatusRegExpression = re.compile(br'([0-9]+) ([0-9]+)=([0-9a-fA-Fx]+)')
+_valueExpression = re.compile(br'([0-9 ]+)=([0-9a-fA-Fx\.\-]+)$')
 
 class AxisAtController(Manipulator):
     class StatusBits(enum.Enum):
@@ -70,17 +69,7 @@ class AxisAtController(Manipulator):
             await self.singleUpdate()
 
     async def singleUpdate(self):
-        ret = await self.send("SRG?", 1)
-        match = _axisStatusRegExpression.match(ret)
-        if not match:
-            raise Exception("Unexpected reply %s to status request!" %
-                            repr(ret))
-
-        (axis, reg, val) = match.groups()
-        axis = int(axis)
-        reg = int(reg)
-        val = int(val, 16)
-        self._status = val
+        self._status = await self.send("SRG?", 1)
 
         self._position = await self.send(b'POS?')
         self._velocity = await self.send(b'VEL?')
@@ -115,11 +104,10 @@ class AxisAtController(Manipulator):
 
         command = b'%d %s' % (self.address, command)
 
-        ret = None
         if includeAxis:
-            ret = await self.connection.send(command, self.axis, *args)
-        else:
-            ret = await self.connection.send(command, *args)
+            args = (self.axis,) + args
+
+        ret = await self.connection.send(command, *args)
 
         if not isRequest:
             self.handleError(await self.send(b'ERR?', includeAxis=False))
@@ -138,18 +126,23 @@ class AxisAtController(Manipulator):
                             "is %d (sent: %s)" %
                             (msg, dest, self.address, command))
 
-        match = _axisValueExpression.match(msg)
+        match = _valueExpression.match(msg)
         if match:
-            (axis, value) = match.groups()
-            axis = int(axis)
-            if axis != self.axis:
-                raise Exception("Got value %s for axis %d, but expected axis "
-                                "is %d (sent: %s)" %
-                                (value, axis, self.axis, command))
+            (params, value) = match.groups()
+            params = params.decode('ascii')
+            expected = ' '.join([ str(x) for x in args])
+            if params != expected:
+                raise Exception("Got reply params %s, but expected %s "
+                                "(sent: %s)" % (params, expected, command))
             try:
-                return int(value)
+                if b'.' in value:
+                    return float(value)
+                elif value.startswith(b'0x'):
+                    return int(value, 16)
+                else:
+                    return int(value)
             except ValueError:
-                return float(value)
+                return value
         else:
             return msg
 
