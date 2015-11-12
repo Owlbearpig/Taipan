@@ -72,7 +72,6 @@ class AxisAtController(Manipulator):
         self._status = await self.send("SRG?", 1)
 
         self._position = await self.send(b'POS?')
-        self._velocity = await self.send(b'VEL?')
         self._isReferenced = bool(await self.send(b'FRF?'))
         if not self._isMovingFuture.done() and not self.isMoving:
             self._isMovingFuture.set_result(self._movementStopped)
@@ -151,7 +150,7 @@ class AxisAtController(Manipulator):
         self._hardwareMinimum = await self.send(b'TMN?')
         self._hardwareMaximum = await self.send(b'TMX?')
         self._position = await self.send(b'POS?')
-        self._velocity = await self.send(b'VEL?')
+        self.velocity = await self.send(b'VEL?')
         self._isReferenced = bool(await self.send(b'FRF?'))
 
         await self.send("RON", 1);
@@ -189,7 +188,13 @@ class AxisAtController(Manipulator):
     def value(self):
         return self._position
 
-    async def moveTo(self, val):
+    async def moveTo(self, val, velocity = None):
+        if velocity is None:
+            velocity = self.velocity
+
+        print("Setting velocity to %f" % velocity)
+        await self.send("VEL", velocity)
+
         self._movementStopped = False
         await self.send("MOV", val)
         self._isMovingFuture = asyncio.Future()

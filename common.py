@@ -54,6 +54,15 @@ class Manipulator(ComponentBase):
         self._trigStart = None
         self._trigStop = None
         self._trigStep = 0
+        self.__velocity = 0
+
+    @property
+    def velocity(self):
+        return self.__velocity
+
+    @velocity.setter
+    def velocity(self, value):
+        self.__velocity = value
 
     @property
     def unit(self):
@@ -121,7 +130,7 @@ class Manipulator(ComponentBase):
         """
         await self.moveTo(start)
 
-    async def moveTo(self, val):
+    async def moveTo(self, val, velocity = None):
         pass
 
     async def configureTrigger(self, step, start = None, stop = None):
