@@ -77,7 +77,6 @@ class SR830(DataSource):
     @threaded_async
     def readData(self):
         nPts = int(self.resource.query('SPTS?'))
-        print("reading %d points" % nPts)
         if nPts == 0:
             return []
         self.resource.write('TRCL? 0,%d' % nPts)
