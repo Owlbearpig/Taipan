@@ -53,15 +53,28 @@ async def run():
         c0 = 299792458.0
         return c0 * ps * 1e-12 * 1e3 / 2
 
+    def mm2ps(mm):
+        c0 = 299792458.0
+        return 2 * mm / (c0 * 1e-12 * 1e3)
+
     scan = Scan(manipulator = controller, dataSource = sr830)
+
     scan.continuousScan = True
     scan.minimumValue = ps2mm(270)
-    scan.maximumValue = ps2mm(350)
+    scan.maximumValue = ps2mm(310)
     scan.step = ps2mm(0.1)
+    scan.positioningVelocity = 5
+    scan.scanVelocity = ps2mm(2)
     scan.retractAtEnd = True
+
     asyncio.ensure_future(printStatus())
+
     data = await scan.readDataSet()
-    plt.plot(data.axes[0], data.data)
+
+    await asyncio.sleep(2)
+
+    plt.plot(mm2ps(data.axes[0]), data.data)
+    plt.show(block=True)
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(run())
