@@ -8,6 +8,7 @@ Created on Wed Oct 14 11:18:53 2015
 import asyncio
 from common import DataSource, DataSet
 import numpy as np
+import warnings
 
 class Scan(DataSource):
     def __init__(self, manipulator = None, dataSource = None,
@@ -21,34 +22,31 @@ class Scan(DataSource):
         self.continuousScan = False
         self.retractAtEnd = False
 
-    async def _doContinuousScan(self, axis):
+    async def _doContinuousScan(self, axis, step):
         await self.manipulator.beginScan(axis[0], axis[-1])
         self.dataSource.start()
-        await self.manipulator.moveTo(axis[-1])
+        # move half a step over the final position to ensure a trigger
+        await self.manipulator.moveTo(axis[-1] + step / 2.0)
         self.dataSource.stop()
 
         dataSet = await self.dataSource.readDataSet()
-        if dataSet.data.ndim != len(dataSet.axes):
-            raise Exception("Axes/data mismatch. Data dimension: %d, number of"
-                            " axes: %d" %
-                            (dataSet.data.ndim, len(dataSet.axes)))
-
+        dataSet.checkConsistency()
         dataSet.axes = dataSet.axes.copy()
         dataSet.axes[0] = axis
 
         expectedLength = len(dataSet.axes[0])
 
-        # Oops, we have more data points than axis points...
+        # Oops, somehow the received amount of data does not match our
+        # expectation
         if dataSet.data.shape[0] != expectedLength:
-            # If we're only off by one, then the maximumValue has probably
-            # triggered another acquisition. Simply drop the last one.
-            if dataSet.data.shape[0] == expectedLength + 1:
-                dataSet.data = dataSet.data[:-1]
+            warnings.warn("Length of recorded data set does not match "
+                          "expectation. Actual length: %d, expected "
+                          "length: %d - trimming." %
+                          (dataSet.data.shape[0], expectedLength))
+            if (dataSet.data.shape[0] < expectedLength):
+                dataSet.axes[0].resize(dataSet.data.shape[0])
             else:
-                raise Exception("Length of recorded data set does not match "
-                                "expectation. Actual length: %d, expected "
-                                "length: %d" %
-                                (dataSet.data.shape[0], expectedLength))
+                dataSet.data.resize((expectedLength,) + dataSet.data.shape[1:])
 
         return dataSet
 
@@ -85,7 +83,7 @@ class Scan(DataSource):
         dataSet = None
 
         if self.continuousScan:
-            dataSet = await self._doContinuousScan(axis)
+            dataSet = await self._doContinuousScan(axis, realStep)
         else:
             dataSet = await self._doSteppedScan(axis)
 

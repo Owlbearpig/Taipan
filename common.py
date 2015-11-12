@@ -217,10 +217,10 @@ class DataSet:
                      for (ax, shape) in zip(self._axes, self._data.shape) ])
 
     def checkConsistency(self):
-        if not self.isConsistent():
-            raise Exception("DataSet is inconsistent!"
+        if not self.isConsistent:
+            raise Exception("DataSet is inconsistent! "
                             "Number of axes: %d, data dimension: %d, "
-                            "axes lengths: %d, data shape: %d" %
+                            "axes lengths: %s, data shape: %s" %
                             (len(self._axes), self._data.ndim,
                             [ len(ax) for ax in self._axes ],
                             self._data.shape))
