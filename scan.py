@@ -19,14 +19,18 @@ class Scan(DataSource):
         self.minimumValue = minimumValue
         self.maximumValue = maximumValue
         self.step = step
+        self.scanVelocity = None
+        self.positioningVelocity = None
         self.continuousScan = False
         self.retractAtEnd = False
 
     async def _doContinuousScan(self, axis, step):
-        await self.manipulator.beginScan(axis[0], axis[-1])
+        await self.manipulator.beginScan(axis[0], axis[-1],
+                                         self.positioningVelocity)
         self.dataSource.start()
         # move half a step over the final position to ensure a trigger
-        await self.manipulator.moveTo(axis[-1] + step / 2.0)
+        await self.manipulator.moveTo(axis[-1] + step / 2.0,
+                                      self.scanVelocity)
         self.dataSource.stop()
 
         dataSet = await self.dataSource.readDataSet()
@@ -57,7 +61,7 @@ class Scan(DataSource):
         accumulator = []
         self.dataSource.start()
         for position in axis:
-            await self.manipulator.moveTo(position)
+            await self.manipulator.moveTo(position, self.scanVelocity)
             accumulator.append(await self.dataSource.readDataSet())
         self.dataSource.stop()
 
@@ -91,6 +95,7 @@ class Scan(DataSource):
             dataSet = await self._doSteppedScan(axis)
 
         if self.retractAtEnd:
-            asyncio.ensure_future(self.manipulator.moveTo(realStart))
+            asyncio.ensure_future(self.manipulator.moveTo(realStart,
+                                  self.positioningVelocity))
 
         return dataSet

@@ -192,7 +192,6 @@ class AxisAtController(Manipulator):
         if velocity is None:
             velocity = self.velocity
 
-        print("Setting velocity to %f" % velocity)
         await self.send("VEL", velocity)
 
         self._movementStopped = False
@@ -202,11 +201,11 @@ class AxisAtController(Manipulator):
         return self.isOnTarget and not self._movementStopped
 
     # 0.75 mm buffer for acceleration and proper trigger position
-    async def beginScan(self, start, stop):
+    async def beginScan(self, start, stop, velocity = None):
         if stop > start:
-            await self.moveTo(start - 0.75)
+            await self.moveTo(start - 0.75, velocity)
         else:
-            await self.moveTo(start + 0.75)
+            await self.moveTo(start + 0.75, velocity)
 
     def stop(self):
         self._movementStopped = True

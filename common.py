@@ -107,7 +107,7 @@ class Manipulator(ComponentBase):
                                        (str(timeout), str(self)))
 
 
-    async def beginScan(self, start, stop):
+    async def beginScan(self, start, stop, velocity = None):
         """ Moves the manipulator to the starting value of a following
         continuous scan.
 
@@ -128,7 +128,7 @@ class Manipulator(ComponentBase):
         stop (numeric) : The final value. Used to determine the direction of
         movement.
         """
-        await self.moveTo(start)
+        await self.moveTo(start, velocity)
 
     async def moveTo(self, val, velocity = None):
         pass
