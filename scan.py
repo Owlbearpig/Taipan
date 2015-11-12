@@ -44,9 +44,12 @@ class Scan(DataSource):
                           "length: %d - trimming." %
                           (dataSet.data.shape[0], expectedLength))
             if (dataSet.data.shape[0] < expectedLength):
-                dataSet.axes[0].resize(dataSet.data.shape[0])
+                dataSet.axes[0] = np.resize(dataSet.axes[0],
+                                            dataSet.data.shape[0])
             else:
-                dataSet.data.resize((expectedLength,) + dataSet.data.shape[1:])
+                dataSet.data = np.resize(dataSet.data,
+                                         (expectedLength,)
+                                             + dataSet.data.shape[1:])
 
         return dataSet
 
