@@ -3,7 +3,9 @@ import asyncio.futures as futures
 import serial
 
 class Serial(serial.Serial):
-    def __init__(self, *args, loop = asyncio.get_event_loop(), **kwargs):
+    def __init__(self, *args, loop = None, **kwargs):
+        if loop is None:
+            loop = asyncio.get_event_loop()
         kwargs['timeout'] = 0
         super().__init__(*args, **kwargs)
         self._loop = loop

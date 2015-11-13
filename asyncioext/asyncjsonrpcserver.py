@@ -5,7 +5,9 @@ from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCDispatcher
 import sys
 
 class AsyncMultipathJSONRPCServer(SimpleJSONRPCDispatcher):
-    def __init__(self, loop = asyncio.get_event_loop(), **kwargs):
+    def __init__(self, loop = None, **kwargs):
+        if loop is None:
+            loop = asyncio.get_event_loop()
         SimpleJSONRPCDispatcher.__init__(self, **kwargs)
         self._loop = loop
         self._app = web.Application(loop = loop)
