@@ -8,7 +8,7 @@ Created on Wed Oct 28 13:55:46 2015
 import asyncio
 from functools import partial
 
-def threaded_async(func=None, loop=asyncio.get_event_loop(), executor=None):
+def threaded_async(func=None, loop=None, executor=None):
     r""" Transforms a normal function into an ``async`` one that runs in a
     thread (or, more specifically, in ``executor``).
 
@@ -30,7 +30,10 @@ def threaded_async(func=None, loop=asyncio.get_event_loop(), executor=None):
         return partial(threaded_async, loop=loop, executor=executor)
 
     async def async_executor_wrapper(*args, **kwargs):
-        return await loop.run_in_executor(executor,
-                                          partial(func, *args, **kwargs))
+        theloop = loop
+        if theloop is None:
+            theloop = asyncio.get_event_loop()
+        return await theloop.run_in_executor(executor,
+                                             partial(func, *args, **kwargs))
 
     return async_executor_wrapper
