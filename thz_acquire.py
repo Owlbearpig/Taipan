@@ -39,6 +39,9 @@ async def setup():
 
     controller = PI.AxisAtController(conn)
     await controller.initialize()
+    if not controller.isReferenced:
+        print("Referencing...")
+        await controller.reference()
     print("PI Controller is: %s" % controller._identification, flush=True)
 
 async def printStatus():
@@ -61,7 +64,7 @@ async def run():
 
     scan.continuousScan = True
     scan.minimumValue = ps2mm(270)
-    scan.maximumValue = ps2mm(310)
+    scan.maximumValue = ps2mm(360)
     scan.step = ps2mm(0.1)
     scan.positioningVelocity = 5
     scan.scanVelocity = ps2mm(2)
