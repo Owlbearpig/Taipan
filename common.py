@@ -172,7 +172,7 @@ class Manipulator(ComponentBase):
         """
         return self._trigStep
 
-    def stop():
+    def stop(self):
         pass
 
 class PostProcessor(DataSource, DataSink):
