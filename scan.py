@@ -23,6 +23,8 @@ class Scan(DataSource):
         self.positioningVelocity = None
         self.continuousScan = False
         self.retractAtEnd = False
+        self.active = False
+        self.currentAxis = None
 
     async def _doContinuousScan(self, axis, step):
         await self.manipulator.beginScan(axis[0], axis[-1],
@@ -72,30 +74,37 @@ class Scan(DataSource):
         return DataSet(data, axes)
 
     async def readDataSet(self):
-        self.dataSource.stop()
-        await self.manipulator.waitForTargetReached()
+        self.active = True
 
-        # ensure correct step sign
-        theStep = abs(self.step)
-        if (self.maximumValue < self.minimumValue):
-            theStep = -theStep
+        try:
+            self.dataSource.stop()
+            await self.manipulator.waitForTargetReached()
 
-        realStep, realStart, realStop = \
-            await self.manipulator.configureTrigger(theStep,
-                                                    self.minimumValue,
-                                                    self.maximumValue)
+            # ensure correct step sign
+            theStep = abs(self.step)
+            if (self.maximumValue < self.minimumValue):
+                theStep = -theStep
 
-        axis = np.arange(realStart, realStop, realStep)
+            realStep, realStart, realStop = \
+                await self.manipulator.configureTrigger(theStep,
+                                                        self.minimumValue,
+                                                        self.maximumValue)
 
-        dataSet = None
+            axis = np.arange(realStart, realStop, realStep)
+            self.currentAxis = np.copy(axis)
 
-        if self.continuousScan:
-            dataSet = await self._doContinuousScan(axis, realStep)
-        else:
-            dataSet = await self._doSteppedScan(axis)
+            dataSet = None
 
-        if self.retractAtEnd:
-            asyncio.ensure_future(self.manipulator.moveTo(realStart,
-                                  self.positioningVelocity))
+            if self.continuousScan:
+                dataSet = await self._doContinuousScan(axis, realStep)
+            else:
+                dataSet = await self._doSteppedScan(axis)
 
-        return dataSet
+            if self.retractAtEnd:
+                asyncio.ensure_future(self.manipulator.moveTo(realStart,
+                                      self.positioningVelocity))
+
+            return dataSet
+        finally:
+            self.currentAxis = None
+            self.active = False
