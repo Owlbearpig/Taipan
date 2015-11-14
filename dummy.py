@@ -30,9 +30,9 @@ class DummyManipulator(Manipulator):
             self._val = target
 
     async def configureTrigger(self, step, start = None, stop = None):
-        self.step = step
-        self.start = start
-        self.stop = stop
+        self._step = step
+        self._start = start
+        self._stop = stop
         return step, start, stop
 
 class DummySimpleDataSource(DataSource):
@@ -57,7 +57,7 @@ class DummyContinuousDataSource(DataSource):
         self.manip = manip
 
     async def readDataSet(self):
-        taxis = np.arange(self.manip.start, self.manip.stop, self.manip.step)
+        taxis = np.arange(self.manip._start, self.manip._stop, self.manip._step)
         omega = 2 * np.pi * 5
         data = np.sin(omega * taxis)
         dataSet = DataSet(data, [ taxis ])
