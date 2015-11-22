@@ -9,6 +9,8 @@ Dependencies
 * aiohttp
 * jsonrpclib-pelix
 * pyserial
+* pyvisa
+* pyvisa-py
 
 Coding style
 ------------
