@@ -21,6 +21,21 @@ class ComponentBase:
     def loadConfiguration(self):
         pass
 
+    def getAttribute(self, name):
+        return getattr(self, name)
+
+    def setAttribute(self, name, val):
+        setattr(self, name, val)
+
+    def listAttributes(self):
+        return []
+
+    def listMethods(self):
+        return []
+
+    def listEvents(self):
+        return []
+
 
 class DataSource(ComponentBase):
     def start(self):
