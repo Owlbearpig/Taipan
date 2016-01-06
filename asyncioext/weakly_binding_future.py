@@ -8,6 +8,7 @@ Created on Tue Oct 20 10:36:07 2015
 import asyncio
 import weakref
 
+
 def ensure_weakly_binding_future(method):
     class Canceller:
         def __call__(self, proxy):

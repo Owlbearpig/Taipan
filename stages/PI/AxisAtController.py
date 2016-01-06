@@ -14,6 +14,7 @@ import enum
 _replyExpression = re.compile(br'([0-9]+) ([0-9]+) (.*)')
 _valueExpression = re.compile(br'([0-9 ]+)=([0-9a-fA-Fx\.\-]+)$')
 
+
 class AxisAtController(Manipulator):
     class StatusBits(enum.Enum):
         NegativeLimitSwitch = 0x1
@@ -33,7 +34,7 @@ class AxisAtController(Manipulator):
         Referencing = 0x4000
         OnTarget = 0x8000
 
-    def __init__(self, connection = None, address = 1, axis = 1):
+    def __init__(self, connection=None, address=1, axis=1):
         super().__init__()
         self.connection = connection
         self.address = address
@@ -51,9 +52,9 @@ class AxisAtController(Manipulator):
 
     def handleError(self, msg):
         errorCode = int(msg)
-        if errorCode == 0: # no error
+        if errorCode == 0:  # no error
             pass
-        elif errorCode == 10: # stopped movement, this is okay.
+        elif errorCode == 10:  # stopped movement, this is okay.
             pass
         else:
             raise Exception("Unhandled error code %d on PI Controller %s "
@@ -129,7 +130,7 @@ class AxisAtController(Manipulator):
         if match:
             (params, value) = match.groups()
             params = params.decode('ascii')
-            expected = ' '.join([ str(x) for x in args])
+            expected = ' '.join([str(x) for x in args])
             if params != expected:
                 raise Exception("Got reply params %s, but expected %s "
                                 "(sent: %s)" % (params, expected, command))
@@ -153,8 +154,8 @@ class AxisAtController(Manipulator):
         self.velocity = await self.send(b'VEL?')
         self._isReferenced = bool(await self.send(b'FRF?'))
 
-        await self.send("RON", 1);
-        await self.send("SVO", 1);
+        await self.send("RON", 1)
+        await self.send("SVO", 1)
 
     @property
     def isMoving(self):
@@ -188,7 +189,7 @@ class AxisAtController(Manipulator):
     def value(self):
         return self._position
 
-    async def moveTo(self, val, velocity = None):
+    async def moveTo(self, val, velocity=None):
         if velocity is None:
             velocity = self.velocity
 
@@ -201,7 +202,7 @@ class AxisAtController(Manipulator):
         return self.isOnTarget and not self._movementStopped
 
     # 0.75 mm buffer for acceleration and proper trigger position
-    async def beginScan(self, start, stop, velocity = None):
+    async def beginScan(self, start, stop, velocity=None):
         if stop > start:
             await self.moveTo(start - 0.75, velocity)
         else:
@@ -218,8 +219,7 @@ class AxisAtController(Manipulator):
         await self._isMovingFuture
         return self.isReferenced
 
-    async def configureTrigger(self, step, start = None, stop = None,
-                               triggerId = 1):
+    async def configureTrigger(self, step, start=None, stop=None, triggerId=1):
         if start is None or stop is None:
             raise Exception("The start and stop parameters are mandatory!")
 

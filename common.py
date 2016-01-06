@@ -9,8 +9,10 @@ import asyncio
 import enum
 import numpy as np
 
+
 class TimeoutException(Exception):
     pass
+
 
 class ComponentBase:
     def saveConfiguration(self):
@@ -18,6 +20,7 @@ class ComponentBase:
 
     def loadConfiguration(self):
         pass
+
 
 class DataSource(ComponentBase):
     def start(self):
@@ -34,6 +37,7 @@ class DataSource(ComponentBase):
         raise NotImplementedError("readDataSet() needs to implemented for "
                                   "DataSources!")
 
+
 class DAQDevice(DataSource):
     @property
     def unit(self):
@@ -43,10 +47,12 @@ class DAQDevice(DataSource):
     def numChannels(self):
         return None
 
+
 class DataSink(ComponentBase):
     def process(self, data):
         raise NotImplementedError("process() needs to implemented for "
                                   "DataSinks!")
+
 
 class Manipulator(ComponentBase):
     def __init__(self):
@@ -82,7 +88,7 @@ class Manipulator(ComponentBase):
     def status(self):
         return Manipulator.Status.Undefined
 
-    async def waitForTargetReached(self, timeout = 30):
+    async def waitForTargetReached(self, timeout=30):
         """ Wait for the Manipulator's status to become ``TargetReached``.
         Throws a TimeoutException if the method has been waiting for longer
         than ``timeout`` seconds.
@@ -107,7 +113,7 @@ class Manipulator(ComponentBase):
                                        (str(timeout), str(self)))
 
 
-    async def beginScan(self, start, stop, velocity = None):
+    async def beginScan(self, start, stop, velocity=None):
         """ Moves the manipulator to the starting value of a following
         continuous scan.
 
@@ -130,10 +136,10 @@ class Manipulator(ComponentBase):
         """
         await self.moveTo(start, velocity)
 
-    async def moveTo(self, val, velocity = None):
+    async def moveTo(self, val, velocity=None):
         pass
 
-    async def configureTrigger(self, step, start = None, stop = None):
+    async def configureTrigger(self, step, start=None, stop=None):
         """ Configure the trigger output.
 
         Paramters
@@ -175,6 +181,7 @@ class Manipulator(ComponentBase):
     def stop(self):
         pass
 
+
 class PostProcessor(DataSource, DataSink):
     def __init__(self):
         super().__init__()
@@ -197,8 +204,9 @@ class PostProcessor(DataSource, DataSink):
     async def readDataSet(self):
         return self.process(await self._source.readDataSet())
 
+
 class DataSet:
-    def __init__(self, data = np.array(0.0), axes = []):
+    def __init__(self, data=np.array(0.0), axes=[]):
         super().__init__()
         self._data = data
         self._axes = axes
@@ -222,8 +230,8 @@ class DataSet:
     @property
     def isConsistent(self):
         return len(self._axes) == self._data.ndim and \
-               all([ len(ax) == shape
-                     for (ax, shape) in zip(self._axes, self._data.shape) ])
+               all([len(ax) == shape
+                    for (ax, shape) in zip(self._axes, self._data.shape)])
 
     def checkConsistency(self):
         if not self.isConsistent:
@@ -231,13 +239,13 @@ class DataSet:
                             "Number of axes: %d, data dimension: %d, "
                             "axes lengths: %s, data shape: %s" %
                             (len(self._axes), self._data.ndim,
-                            [ len(ax) for ax in self._axes ],
-                            self._data.shape))
+                             [len(ax) for ax in self._axes],
+                             self._data.shape))
 
     def __repr__(self):
         return 'DataSet(%s, %s)' % (repr(self.data), repr(self.axes))
 
     def __str__(self):
         return 'DataSet with:\n    %s\n  and axes:\n    %s' % \
-        (repr(self.data).replace('\n', '\n    '), \
-         repr(self.axes).replace('\n', '\n    '))
+                (repr(self.data).replace('\n', '\n    '),
+                 repr(self.axes).replace('\n', '\n    '))

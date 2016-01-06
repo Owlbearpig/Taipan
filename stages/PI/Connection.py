@@ -9,8 +9,9 @@ import asyncio
 from common import ComponentBase
 from asyncioext.asyncserial import Serial
 
+
 class Connection(ComponentBase):
-    def __init__(self, port = None, baudRate = 9600):
+    def __init__(self, port=None, baudRate=9600):
         super().__init__()
         self.port = port
         self.baudRate = baudRate
@@ -64,7 +65,8 @@ class Connection(ComponentBase):
             if not isRequest:
                 return
 
-            # read reply. lines ending with ' \n' are part of a multiline reply.
+            # read reply. lines ending with ' \n' are part of a multiline
+            # reply.
             replyLines = []
             while len(replyLines) == 0 or replyLines[-1][-2:] == ' \n':
                 replyLines.append(await self.serial.async_readline())

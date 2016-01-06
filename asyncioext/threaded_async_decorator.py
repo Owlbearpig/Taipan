@@ -8,6 +8,7 @@ Created on Wed Oct 28 13:55:46 2015
 import asyncio
 from functools import partial
 
+
 def threaded_async(func=None, loop=None, executor=None):
     r""" Transforms a normal function into an ``async`` one that runs in a
     thread (or, more specifically, in ``executor``).

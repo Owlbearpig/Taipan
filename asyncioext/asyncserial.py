@@ -2,8 +2,10 @@ import asyncio
 import asyncio.futures as futures
 import serial
 
+
 class Serial(serial.Serial):
-    def __init__(self, *args, loop = None, **kwargs):
+
+    def __init__(self, *args, loop=None, **kwargs):
         if loop is None:
             loop = asyncio.get_event_loop()
         kwargs['timeout'] = 0
@@ -73,7 +75,7 @@ if __name__ == '__main__':
             print(theLine)
 
     async def requestIdentification():
-        print("requesting ID");
+        print("requesting ID")
         ser.write(b"*IDN?\n")
 
     asyncio.ensure_future(doSomething())

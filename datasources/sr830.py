@@ -12,6 +12,7 @@ from pyvisa import constants
 import struct
 import enum
 
+
 class SR830(DataSource):
     def __init__(self, resource):
         super().__init__()
@@ -46,7 +47,7 @@ class SR830(DataSource):
     @threaded_async
     def getSampleRate(self):
         val = int(self.resource.query('SRAT?'))
-        return [ item for item in SR830.SampleRate if item.value == val ][0]
+        return [item for item in SR830.SampleRate if item.value == val][0]
 
     def start(self):
         self.resource.write('REST')
@@ -82,10 +83,12 @@ class SR830(DataSource):
         self.resource.write('TRCL? 0,%d' % nPts)
         data, s = self._readExactly(nPts * 4)
         if s != constants.StatusCode.success_max_count_read:
-            raise Exception("Failed to read complete data set! Got %d bytes, expected %d." % (len(data), nPts * 4))
+            raise Exception("Failed to read complete data set!"
+                            "Got %d bytes, expected %d." %
+                            (len(data), nPts * 4))
         return SR830._internal2float(data)
 
     async def readDataSet(self):
         data = np.array(await self.readData())
-        dataSet = DataSet(data, [ np.arange(0, len(data)) ])
+        dataSet = DataSet(data, [np.arange(0, len(data))])
         return dataSet
