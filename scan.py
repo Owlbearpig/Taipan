@@ -10,9 +10,11 @@ from common import DataSource, DataSet
 import numpy as np
 import warnings
 
+
 class Scan(DataSource):
-    def __init__(self, manipulator = None, dataSource = None,
-                 minimumValue = 0, maximumValue = 0, step = 0):
+
+    def __init__(self, manipulator=None, dataSource=None, minimumValue=0,
+                 maximumValue=0, step=0):
         super().__init__()
         self.manipulator = manipulator
         self.dataSource = dataSource
@@ -25,10 +27,6 @@ class Scan(DataSource):
         self.retractAtEnd = False
         self.active = False
         self.currentAxis = None
-
-    def stop(self):
-        self.dataSource.stop()
-        self.manipulator.stop()
 
     def stop(self):
         self.dataSource.stop()
@@ -61,9 +59,10 @@ class Scan(DataSource):
                 dataSet.axes[0] = np.resize(dataSet.axes[0],
                                             dataSet.data.shape[0])
             else:
-                dataSet.data = np.resize(dataSet.data,
-                                         (expectedLength,)
-                                             + dataSet.data.shape[1:])
+                dataSet.data = np.resize(
+                    dataSet.data,
+                    (expectedLength,) + dataSet.data.shape[1:]
+                )
 
         return dataSet
 
@@ -77,7 +76,7 @@ class Scan(DataSource):
 
         axes = accumulator[0].axes.copy()
         axes.insert(0, axis)
-        data = np.array([ dset.data for dset in accumulator ])
+        data = np.array([dset.data for dset in accumulator])
 
         return DataSet(data, axes)
 
@@ -110,7 +109,7 @@ class Scan(DataSource):
 
             if self.retractAtEnd:
                 asyncio.ensure_future(self.manipulator.moveTo(realStart,
-                                      self.positioningVelocity))
+                                                              self.positioningVelocity))
 
             return dataSet
         finally:
