@@ -221,8 +221,12 @@ class PostProcessor(DataSource, DataSink):
 
 
 class DataSet:
-    def __init__(self, data=np.array(0.0), axes=[]):
+    def __init__(self, data=None, axes=None):
         super().__init__()
+        if data is None:
+            data = np.array(0.0)
+        if axes is None:
+            axes = []
         self._data = data
         self._axes = axes
 
