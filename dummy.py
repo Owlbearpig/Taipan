@@ -24,9 +24,10 @@ class DummyManipulator(Manipulator):
 
     async def moveTo(self, val, velocity = None):
         self.velocity = velocity
-        values = np.linspace(self._val, val, 20)
+        values = np.linspace(self._val, val, 50)
+        dt = abs(np.mean(np.diff(values)) / velocity)
         for target in values:
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(dt)
             self._val = target
 
     async def configureTrigger(self, step, start = None, stop = None):
