@@ -5,53 +5,27 @@ Created on Wed Oct 14 15:04:51 2015
 @author: pumphaus
 """
 
+from common import ComponentBase
 from scan import Scan
-from dummy import DummyManipulator, DummySimpleDataSource, \
-                  DummyContinuousDataSource
-import numpy as np
+from dummy import DummyManipulator, DummyContinuousDataSource
 import asyncio
-from stages import PI
-import time
-from asyncioext import threaded_async
 
-async def testRun():
-    manip = DummyManipulator()
-    sourceA = DummyContinuousDataSource(init = 42, count = 10)
-    scan = Scan(manip, sourceA, minimumValue = 0, maximumValue = 10, step = 1)
-    scan.continuousScan = True
-    scanB = Scan(DummyManipulator(), scan, minimumValue = 0,
-                 maximumValue = 1.5, step = 1)
 
-    dataSet = await scanB.readDataSet()
-    print(dataSet)
+class AppRoot(ComponentBase):
 
-async def testComm():
-    conn = PI.Connection()
-    conn.port = '/tmp/pistage'
-    conn.open()
-    controller = PI.AxisAtController(conn)
-    await controller.initialize()
-    print(controller._identification)
-    print(controller.value)
-    success = await controller.reference()
-    print("Reference: %s" % str(success), flush=True)
-    print("Velocity: %s" % controller._velocity, flush=True)
-    success = await controller.moveTo(34.3)
-    print("Moving: %s, now at %f" % (str(success), controller.value), flush=True)
+    def __init__(self, eventHandler):
+        self.objectName = "AppRoot"
+        self.manip = DummyManipulator()
+        self.source = DummyContinuousDataSource(manip=self.manip)
+        self.scan = Scan(self.manip, self.source)
+        self.scan.continuousScan = True
+        self.eventHandler = eventHandler
 
-async def doSomething():
-    await asyncio.sleep(0.5)
-    print("done something!", flush=True)
+    def listAttributes(self):
+        return ['source', 'manip', 'scan']
 
-@threaded_async
-def testExecutor(s):
-    time.sleep(2)
-    print("hello" + s, flush=True)
+    async def takeMeasurement(self):
+        return await self.scan.readDataSet()
 
-async def wait_secs(n):
-    await asyncio.sleep(n)
 
 loop = asyncio.get_event_loop()
-asyncio.ensure_future(doSomething())
-asyncio.ensure_future(testExecutor(" WORLD!"))
-loop.run_until_complete(wait_secs(3))

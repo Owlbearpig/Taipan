@@ -57,10 +57,8 @@ class DummySimpleDataSource(DataSource):
 
 class DummyContinuousDataSource(DataSource):
 
-    def __init__(self, init, count, manip):
+    def __init__(self, manip):
         super().__init__()
-        self.init = init
-        self.count = count
         self.manip = manip
 
     async def readDataSet(self):

@@ -15,6 +15,9 @@ class TimeoutException(Exception):
 
 
 class ComponentBase:
+    def __init__(self):
+        self.objectName = ""
+
     def saveConfiguration(self):
         pass
 
