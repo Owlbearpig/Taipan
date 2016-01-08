@@ -6,7 +6,6 @@ Taipan, the Terahertz Acquisition and Imaging Program for ANything
 Dependencies
 ------------
 * Python 3.5+
-* aiohttp
 * jsonrpclib-pelix
 * pyserial
 * pyvisa
