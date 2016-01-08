@@ -28,10 +28,6 @@ class Scan(DataSource):
         self.active = False
         self.currentAxis = None
 
-    def stop(self):
-        self.dataSource.stop()
-        self.manipulator.stop()
-
     async def _doContinuousScan(self, axis, step):
         await self.manipulator.beginScan(axis[0], axis[-1],
                                          self.positioningVelocity)
@@ -81,6 +77,9 @@ class Scan(DataSource):
         return DataSet(data, axes)
 
     async def readDataSet(self):
+        if self.active:
+            raise asyncio.InvalidStateError()
+
         self.active = True
 
         try:
@@ -107,11 +106,15 @@ class Scan(DataSource):
             else:
                 dataSet = await self._doSteppedScan(axis)
 
-            if self.retractAtEnd:
-                asyncio.ensure_future(self.manipulator.moveTo(realStart,
-                                                              self.positioningVelocity))
-
             return dataSet
+
         finally:
+            self.dataSource.stop()
+            if self.retractAtEnd:
+                asyncio.ensure_future(
+                    self.manipulator.moveTo(realStart,
+                                            self.positioningVelocity)
+                )
+
             self.currentAxis = None
             self.active = False
