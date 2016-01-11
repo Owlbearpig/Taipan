@@ -8,24 +8,38 @@ Created on Wed Oct 14 15:04:51 2015
 from common import ComponentBase
 from scan import Scan
 from dummy import DummyManipulator, DummyContinuousDataSource
+from jsonrpclib.jsonrpc import _Method
 import asyncio
+
+
+class ClientNotifier:
+    def __init__(self):
+        self._clients = []
+
+    def _clientNotify(self, methodname, params):
+        print("notifying clients of {}{}".format(methodname, params or "()"))
+        for client in self._clients:
+            client._request_notify(methodname, params)
+
+    def __getattr__(self, name):
+        return _Method(self._clientNotify, name)
 
 
 class AppRoot(ComponentBase):
 
-    def __init__(self, eventHandler):
-        self.objectName = "AppRoot"
+    def __init__(self, client, loop=None):
+        super().__init__(objectName="AppRoot", loop=loop)
         self.manip = DummyManipulator()
         self.source = DummyContinuousDataSource(manip=self.manip)
         self.scan = Scan(self.manip, self.source)
         self.scan.continuousScan = True
-        self.eventHandler = eventHandler
+        self.client = client
 
-    def listAttributes(self):
-        return ['source', 'manip', 'scan']
+        self._publishComponents("manip", "scan", "source")
 
     async def takeMeasurement(self):
         return await self.scan.readDataSet()
 
 
-loop = asyncio.get_event_loop()
+clients = ClientNotifier()
+root = AppRoot(clients)

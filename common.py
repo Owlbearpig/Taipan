@@ -24,11 +24,21 @@ class ComponentBase:
         if self._loop is None:
             self._loop = asyncio.get_event_loop()
 
-    def saveConfiguration(self):
-        pass
+        self.__methods = []
+        self.__attributes = []
+        self.__components = []
 
-    def loadConfiguration(self):
-        pass
+    @property
+    def methods(self):
+        return self.__methods
+
+    @property
+    def attributes(self):
+        return self.__attributes
+
+    @property
+    def components(self):
+        return self.__components
 
     def getAttribute(self, name):
         return getattr(self, name)
@@ -36,14 +46,20 @@ class ComponentBase:
     def setAttribute(self, name, val):
         setattr(self, name, val)
 
-    def listAttributes(self):
-        return []
+    def _publishMethods(self, *methods):
+        self.__methods += methods
 
-    def listMethods(self):
-        return []
+    def _publishAttributes(self, *attributes):
+        self.__attributes += attributes
 
-    def listEvents(self):
-        return []
+    def _publishComponents(self, *components):
+        self.__components += components
+
+    def saveConfiguration(self):
+        pass
+
+    def loadConfiguration(self):
+        pass
 
 
 class DataSource(ComponentBase):
