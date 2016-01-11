@@ -16,8 +16,7 @@ class DummyManipulator(Manipulator):
         super().__init__()
         self._val = 0
 
-    @property
-    def value(self):
+    def _getValue(self):
         return self._val
 
     @property

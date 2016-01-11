@@ -132,6 +132,22 @@ class Manipulator(ComponentBase):
 
     @property
     def value(self):
+        """Property interface around _getValue() and the async moveTo()
+        method. Gets or sets the Manipulator's value.
+        """
+        return self._getValue()
+
+    @value.setter
+    def value(self, val):
+        self._loop.create_task(self.moveTo(val))
+
+    def _getValue(self):
+        """Get the current value of the Manipulator.
+
+        This should be reimplemented by concrete Manipulators. ``_getValue()``
+        is called by the ``value`` property getter.
+        """
+
         return None
 
     class Status(enum.Enum):

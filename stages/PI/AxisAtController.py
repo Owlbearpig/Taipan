@@ -185,8 +185,7 @@ class AxisAtController(Manipulator):
         elif (self.isMoving):
             return self.Status.Moving
 
-    @property
-    def value(self):
+    def _getValue(self):
         return self._position
 
     async def moveTo(self, val, velocity=None):
