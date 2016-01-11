@@ -5,7 +5,7 @@ Created on Wed Oct 14 15:04:51 2015
 @author: pumphaus
 """
 
-from common import ComponentBase
+from common import ComponentBase, published_action
 from scan import Scan
 from dummy import DummyManipulator, DummyContinuousDataSource
 from jsonrpclib.jsonrpc import _Method
@@ -37,9 +37,13 @@ class AppRoot(ComponentBase):
 
         self._publishComponents("manip", "scan", "source")
 
+    @published_action
     async def takeMeasurement(self):
         return await self.scan.readDataSet()
 
 
 clients = ClientNotifier()
 root = AppRoot(clients)
+
+print("root methods: {}".format(root.actions))
+print("scan methods: {}".format(root.scan.actions))

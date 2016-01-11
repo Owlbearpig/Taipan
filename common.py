@@ -8,6 +8,12 @@ Created on Tue Oct 13 13:08:57 2015
 import asyncio
 import enum
 import numpy as np
+import inspect
+
+
+def published_action(func):
+    func._published_action = True
+    return func
 
 
 class TimeoutException(Exception):
@@ -24,13 +30,17 @@ class ComponentBase:
         if self._loop is None:
             self._loop = asyncio.get_event_loop()
 
-        self.__methods = []
+        self.__actions = []
         self.__attributes = []
         self.__components = []
 
+        for name, memb in inspect.getmembers(self):
+            if callable(memb) and getattr(memb, "_published_action", False):
+                self.__actions += [name]
+
     @property
-    def methods(self):
-        return self.__methods
+    def actions(self):
+        return self.__actions
 
     @property
     def attributes(self):
@@ -46,8 +56,8 @@ class ComponentBase:
     def setAttribute(self, name, val):
         setattr(self, name, val)
 
-    def _publishMethods(self, *methods):
-        self.__methods += methods
+    def _publishActions(self, *methods):
+        self.__actions += methods
 
     def _publishAttributes(self, *attributes):
         self.__attributes += attributes
@@ -63,16 +73,21 @@ class ComponentBase:
 
 
 class DataSource(ComponentBase):
+
+    @published_action
     def start(self):
         pass
 
+    @published_action
     def stop(self):
         pass
 
+    @published_action
     def restart(self):
         self.stop()
         self.start()
 
+    @published_action
     async def readDataSet(self):
         raise NotImplementedError("readDataSet() needs to implemented for "
                                   "DataSources!")
@@ -89,6 +104,7 @@ class DAQDevice(DataSource):
 
 
 class DataSink(ComponentBase):
+
     def process(self, data):
         raise NotImplementedError("process() needs to implemented for "
                                   "DataSinks!")
@@ -151,7 +167,6 @@ class Manipulator(ComponentBase):
                                        " the manipulator %s to reach the "
                                        "target value." %
                                        (str(timeout), str(self)))
-
 
     async def beginScan(self, start, stop, velocity=None):
         """ Moves the manipulator to the starting value of a following
@@ -227,12 +242,15 @@ class PostProcessor(DataSource, DataSink):
         super().__init__(objectName=objectName, loop=loop)
         self.source = source
 
+    @published_action
     def start(self):
         return self._source.start()
 
+    @published_action
     def stop(self):
         return self._source.stop()
 
+    @published_action
     async def readDataSet(self):
         return self.process(await self._source.readDataSet())
 
