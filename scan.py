@@ -14,8 +14,8 @@ import warnings
 class Scan(DataSource):
 
     def __init__(self, manipulator=None, dataSource=None, minimumValue=0,
-                 maximumValue=0, step=0):
-        super().__init__()
+                 maximumValue=0, step=0, objectName=None, loop=None):
+        super().__init__(objectName=objectName, loop=loop)
         self.manipulator = manipulator
         self.dataSource = dataSource
         self.minimumValue = minimumValue
@@ -111,7 +111,7 @@ class Scan(DataSource):
         finally:
             self.dataSource.stop()
             if self.retractAtEnd:
-                asyncio.ensure_future(
+                self._loop.create_task(
                     self.manipulator.moveTo(realStart,
                                             self.positioningVelocity)
                 )

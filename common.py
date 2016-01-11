@@ -15,8 +15,14 @@ class TimeoutException(Exception):
 
 
 class ComponentBase:
-    def __init__(self):
-        self.objectName = ""
+    def __init__(self, objectName=None, loop=None):
+        self.objectName = objectName
+        if self.objectName is None:
+            self.objectName = ""
+
+        self._loop = loop
+        if self._loop is None:
+            self._loop = asyncio.get_event_loop()
 
     def saveConfiguration(self):
         pass
@@ -73,8 +79,8 @@ class DataSink(ComponentBase):
 
 
 class Manipulator(ComponentBase):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, objectName=None, loop=None):
+        super().__init__(objectName=objectName, loop=loop)
         self._trigStart = None
         self._trigStop = None
         self._trigStep = 0
@@ -201,17 +207,9 @@ class Manipulator(ComponentBase):
 
 
 class PostProcessor(DataSource, DataSink):
-    def __init__(self):
-        super().__init__()
-        self._source = None
-
-    @property
-    def source(self):
-        return self._source
-
-    @source.setter
-    def source(self, source):
-        self._source = source
+    def __init__(self, source=None, objectName=None, loop=None):
+        super().__init__(objectName=objectName, loop=loop)
+        self.source = source
 
     def start(self):
         return self._source.start()
@@ -230,24 +228,8 @@ class DataSet:
             data = np.array(0.0)
         if axes is None:
             axes = []
-        self._data = data
-        self._axes = axes
-
-    @property
-    def data(self):
-        return self._data
-
-    @data.setter
-    def data(self, val):
-        self._data = val
-
-    @property
-    def axes(self):
-        return self._axes
-
-    @axes.setter
-    def axes(self, val):
-        self._axes = val
+        self.data = data
+        self.axes = axes
 
     @property
     def isConsistent(self):
