@@ -215,7 +215,7 @@ class Manipulator(ComponentBase):
         """
         await self.moveTo(start, velocity)
 
-    async def moveTo(self, val, velocity=None):
+    async def moveTo(self, val: float, velocity=None):
         pass
 
     async def configureTrigger(self, step, start=None, stop=None):
