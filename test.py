@@ -36,9 +36,9 @@ class AppRoot(ComponentBase):
         self.client = client
 
         self._publishComponents("manip", "scan", "source")
-        self._publishActions({
-            "takeMeasurement": "Take measurement",
-        })
+        self._publishActions([
+            ("takeMeasurement", "Take measurement"),
+        ])
 
     async def takeMeasurement(self):
         return await self.scan.readDataSet()

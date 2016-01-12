@@ -8,6 +8,7 @@ Created on Tue Oct 13 13:08:57 2015
 import asyncio
 import enum
 import numpy as np
+from collections import OrderedDict
 
 
 class TimeoutException(Exception):
@@ -25,8 +26,8 @@ class ComponentBase:
         if self._loop is None:
             self._loop = asyncio.get_event_loop()
 
-        self.__actions = {}
-        self.__attributes = {}
+        self.__actions = OrderedDict()
+        self.__attributes = OrderedDict()
         self.__components = []
 
     @property
@@ -67,11 +68,11 @@ class DataSource(ComponentBase):
 
     def __init__(self, objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
-        self._publishActions({
-            "start": "Start",
-            "stop": "Stop",
-            "restart": "Restart",
-        })
+        self._publishActions([
+            ("start", "Start"),
+            ("stop", "Stop"),
+            ("restart", "Restart"),
+        ])
 
     def start(self):
         pass
@@ -115,16 +116,16 @@ class Manipulator(ComponentBase):
         self._trigStep = 0
         self.__velocity = 0
 
-        self._publishAttributes({
-            "status": (Manipulator.Status, "Status"),
-            "velocity": (float, "Velocity"),
-            "value": (float, "Value"),
-        })
+        self._publishAttributes([
+            ("status", (Manipulator.Status, "Status")),
+            ("velocity", (float, "Velocity")),
+            ("value", (float, "Value")),
+        ])
 
-        self._publishActions({
-            "moveTo": "Move",
-            "stop": "Stop",
-        })
+        self._publishActions([
+            ("moveTo", "Move"),
+            ("stop", "Stop"),
+        ])
 
     @property
     def velocity(self):
