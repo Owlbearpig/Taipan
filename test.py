@@ -27,6 +27,8 @@ class ClientNotifier:
 
 class AppRoot(ComponentBase):
 
+    _components = ["manip", "scan", "source"]
+
     def __init__(self, client, loop=None):
         super().__init__(objectName="AppRoot", loop=loop)
         self.manip = DummyManipulator()
@@ -35,12 +37,9 @@ class AppRoot(ComponentBase):
         self.scan.continuousScan = True
         self.client = client
 
-        self._publishComponents("manip", "scan", "source")
-
-    @published_action
+    @published_action('Take measurement')
     async def takeMeasurement(self):
         return await self.scan.readDataSet()
-
 
 clients = ClientNotifier()
 root = AppRoot(clients)

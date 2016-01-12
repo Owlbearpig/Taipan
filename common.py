@@ -8,7 +8,6 @@ Created on Tue Oct 13 13:08:57 2015
 import asyncio
 import enum
 import numpy as np
-import inspect
 
 
 def published_action(name):
@@ -27,22 +26,38 @@ class ComponentMetaClass(type):
     decorator is inherited."""
 
     def __new__(cls, clsname, bases, dct):
-        # look for overridden methods and re-apply the published_action
-        # decorator if necessary
-        for name, attr in dct.items():
-            for base in bases:
-                try:
-                    candidate = getattr(base, name)
+        totalActions = {}
+        totalAttributes = {}
+        totalComponents = []
 
-                    # apply the decorator to the override method
-                    published_action(candidate._published_name)(attr)
-                except AttributeError:
-                    continue
+        for base in bases:
+            totalActions.update(getattr(base, '_actions', {}))
+            totalAttributes.update(getattr(base, '_attributes', {}))
+            totalComponents.extend(getattr(base, '_components', []))
+
+        totalActions.update(dct.get('_actions', {}))
+        totalAttributes.update(dct.get('_attributes', {}))
+        totalComponents.extend(dct.get('_components', {}))
+
+        for name, attr in dct.items():
+            pubname = getattr(attr, "_published_name", None)
+            if pubname is None:
+                continue
+
+            totalActions[name] = pubname
+
+        dct['_actions'] = totalActions
+        dct['_attributes'] = totalAttributes
+        dct['_components'] = totalComponents
 
         return super().__new__(cls, clsname, bases, dct)
 
 
 class ComponentBase(metaclass=ComponentMetaClass):
+
+    _actions = {}
+    _attributes = {}
+    _components = []
 
     def __init__(self, objectName=None, loop=None):
         self.objectName = objectName
@@ -53,42 +68,23 @@ class ComponentBase(metaclass=ComponentMetaClass):
         if self._loop is None:
             self._loop = asyncio.get_event_loop()
 
-        self.__actions = []
-        self.__attributes = []
-        self.__components = []
-
-        for name, member in inspect.getmembers(self, callable):
-            try:
-                self._publishActions((name, member._published_name))
-            except AttributeError:
-                pass
-
     @property
     def actions(self):
-        return self.__actions
+        return self._actions
 
     @property
     def attributes(self):
-        return self.__attributes
+        return self._attributes
 
     @property
     def components(self):
-        return self.__components
+        return self._components
 
     def getAttribute(self, name):
         return getattr(self, name)
 
     def setAttribute(self, name, val):
         setattr(self, name, val)
-
-    def _publishActions(self, *methods):
-        self.__actions += methods
-
-    def _publishAttributes(self, *attributes):
-        self.__attributes += attributes
-
-    def _publishComponents(self, *components):
-        self.__components += components
 
     def saveConfiguration(self):
         pass
