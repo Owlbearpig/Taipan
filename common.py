@@ -11,16 +11,39 @@ import numpy as np
 import inspect
 
 
-def published_action(func):
-    func._published_action = True
-    return func
+def published_action(name):
+    def deco(func):
+        func._published_name = name
+        return func
+    return deco
 
 
 class TimeoutException(Exception):
     pass
 
 
-class ComponentBase:
+class ComponentMetaClass(type):
+    """Metaclass for ComponentBase. Ensures that the published_action
+    decorator is inherited."""
+
+    def __new__(cls, clsname, bases, dct):
+        # look for overridden methods and re-apply the published_action
+        # decorator if necessary
+        for name, attr in dct.items():
+            for base in bases:
+                try:
+                    candidate = getattr(base, name)
+
+                    # apply the decorator to the override method
+                    published_action(candidate._published_name)(attr)
+                except AttributeError:
+                    continue
+
+        return super().__new__(cls, clsname, bases, dct)
+
+
+class ComponentBase(metaclass=ComponentMetaClass):
+
     def __init__(self, objectName=None, loop=None):
         self.objectName = objectName
         if self.objectName is None:
@@ -34,9 +57,11 @@ class ComponentBase:
         self.__attributes = []
         self.__components = []
 
-        for name, memb in inspect.getmembers(self):
-            if callable(memb) and getattr(memb, "_published_action", False):
-                self.__actions += [name]
+        for name, member in inspect.getmembers(self, callable):
+            try:
+                self._publishActions((name, member._published_name))
+            except AttributeError:
+                pass
 
     @property
     def actions(self):
@@ -74,20 +99,19 @@ class ComponentBase:
 
 class DataSource(ComponentBase):
 
-    @published_action
+    @published_action("Start")
     def start(self):
         pass
 
-    @published_action
+    @published_action("Stop")
     def stop(self):
         pass
 
-    @published_action
+    @published_action("Restart")
     def restart(self):
         self.stop()
         self.start()
 
-    @published_action
     async def readDataSet(self):
         raise NotImplementedError("readDataSet() needs to implemented for "
                                   "DataSources!")
@@ -207,6 +231,7 @@ class Manipulator(ComponentBase):
         """
         await self.moveTo(start, velocity)
 
+    @published_action("Move")
     async def moveTo(self, val, velocity=None):
         pass
 
@@ -258,15 +283,14 @@ class PostProcessor(DataSource, DataSink):
         super().__init__(objectName=objectName, loop=loop)
         self.source = source
 
-    @published_action
+    @published_action("Start")
     def start(self):
         return self._source.start()
 
-    @published_action
+    @published_action("Stop")
     def stop(self):
         return self._source.stop()
 
-    @published_action
     async def readDataSet(self):
         return self.process(await self._source.readDataSet())
 
