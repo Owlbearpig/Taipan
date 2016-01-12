@@ -9,7 +9,7 @@ import asyncio
 import enum
 import numpy as np
 from collections import OrderedDict
-
+import inspect
 
 class TimeoutException(Exception):
     pass
@@ -49,6 +49,9 @@ class ComponentBase:
         setattr(self, name, val)
 
     def _publishActions(self, actions):
+        actions = OrderedDict(actions)
+        actions = OrderedDict([ (k.__name__, (inspect.signature(k), v))
+                                for k, v in actions.items() ])
         self.__actions.update(actions)
 
     def _publishAttributes(self, attributes):
@@ -69,9 +72,9 @@ class DataSource(ComponentBase):
     def __init__(self, objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
         self._publishActions([
-            ("start", "Start"),
-            ("stop", "Stop"),
-            ("restart", "Restart"),
+            (self.start, "Start"),
+            (self.stop, "Stop"),
+            (self.restart, "Restart"),
         ])
 
     def start(self):
@@ -123,8 +126,8 @@ class Manipulator(ComponentBase):
         ])
 
         self._publishActions([
-            ("moveTo", "Move"),
-            ("stop", "Stop"),
+            (self.moveTo, "Move"),
+            (self.stop, "Stop"),
         ])
 
     @property

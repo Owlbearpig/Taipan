@@ -37,7 +37,7 @@ class AppRoot(ComponentBase):
 
         self._publishComponents("manip", "scan", "source")
         self._publishActions([
-            ("takeMeasurement", "Take measurement"),
+            (self.takeMeasurement, "Take measurement"),
         ])
 
     async def takeMeasurement(self):
