@@ -15,6 +15,7 @@ class TimeoutException(Exception):
 
 
 class ComponentBase:
+
     def __init__(self, objectName=None, loop=None):
         self.objectName = objectName
         if self.objectName is None:
@@ -88,6 +89,7 @@ class DataSource(ComponentBase):
 
 
 class DAQDevice(DataSource):
+
     @property
     def unit(self):
         return None
@@ -105,6 +107,7 @@ class DataSink(ComponentBase):
 
 
 class Manipulator(ComponentBase):
+
     def __init__(self, objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
         self._trigStart = None
@@ -248,6 +251,7 @@ class Manipulator(ComponentBase):
 
 
 class PostProcessor(DataSource, DataSink):
+
     def __init__(self, source=None, objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
         self.source = source
@@ -263,6 +267,7 @@ class PostProcessor(DataSource, DataSink):
 
 
 class DataSet:
+
     def __init__(self, data=None, axes=None):
         super().__init__()
         if data is None:
