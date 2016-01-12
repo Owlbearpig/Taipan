@@ -15,6 +15,11 @@ class TimeoutException(Exception):
     pass
 
 
+def _sig2dict(sig):
+    return { p.name : (p.default, p.annotation)
+             for p in sig.parameters.values() }
+
+
 class ComponentBase:
 
     def __init__(self, objectName=None, loop=None):
@@ -50,7 +55,7 @@ class ComponentBase:
 
     def _publishActions(self, actions):
         actions = OrderedDict(actions)
-        actions = OrderedDict([ (k.__name__, (inspect.signature(k), v))
+        actions = OrderedDict([ (k.__name__, (_sig2dict(inspect.signature(k)), v))
                                 for k, v in actions.items() ])
         self.__actions.update(actions)
 
