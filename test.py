@@ -5,7 +5,7 @@ Created on Wed Oct 14 15:04:51 2015
 @author: pumphaus
 """
 
-from common import ComponentBase, published_action
+from common import ComponentBase
 from scan import Scan
 from dummy import DummyManipulator, DummyContinuousDataSource
 from jsonrpclib.jsonrpc import _Method
@@ -27,8 +27,6 @@ class ClientNotifier:
 
 class AppRoot(ComponentBase):
 
-    _components = ["manip", "scan", "source"]
-
     def __init__(self, client, loop=None):
         super().__init__(objectName="AppRoot", loop=loop)
         self.manip = DummyManipulator()
@@ -37,9 +35,14 @@ class AppRoot(ComponentBase):
         self.scan.continuousScan = True
         self.client = client
 
-    @published_action('Take measurement')
+        self._publishComponents("manip", "scan", "source")
+        self._publishActions({
+            "takeMeasurement": "Take measurement",
+        })
+
     async def takeMeasurement(self):
         return await self.scan.readDataSet()
+
 
 clients = ClientNotifier()
 root = AppRoot(clients)

@@ -10,55 +10,11 @@ import enum
 import numpy as np
 
 
-def published_action(name):
-    def deco(func):
-        func._published_name = name
-        return func
-    return deco
-
-
 class TimeoutException(Exception):
     pass
 
 
-class ComponentMetaClass(type):
-    """Metaclass for ComponentBase. Ensures that the published_action
-    decorator is inherited."""
-
-    def __new__(cls, clsname, bases, dct):
-        totalActions = {}
-        totalAttributes = {}
-        totalComponents = []
-
-        for base in bases:
-            totalActions.update(getattr(base, '_actions', {}))
-            totalAttributes.update(getattr(base, '_attributes', {}))
-            totalComponents.extend(getattr(base, '_components', []))
-
-        totalActions.update(dct.get('_actions', {}))
-        totalAttributes.update(dct.get('_attributes', {}))
-        totalComponents.extend(dct.get('_components', {}))
-
-        for name, attr in dct.items():
-            pubname = getattr(attr, "_published_name", None)
-            if pubname is None:
-                continue
-
-            totalActions[name] = pubname
-
-        dct['_actions'] = totalActions
-        dct['_attributes'] = totalAttributes
-        dct['_components'] = totalComponents
-
-        return super().__new__(cls, clsname, bases, dct)
-
-
-class ComponentBase(metaclass=ComponentMetaClass):
-
-    _actions = {}
-    _attributes = {}
-    _components = []
-
+class ComponentBase:
     def __init__(self, objectName=None, loop=None):
         self.objectName = objectName
         if self.objectName is None:
@@ -68,23 +24,36 @@ class ComponentBase(metaclass=ComponentMetaClass):
         if self._loop is None:
             self._loop = asyncio.get_event_loop()
 
+        self.__actions = {}
+        self.__attributes = {}
+        self.__components = []
+
     @property
     def actions(self):
-        return self._actions
+        return self.__actions
 
     @property
     def attributes(self):
-        return self._attributes
+        return self.__attributes
 
     @property
     def components(self):
-        return self._components
+        return self.__components
 
     def getAttribute(self, name):
         return getattr(self, name)
 
     def setAttribute(self, name, val):
         setattr(self, name, val)
+
+    def _publishActions(self, actions):
+        self.__actions.update(actions)
+
+    def _publishAttributes(self, attributes):
+        self.__attributes.update(attributes)
+
+    def _publishComponents(self, *components):
+        self.__components += components
 
     def saveConfiguration(self):
         pass
@@ -95,15 +64,20 @@ class ComponentBase(metaclass=ComponentMetaClass):
 
 class DataSource(ComponentBase):
 
-    @published_action("Start")
+    def __init__(self, objectName=None, loop=None):
+        super().__init__(objectName=objectName, loop=loop)
+        self._publishActions({
+            "start": "Start",
+            "stop": "Stop",
+            "restart": "Restart",
+        })
+
     def start(self):
         pass
 
-    @published_action("Stop")
     def stop(self):
         pass
 
-    @published_action("Restart")
     def restart(self):
         self.stop()
         self.start()
@@ -227,7 +201,6 @@ class Manipulator(ComponentBase):
         """
         await self.moveTo(start, velocity)
 
-    @published_action("Move")
     async def moveTo(self, val, velocity=None):
         pass
 
@@ -279,11 +252,9 @@ class PostProcessor(DataSource, DataSink):
         super().__init__(objectName=objectName, loop=loop)
         self.source = source
 
-    @published_action("Start")
     def start(self):
         return self._source.start()
 
-    @published_action("Stop")
     def stop(self):
         return self._source.stop()
 
