@@ -115,6 +115,17 @@ class Manipulator(ComponentBase):
         self._trigStep = 0
         self.__velocity = 0
 
+        self._publishAttributes({
+            "status": (Manipulator.Status, "Status"),
+            "velocity": (float, "Velocity"),
+            "value": (float, "Value"),
+        })
+
+        self._publishActions({
+            "moveTo": "Move",
+            "stop": "Stop",
+        })
+
     @property
     def velocity(self):
         return self.__velocity
