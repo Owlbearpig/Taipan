@@ -23,7 +23,7 @@ class DummyManipulator(Manipulator):
     def status(self):
         return self.Status.TargetReached
 
-    async def moveTo(self, val, velocity=None):
+    async def moveTo(self, val: float, velocity=None):
         self.velocity = velocity
         values = np.linspace(self._val, val, 50)
         dt = abs(np.mean(np.diff(values)) / velocity)

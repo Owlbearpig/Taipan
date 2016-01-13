@@ -188,7 +188,7 @@ class AxisAtController(Manipulator):
     def _getValue(self):
         return self._position
 
-    async def moveTo(self, val, velocity=None):
+    async def moveTo(self, val: float, velocity=None):
         if velocity is None:
             velocity = self.velocity
 
