@@ -41,11 +41,19 @@ class AppRoot(ComponentBase):
         ])
 
     async def takeMeasurement(self):
-        return await self.scan.readDataSet()
+        print("now acquiring!", flush=True)
+        data = await self.scan.readDataSet()
+        print("finished acquiring data!", flush=True)
+        return data
 
 
 clients = ClientNotifier()
 root = AppRoot(clients)
+root.scan.minimumValue = 0
+root.scan.maximumValue = 10
+root.scan.step = 1
+root.scan.positioningVelocity = 100
+root.scan.scanVelocity = 1
 
-print("root methods: {}".format(root.actions))
-print("scan methods: {}".format(root.scan.actions))
+loop = asyncio.get_event_loop()
+loop.run_until_complete(root.takeMeasurement())
