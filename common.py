@@ -16,21 +16,6 @@ class TimeoutException(Exception):
     pass
 
 
-def _funcsig2dict(func):
-    """Convert a function's signature to dictionary"""
-
-    def a2s(x):
-        if x is inspect._empty:
-            return None
-        if isinstance(x, type):
-            return x.__name__
-        return x
-
-    sig = inspect.signature(func)
-    return { p.name : a2s(p.annotation) for p in sig.parameters.values()
-                                        if p.default is inspect._empty }
-
-
 class ComponentBase:
 
     def __init__(self, objectName=None, loop=None):
@@ -66,8 +51,7 @@ class ComponentBase:
 
     def _publishActions(self, actions):
         actions = OrderedDict(actions)
-        actions = OrderedDict([ (k.__name__, (_funcsig2dict(k), v))
-                                for k, v in actions.items() ])
+        actions = OrderedDict((k.__name__, v) for k, v in actions.items())
         self.__actions.update(actions)
 
     def _publishAttributes(self, attributes):
@@ -142,7 +126,6 @@ class Manipulator(ComponentBase):
         ])
 
         self._publishActions([
-            (self.moveTo, "Move"),
             (self.stop, "Stop"),
         ])
 
