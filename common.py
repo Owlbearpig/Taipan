@@ -8,8 +8,6 @@ Created on Tue Oct 13 13:08:57 2015
 import asyncio
 import enum
 import numpy as np
-from collections import OrderedDict
-import inspect
 
 
 class TimeoutException(Exception):
@@ -27,8 +25,8 @@ class ComponentBase:
         if self._loop is None:
             self._loop = asyncio.get_event_loop()
 
-        self.__actions = OrderedDict()
-        self.__attributes = OrderedDict()
+        self.__actions = []
+        self.__attributes = []
         self.__components = []
 
     @property
@@ -49,16 +47,15 @@ class ComponentBase:
     def setAttribute(self, name, val):
         setattr(self, name, val)
 
-    def _publishActions(self, actions):
-        actions = OrderedDict(actions)
-        actions = OrderedDict((k.__name__, v) for k, v in actions.items())
-        self.__actions.update(actions)
+    def _publishActions(self, *actions):
+        actions = [(k.__name__, v) for k, v in actions]
+        self.__actions.extend(actions)
 
-    def _publishAttributes(self, attributes):
-        self.__attributes.update(attributes)
+    def _publishAttributes(self, *attributes):
+        self.__attributes.extend(attributes)
 
     def _publishComponents(self, *components):
-        self.__components += components
+        self.__components.extend(components)
 
     def saveConfiguration(self):
         pass
@@ -71,11 +68,11 @@ class DataSource(ComponentBase):
 
     def __init__(self, objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
-        self._publishActions([
+        self._publishActions(
             (self.start, "Start"),
             (self.stop, "Stop"),
             (self.restart, "Restart"),
-        ])
+        )
 
     def start(self):
         pass
@@ -119,15 +116,15 @@ class Manipulator(ComponentBase):
         self._trigStep = 0
         self.__velocity = 0
 
-        self._publishAttributes([
-            ("status", (Manipulator.Status, "Status")),
-            ("velocity", (float, "Velocity")),
-            ("value", (float, "Value")),
-        ])
+        self._publishAttributes(
+            ("status", Manipulator.Status, "Status"),
+            ("velocity", float, "Velocity"),
+            ("value", float, "Value"),
+        )
 
-        self._publishActions([
+        self._publishActions(
             (self.stop, "Stop"),
-        ])
+        )
 
     @property
     def velocity(self):

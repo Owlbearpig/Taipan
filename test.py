@@ -36,9 +36,9 @@ class AppRoot(ComponentBase):
         self.client = client
 
         self._publishComponents("manip", "scan", "source")
-        self._publishActions([
+        self._publishActions(
             (self.takeMeasurement, "Take measurement"),
-        ])
+        )
 
     async def takeMeasurement(self):
         print("now acquiring!", flush=True)
