@@ -67,7 +67,9 @@ class SR830(DataSource):
 
     def _readExactly(self, size):
         self.resource.read_termination = None
+        self.resource.timeout = 10000
         data = self.resource.visalib.read(self.resource.session, size)
+        self.resource.timeout = 150
         self.resource.read_termination = '\n'
         return data
 
@@ -82,7 +84,8 @@ class SR830(DataSource):
             return []
         self.resource.write('TRCL? 0,%d' % nPts)
         data, s = self._readExactly(nPts * 4)
-        if s != constants.StatusCode.success_max_count_read:
+        if (s != constants.StatusCode.success_max_count_read and
+            s != constants.StatusCode.success):
             raise Exception("Failed to read complete data set!"
                             "Got %d bytes, expected %d." %
                             (len(data), nPts * 4))
