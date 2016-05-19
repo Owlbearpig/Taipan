@@ -5,10 +5,10 @@ Created on Fri Oct 16 09:14:38 2015
 @author: Arno Rehn
 """
 
-import asyncio
 from common import ComponentBase
-from asyncioext.asyncserial import Serial
-
+from asyncioext import threaded_async
+from serial import Serial
+from threading import Lock
 
 class Connection(ComponentBase):
     def __init__(self, port=None, baudRate=9600):
@@ -16,7 +16,7 @@ class Connection(ComponentBase):
         self.port = port
         self.baudRate = baudRate
         self.serial = Serial()
-        self._lock = asyncio.Lock()
+        self._lock = Lock()
 
     def __del__(self):
         self.close()
@@ -34,7 +34,8 @@ class Connection(ComponentBase):
         if self.serial.isOpen():
             self.serial.close()
 
-    async def send(self, command, *args):
+    @threaded_async
+    def send(self, command, *args):
         """ Send a command over the Connection. If the command is a request,
         returns the reply.
 
@@ -45,7 +46,7 @@ class Connection(ComponentBase):
         *args : Arguments to the command.
         """
 
-        async with self._lock:
+        with self._lock:
             # convert `command` to a bytearray
             if isinstance(command, str):
                 command = bytearray(command, 'ascii')
@@ -69,6 +70,6 @@ class Connection(ComponentBase):
             # reply.
             replyLines = []
             while len(replyLines) == 0 or replyLines[-1][-2:] == ' \n':
-                replyLines.append(await self.serial.async_readline())
+                replyLines.append(self.serial.readline())
 
             return b''.join(replyLines)
