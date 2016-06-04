@@ -14,15 +14,38 @@ import enum
 
 
 class SR830(DataSource):
-    def __init__(self, resource):
+    def __init__(self, resource, init=True):
         super().__init__()
         self.resource = resource
         self.resource.timeout = 150
         self.resource.read_termination = '\n'
 
+        self._samplingMode = SR830.SamplingMode.Buffered
+
+        if (init):
+            self.initialize()
+
+    def initialize(self):
+        self._identification = self.resource.query('*IDN?')
+        self._isDualChannel = "SR830" in self._identification
+
     @property
     def identification(self):
-        return self.resource.query('*IDN?')
+        return self._identification
+
+    class SamplingMode(enum.Enum):
+        SingleShot = 0
+        Buffered = 1
+        ### TODO: support me!
+        # Fast = 2
+
+    @property
+    def samplingMode(self):
+        return self._samplingMode
+
+    @samplingMode.setter
+    def samplingMode(self, mode):
+        self._samplingMode = mode
 
     class SampleRate(enum.Enum):
         Rate_62_5_mHz = 0
@@ -51,8 +74,9 @@ class SR830(DataSource):
 
     @action("Start")
     def start(self):
-        self.resource.write('REST')
-        self.resource.write('STRT')
+        if (self._samplingMode == SR830.SamplingMode.Buffered):
+            self.resource.write('REST')
+            self.resource.write('STRT')
 
     @action("Stop")
     def stop(self):
@@ -80,11 +104,16 @@ class SR830(DataSource):
         return int(self.resource.query('SPTS?'))
 
     @threaded_async
-    def readData(self):
+    def readDataBuffer(self):
         nPts = int(self.resource.query('SPTS?'))
         if nPts == 0:
             return []
-        self.resource.write('TRCL? 0,%d' % nPts)
+
+        if (self._isDualChannel):
+            self.resource.write('TRCL? 1,0,%d' % nPts)
+        else:
+            self.resource.write('TRCL? 0,%d' % nPts)
+
         data, s = self._readExactly(nPts * 4)
         if (s != constants.StatusCode.success_max_count_read and
             s != constants.StatusCode.success):
@@ -93,7 +122,23 @@ class SR830(DataSource):
                             (len(data), nPts * 4))
         return SR830._internal2float(data)
 
+    @threaded_async
+    def readCurrentOutput(self, channel='X'):
+        try:
+            idx = ['x', 'y', 'r', 'theta'].index(channel.lower()) + 1
+        except ValueError:
+            raise ValueError("'{}' is not a valid channel identifier. "
+                             "Valid values are: 'x', 'y', 'r', 'theta'."
+                             .format(channel))
+        return float(self.resource.query('OUTP? %d' % idx))
+
     async def readDataSet(self):
-        data = np.array(await self.readData())
-        dataSet = DataSet(data, [np.arange(0, len(data))])
-        return dataSet
+        if (self._samplingMode == SR830.SamplingMode.SingleShot):
+            data = np.array(await self.readCurrentOutput())
+            dataSet = DataSet(data, [])
+            return dataSet
+
+        elif (self._samplingMode == SR830.SamplingMode.Buffered):
+            data = np.array(await self.readDataBuffer())
+            dataSet = DataSet(data, [np.arange(0, len(data))])
+            return dataSet
