@@ -55,6 +55,7 @@ Dependencies
 * pyserial
 * pyvisa
 * pyvisa-py
+* [Traitlets](https://github.com/ipython/traitlets)
 
 Coding style
 ------------
