@@ -8,6 +8,7 @@ Created on Tue Oct 13 13:08:57 2015
 import asyncio
 import enum
 import numpy as np
+from logging import warning
 
 
 class TimeoutException(Exception):
@@ -41,6 +42,9 @@ class ComponentBase:
     def components(self):
         return self.__components
 
+    def attributeChanged(self, name, value):
+        pass
+
     def getAttribute(self, name):
         return getattr(self, name)
 
@@ -54,8 +58,31 @@ class ComponentBase:
     def _publishAttributes(self, *attributes):
         self.__attributes.extend(attributes)
 
+    def __publishComponent(self, component):
+        if not isinstance(component, ComponentBase):
+            raise AttributeError("Object {} can't be published because it is "
+                                 "not an instance of ComponentBase!"
+                                 .format(component))
+
+        revLookedUp = [key for (key, value) in self.__dict__.items()
+                       if value is component]
+
+        if len(revLookedUp) == 0:
+            raise AttributeError('Object {} is not an attribute of {}'
+                                 .format(component, self))
+
+        if len(revLookedUp) > 1:
+            raise AttributeError("Object {} is assigned to multiple attributes"
+                                 " {} of {}. Can't publish ambiguous "
+                                 "components."
+                                 .format(component, revLookedUp, self,
+                                         revLookedUp[0]))
+
+        self.__components.append(revLookedUp[0])
+
     def _publishComponents(self, *components):
-        self.__components.extend(components)
+        for component in components:
+            self.__publishComponent(component)
 
     def saveConfiguration(self):
         pass
@@ -133,6 +160,7 @@ class Manipulator(ComponentBase):
     @velocity.setter
     def velocity(self, value):
         self.__velocity = value
+        self.attributeChanged("velocity", value)
 
     @property
     def unit(self):

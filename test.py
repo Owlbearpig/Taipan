@@ -35,7 +35,7 @@ class AppRoot(ComponentBase):
         self.scan.continuousScan = True
         self.client = client
 
-        self._publishComponents("manip", "scan", "source")
+        self._publishComponents(self.manip, self.scan, self.source)
         self._publishActions(
             (self.takeMeasurement, "Take measurement"),
         )
