@@ -40,6 +40,10 @@ class AppRoot(ComponentBase):
             (self.takeMeasurement, "Take measurement"),
         )
 
+    def attributeChanged(self, name, value, objectPath, instance):
+        print("Changed attribute: {} = {}, {} ({})"
+              .format(name, value, objectPath, instance))
+
     async def takeMeasurement(self):
         print("now acquiring!", flush=True)
         data = await self.scan.readDataSet()
@@ -53,7 +57,7 @@ root.scan.minimumValue = 0
 root.scan.maximumValue = 10
 root.scan.step = 1
 root.scan.positioningVelocity = 100
-root.scan.scanVelocity = 1
+root.scan.scanVelocity = 10
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(root.takeMeasurement())

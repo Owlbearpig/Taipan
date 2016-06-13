@@ -42,7 +42,7 @@ class ComponentBase:
     def components(self):
         return self.__components
 
-    def attributeChanged(self, name, value):
+    def attributeChanged(self, name, value, objectPath=None, instance=None):
         pass
 
     def getAttribute(self, name):
@@ -75,10 +75,18 @@ class ComponentBase:
             raise AttributeError("Object {} is assigned to multiple attributes"
                                  " {} of {}. Can't publish ambiguous "
                                  "components."
-                                 .format(component, revLookedUp, self,
-                                         revLookedUp[0]))
+                                 .format(component, revLookedUp, self))
 
-        self.__components.append(revLookedUp[0])
+        attrName = revLookedUp[0]
+
+        def attributeChangedProxy(name, value, objectPath=None, instance=None):
+            self.attributeChanged(name, value,
+                                  [attrName] + (objectPath or []),
+                                  instance or component)
+
+        component.attributeChanged = attributeChangedProxy
+
+        self.__components.append(attrName)
 
     def _publishComponents(self, *components):
         for component in components:
