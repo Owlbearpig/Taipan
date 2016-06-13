@@ -93,10 +93,12 @@ class ComponentBase:
             self.__publishComponent(component)
 
     def saveConfiguration(self):
-        pass
+        for c in self.__components:
+            c.saveConfiguration()
 
     def loadConfiguration(self):
-        pass
+        for c in self.__components:
+            c.loadConfiguration()
 
 
 class DataSource(ComponentBase):
