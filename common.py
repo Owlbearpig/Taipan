@@ -42,7 +42,10 @@ class ComponentBase:
     def components(self):
         return self.__components
 
-    def attributeChanged(self, name, value, objectPath=None, instance=None):
+    def attributeChanged(self, name, value):
+        self.handleAttributeChanged(name, value, [], self)
+
+    def handleAttributeChanged(self, name, value, objectPath, instance):
         pass
 
     def getAttribute(self, name):
@@ -79,12 +82,12 @@ class ComponentBase:
 
         attrName = revLookedUp[0]
 
-        def attributeChangedProxy(name, value, objectPath=None, instance=None):
-            self.attributeChanged(name, value,
-                                  [attrName] + (objectPath or []),
-                                  instance or component)
+        def attributeChangedProxy(name, value, objectPath, instance):
+            self.handleAttributeChanged(name, value,
+                                        [attrName] + objectPath,
+                                        instance or component)
 
-        component.attributeChanged = attributeChangedProxy
+        component.handleAttributeChanged = attributeChangedProxy
 
         self.__components.append(attrName)
 

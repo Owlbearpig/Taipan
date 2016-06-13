@@ -40,7 +40,7 @@ class AppRoot(ComponentBase):
             (self.takeMeasurement, "Take measurement"),
         )
 
-    def attributeChanged(self, name, value, objectPath, instance):
+    def handleAttributeChanged(self, name, value, objectPath, instance):
         print("Changed attribute: {} = {}, {} ({})"
               .format(name, value, objectPath, instance))
 
