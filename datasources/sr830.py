@@ -6,7 +6,7 @@ Created on Mon Nov  9 10:32:30 2015
 """
 
 import numpy as np
-from common import DataSource, DataSet
+from common import DataSource, DataSet, action
 from asyncioext import threaded_async
 from pyvisa import constants
 import struct
@@ -49,10 +49,12 @@ class SR830(DataSource):
         val = int(self.resource.query('SRAT?'))
         return [item for item in SR830.SampleRate if item.value == val][0]
 
+    @action("Start")
     def start(self):
         self.resource.write('REST')
         self.resource.write('STRT')
 
+    @action("Stop")
     def stop(self):
         self.resource.write('PAUS')
 
