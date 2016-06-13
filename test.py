@@ -8,39 +8,39 @@ Created on Wed Oct 14 15:04:51 2015
 from common import ComponentBase, action
 from scan import Scan
 from dummy import DummyManipulator, DummyContinuousDataSource, DataSet
-from jsonrpclib.jsonrpc import _Method
 import asyncio
-from traitlets import Instance
+from traitlets import Instance, Int
 
 
-class ClientNotifier:
-    def __init__(self):
-        self._clients = []
+def register_notification_hooks(component, objectPath=[]):
+    for name, trait in component.attributes.items():
+        if (isinstance(trait, Instance) and
+            issubclass(trait.klass, ComponentBase)):
 
-    def _clientNotify(self, methodname, params):
-        print("notifying clients of {}{}".format(methodname, params or "()"))
-        for client in self._clients:
-            client._request_notify(methodname, params)
+            cInst = getattr(component, name)
+            register_notification_hooks(cInst, objectPath + [name])
+        else:
+            def print_change(change):
+                print("Change at {}: {}".format(objectPath, change))
 
-    def __getattr__(self, name):
-        return _Method(self._clientNotify, name)
+            component.observe(print_change, name)
 
 
 class AppRoot(ComponentBase):
 
+    foo = Int(42)
     currentData = Instance(DataSet, read_only=True)
 
     manip = Instance(DummyManipulator)
     source = Instance(DummyContinuousDataSource)
     scan = Instance(Scan)
 
-    def __init__(self, client, loop=None):
+    def __init__(self, loop=None):
         super().__init__(objectName="AppRoot", loop=loop)
         self.manip = DummyManipulator()
         self.source = DummyContinuousDataSource(manip=self.manip)
         self.scan = Scan(self.manip, self.source)
         self.scan.continuousScan = True
-        self.client = client
         self.set_trait('currentData', DataSet())
 
     @action("Take measurement")
@@ -50,8 +50,9 @@ class AppRoot(ComponentBase):
         print("finished acquiring data!", flush=True)
 
 
-clients = ClientNotifier()
-root = AppRoot(clients)
+root = AppRoot()
+register_notification_hooks(root)
+
 root.scan.minimumValue = 0
 root.scan.maximumValue = 10
 root.scan.step = 1
