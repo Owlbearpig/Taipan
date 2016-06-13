@@ -14,22 +14,15 @@ class DummyManipulator(Manipulator):
 
     def __init__(self):
         super().__init__()
-        self._val = 0
-
-    def _getValue(self):
-        return self._val
-
-    @property
-    def status(self):
-        return self.Status.TargetReached
+        self.set_trait('status', Manipulator.Status.TargetReached)
 
     async def moveTo(self, val: float, velocity=None):
         self.velocity = velocity
-        values = np.linspace(self._val, val, 50)
+        values = np.linspace(self.value, val, 50)
         dt = abs(np.mean(np.diff(values)) / velocity)
         for target in values:
             await asyncio.sleep(dt)
-            self._val = target
+            self.set_trait('value', target)
 
     async def configureTrigger(self, step, start=None, stop=None):
         self._step = step

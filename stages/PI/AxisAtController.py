@@ -10,6 +10,7 @@ from asyncioext import ensure_weakly_binding_future
 import asyncio
 import re
 import enum
+import traitlets
 
 _replyExpression = re.compile(br'([0-9]+) ([0-9]+) (.*)')
 _valueExpression = re.compile(br'([0-9 ]+)=([0-9a-fA-Fx\.\-]+)$')
@@ -60,6 +61,13 @@ class AxisAtController(Manipulator):
             raise Exception("Unhandled error code %d on PI Controller %s "
                             "(axis %d)" %
                             (errorCode, self._identification, self.axis))
+
+    isMoving = traitlets.Bool(False, read_only=True)
+    isServoOn = traitlets.Bool(False, read_only=True)
+    isReferencing = traitlets.Bool(False, read_only=True)
+    isOnTarget = traitlets.Bool(False, read_only=True)
+    isReferenced = traitlets.Bool(False, read_only=True)
+
     async def updateStatus(self):
         while True:
             await asyncio.sleep(0.5)
@@ -72,8 +80,26 @@ class AxisAtController(Manipulator):
     async def singleUpdate(self):
         self._status = await self.send("SRG?", 1)
 
-        self._position = await self.send(b'POS?')
-        self._isReferenced = bool(await self.send(b'FRF?'))
+        self.set_trait('value', await self.send(b'POS?'))
+
+        self.set_trait('isReferenced', bool(await self.send(b'FRF?')))
+        self.set_trait('isReferencing',
+                       bool(self._status & self.StatusBits.Referencing.value))
+        self.set_trait('isOnTarget',
+                       bool(self._status & self.StatusBits.OnTarget.value))
+        self.set_trait('isServoOn',
+                       bool(self._status & self.StatusBits.ServoMode.value))
+        self.set_trait('isMoving',
+                       bool(self._status & self.StatusBits.Moving.value) or
+                       self.isReferencing)
+
+        if self.isOnTarget:
+            self.set_trait('status', self.Status.TargetReached)
+        elif self.isMoving:
+            self.set_trait('status', self.Status.Moving)
+        else:
+            self.set_trait('status', self.Status.Undefined)
+
         if not self._isMovingFuture.done() and not self.isMoving:
             self._isMovingFuture.set_result(self._movementStopped)
 
@@ -156,37 +182,6 @@ class AxisAtController(Manipulator):
 
         await self.send("RON", 1)
         await self.send("SVO", 1)
-
-    @property
-    def isMoving(self):
-        return bool(self._status & self.StatusBits.Moving.value) or \
-               self.isReferencing
-
-    @property
-    def isServoOn(self):
-        return bool(self._status & self.StatusBits.ServoMode.value)
-
-    @property
-    def isReferencing(self):
-        return bool(self._status & self.StatusBits.Referencing.value)
-
-    @property
-    def isOnTarget(self):
-        return bool(self._status & self.StatusBits.OnTarget.value)
-
-    @property
-    def isReferenced(self):
-        return self._isReferenced
-
-    @property
-    def status(self):
-        if (self.isOnTarget):
-            return self.Status.TargetReached
-        elif (self.isMoving):
-            return self.Status.Moving
-
-    def _getValue(self):
-        return self._position
 
     async def moveTo(self, val: float, velocity=None):
         if velocity is None:

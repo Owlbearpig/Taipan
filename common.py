@@ -8,14 +8,34 @@ Created on Tue Oct 13 13:08:57 2015
 import asyncio
 import enum
 import numpy as np
-from logging import warning
+import traitlets
 
 
 class TimeoutException(Exception):
     pass
 
 
-class ComponentBase:
+def action(prettyName):
+    def action_impl(method):
+        method._actionName = prettyName
+        return method
+    return action_impl
+
+
+def _dumb_list_of_actions(inst):
+    for name in dir(inst):
+        try:
+            attr = getattr(inst, name, None)
+            prettyName = getattr(attr, '_actionName', None)
+            if prettyName is not None:
+                yield name, prettyName, attr
+        except AttributeError:
+            pass
+        except traitlets.TraitError:
+            pass
+
+
+class ComponentBase(traitlets.HasTraits):
 
     def __init__(self, objectName=None, loop=None):
         self.objectName = objectName
@@ -27,8 +47,8 @@ class ComponentBase:
             self._loop = asyncio.get_event_loop()
 
         self.__actions = []
-        self.__attributes = []
-        self.__components = []
+        for name, prettyName, memb in _dumb_list_of_actions(self):
+            self.__actions.append((memb, prettyName))
 
     @property
     def actions(self):
@@ -36,64 +56,13 @@ class ComponentBase:
 
     @property
     def attributes(self):
-        return self.__attributes
-
-    @property
-    def components(self):
-        return self.__components
-
-    def attributeChanged(self, name, value):
-        self.handleAttributeChanged(name, value, [], self)
-
-    def handleAttributeChanged(self, name, value, objectPath, instance):
-        pass
+        return self.traits()
 
     def getAttribute(self, name):
         return getattr(self, name)
 
     def setAttribute(self, name, val):
         setattr(self, name, val)
-
-    def _publishActions(self, *actions):
-        actions = [(k.__name__, v) for k, v in actions]
-        self.__actions.extend(actions)
-
-    def _publishAttributes(self, *attributes):
-        self.__attributes.extend(attributes)
-
-    def __publishComponent(self, component):
-        if not isinstance(component, ComponentBase):
-            raise AttributeError("Object {} can't be published because it is "
-                                 "not an instance of ComponentBase!"
-                                 .format(component))
-
-        revLookedUp = [key for (key, value) in self.__dict__.items()
-                       if value is component]
-
-        if len(revLookedUp) == 0:
-            raise AttributeError('Object {} is not an attribute of {}'
-                                 .format(component, self))
-
-        if len(revLookedUp) > 1:
-            raise AttributeError("Object {} is assigned to multiple attributes"
-                                 " {} of {}. Can't publish ambiguous "
-                                 "components."
-                                 .format(component, revLookedUp, self))
-
-        attrName = revLookedUp[0]
-
-        def attributeChangedProxy(name, value, objectPath, instance):
-            self.handleAttributeChanged(name, value,
-                                        [attrName] + objectPath,
-                                        instance or component)
-
-        component.handleAttributeChanged = attributeChangedProxy
-
-        self.__components.append(attrName)
-
-    def _publishComponents(self, *components):
-        for component in components:
-            self.__publishComponent(component)
 
     def saveConfiguration(self):
         for c in self.__components:
@@ -108,18 +77,16 @@ class DataSource(ComponentBase):
 
     def __init__(self, objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
-        self._publishActions(
-            (self.start, "Start"),
-            (self.stop, "Stop"),
-            (self.restart, "Restart"),
-        )
 
+    @action("Start")
     def start(self):
         pass
 
+    @action("Stop")
     def stop(self):
         pass
 
+    @action("Restart")
     def restart(self):
         self.stop()
         self.start()
@@ -149,6 +116,18 @@ class DataSink(ComponentBase):
 
 class Manipulator(ComponentBase):
 
+    class Status(enum.Enum):
+        Undefined = 0
+        TargetReached = 1
+        Moving = 2
+        Error = 3
+
+    velocity = traitlets.Float(0).tag(prettyName="Velocity")
+    value = traitlets.Float(0, read_only=True).tag(prettyName="Value")
+    targetValue = traitlets.Float(0).tag(prettyName="Value")
+    status = traitlets.Enum(Status, default_value=Status.Undefined,
+                            read_only=True)
+
     def __init__(self, objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
         self._trigStart = None
@@ -156,58 +135,13 @@ class Manipulator(ComponentBase):
         self._trigStep = 0
         self.__velocity = 0
 
-        self._publishAttributes(
-            ("status", Manipulator.Status, "Status"),
-            ("velocity", float, "Velocity"),
-            ("value", float, "Value"),
-        )
-
-        self._publishActions(
-            (self.stop, "Stop"),
-        )
-
-    @property
-    def velocity(self):
-        return self.__velocity
-
-    @velocity.setter
-    def velocity(self, value):
-        self.__velocity = value
-        self.attributeChanged("velocity", value)
-
     @property
     def unit(self):
         return None
 
-    @property
-    def value(self):
-        """Property interface around _getValue() and the async moveTo()
-        method. Gets or sets the Manipulator's value.
-        """
-        return self._getValue()
-
-    @value.setter
-    def value(self, val):
-        self._loop.create_task(self.moveTo(val))
-
-    def _getValue(self):
-        """Get the current value of the Manipulator.
-
-        This should be reimplemented by concrete Manipulators. ``_getValue()``
-        is called by the ``value`` property getter.
-        """
-
-        return None
-
-    class Status(enum.Enum):
-        Undefined = 0
-        TargetReached = 1
-        Moving = 2
-        Error = 3
-
-    @property
-    def status(self):
-        return Manipulator.Status.Undefined
+    @traitlets.observe("targetValue")
+    def _targetValueObserver(self, change):
+        self._loop.create_task(self.moveTo(change['new']))
 
     async def waitForTargetReached(self, timeout=30):
         """ Wait for the Manipulator's status to become ``TargetReached``.
@@ -298,6 +232,7 @@ class Manipulator(ComponentBase):
         """
         return self._trigStep
 
+    @action("Stop")
     def stop(self):
         pass
 
@@ -308,9 +243,11 @@ class PostProcessor(DataSource, DataSink):
         super().__init__(objectName=objectName, loop=loop)
         self.source = source
 
+    @action("Start")
     def start(self):
         return self._source.start()
 
+    @action("Stop")
     def stop(self):
         return self._source.stop()
 

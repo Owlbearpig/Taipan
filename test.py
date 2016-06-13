@@ -5,11 +5,12 @@ Created on Wed Oct 14 15:04:51 2015
 @author: pumphaus
 """
 
-from common import ComponentBase
+from common import ComponentBase, action
 from scan import Scan
-from dummy import DummyManipulator, DummyContinuousDataSource
+from dummy import DummyManipulator, DummyContinuousDataSource, DataSet
 from jsonrpclib.jsonrpc import _Method
 import asyncio
+from traitlets import Instance
 
 
 class ClientNotifier:
@@ -27,6 +28,12 @@ class ClientNotifier:
 
 class AppRoot(ComponentBase):
 
+    currentData = Instance(DataSet, read_only=True)
+
+    manip = Instance(DummyManipulator)
+    source = Instance(DummyContinuousDataSource)
+    scan = Instance(Scan)
+
     def __init__(self, client, loop=None):
         super().__init__(objectName="AppRoot", loop=loop)
         self.manip = DummyManipulator()
@@ -34,21 +41,13 @@ class AppRoot(ComponentBase):
         self.scan = Scan(self.manip, self.source)
         self.scan.continuousScan = True
         self.client = client
+        self.set_trait('currentData', DataSet())
 
-        self._publishComponents(self.manip, self.scan, self.source)
-        self._publishActions(
-            (self.takeMeasurement, "Take measurement"),
-        )
-
-    def handleAttributeChanged(self, name, value, objectPath, instance):
-        print("Changed attribute: {} = {}, {} ({})"
-              .format(name, value, objectPath, instance))
-
+    @action("Take measurement")
     async def takeMeasurement(self):
         print("now acquiring!", flush=True)
-        data = await self.scan.readDataSet()
+        self.set_trait('currentData', await self.scan.readDataSet())
         print("finished acquiring data!", flush=True)
-        return data
 
 
 clients = ClientNotifier()
