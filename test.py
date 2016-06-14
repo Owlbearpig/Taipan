@@ -26,38 +26,31 @@ def register_notification_hooks(component, objectPath=[]):
             component.observe(print_change, name)
 
 
-class AppRoot(ComponentBase):
+class AppRoot(Scan):
 
-    foo = Int(42)
     currentData = Instance(DataSet, read_only=True)
 
-    manip = Instance(DummyManipulator)
-    source = Instance(DummyContinuousDataSource)
-    scan = Instance(Scan)
-
     def __init__(self, loop=None):
-        super().__init__(objectName="AppRoot", loop=loop)
-        self.manip = DummyManipulator()
-        self.source = DummyContinuousDataSource(manip=self.manip)
-        self.scan = Scan(self.manip, self.source)
-        self.scan.continuousScan = True
+        super().__init__(objectName="Scan", loop=loop)
+        self.manipulator = DummyManipulator()
+        self.dataSource = DummyContinuousDataSource(manip=self.manipulator)
+        self.continuousScan = True
         self.set_trait('currentData', DataSet())
 
     @action("Take measurement")
     async def takeMeasurement(self):
-        print("now acquiring!", flush=True)
-        self.set_trait('currentData', await self.scan.readDataSet())
-        print("finished acquiring data!", flush=True)
+        self.set_trait('currentData', await self.readDataSet())
 
 
-root = AppRoot()
-register_notification_hooks(root)
+if __name__ == '__main__':
+    root = AppRoot()
+    register_notification_hooks(root)
 
-root.scan.minimumValue = 0
-root.scan.maximumValue = 10
-root.scan.step = 1
-root.scan.positioningVelocity = 100
-root.scan.scanVelocity = 10
+    root.minimumValue = 0
+    root.maximumValue = 10
+    root.step = 1
+    root.positioningVelocity = 100
+    root.scanVelocity = 10
 
-loop = asyncio.get_event_loop()
-loop.run_until_complete(root.takeMeasurement())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(root.takeMeasurement())

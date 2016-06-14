@@ -6,12 +6,25 @@ Created on Wed Oct 14 11:18:53 2015
 """
 
 import asyncio
-from common import DataSource, DataSet
+from common import Manipulator, DataSource, DataSet
 import numpy as np
 import warnings
+from traitlets import Bool, Float, Instance
 
 
 class Scan(DataSource):
+
+    manipulator = Instance(Manipulator, allow_none=True)
+    dataSource = Instance(DataSource, allow_none=True)
+
+    minimumValue = Float(0)
+    maximumValue = Float(0)
+    step = Float(0)
+    scanVelocity = Float(0)
+    positioningVelocity = Float(0)
+    continuousScan = Bool(False)
+    retractAtEnd = Bool(False)
+    active = Bool(False, read_only=True)
 
     def __init__(self, manipulator=None, dataSource=None, minimumValue=0,
                  maximumValue=0, step=0, objectName=None, loop=None):
@@ -21,11 +34,6 @@ class Scan(DataSource):
         self.minimumValue = minimumValue
         self.maximumValue = maximumValue
         self.step = step
-        self.scanVelocity = None
-        self.positioningVelocity = None
-        self.continuousScan = False
-        self.retractAtEnd = False
-        self.active = False
         self.currentAxis = None
 
     async def _doContinuousScan(self, axis, step):
@@ -80,7 +88,7 @@ class Scan(DataSource):
         if self.active:
             raise asyncio.InvalidStateError()
 
-        self.active = True
+        self.set_trait('active', True)
 
         try:
             self.dataSource.stop()
@@ -117,4 +125,4 @@ class Scan(DataSource):
                 )
 
             self.currentAxis = None
-            self.active = False
+            self.set_trait('active', False)

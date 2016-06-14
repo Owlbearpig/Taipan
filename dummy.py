@@ -5,9 +5,10 @@ Created on Wed Oct 14 14:56:08 2015
 @author: pumphaus
 """
 
-from common import DataSource, Manipulator, DataSet
+from common import DataSource, Manipulator, DataSet, ComponentBase
 import asyncio
 import numpy as np
+from traitlets import Instance
 
 
 class DummyManipulator(Manipulator):
