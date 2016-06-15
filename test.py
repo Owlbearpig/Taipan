@@ -33,7 +33,9 @@ class AppRoot(Scan):
     def __init__(self, loop=None):
         super().__init__(objectName="Scan", loop=loop)
         self.manipulator = DummyManipulator()
+        self.manipulator.objectName = "Dummy Manipulator"
         self.dataSource = DummyContinuousDataSource(manip=self.manipulator)
+        self.dataSource.objectName = "Dummy DataSource"
         self.continuousScan = True
         self.set_trait('currentData', DataSet())
 
