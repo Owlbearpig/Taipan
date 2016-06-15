@@ -17,11 +17,19 @@ class Scan(DataSource):
     manipulator = Instance(Manipulator, allow_none=True)
     dataSource = Instance(DataSource, allow_none=True)
 
-    minimumValue = Float(0)
-    maximumValue = Float(0)
-    step = Float(0)
-    scanVelocity = Float(0)
-    positioningVelocity = Float(0)
+    minimumValue = Float(0).tag(help="The Scan's minimum value",
+                                name="Minimum value")
+    maximumValue = Float(0).tag(help="The Scan's maximum value",
+                                name="Maximum value")
+    step = Float(0).tag(help="The step width used for the Scan",
+                        name="Step width")
+    scanVelocity = Float(0).tag(help="The velocity of the Manipulator used "
+                                     "during the scan",
+                                name="Scan velocity")
+    positioningVelocity = Float(0).tag(help="The velocity of the Manipulator "
+                                            "during positioning movement (not "
+                                            "during data acquisiton)",
+                                       name="Positioning velocity")
     continuousScan = Bool(False)
     retractAtEnd = Bool(False)
     active = Bool(False, read_only=True)
@@ -29,12 +37,28 @@ class Scan(DataSource):
     def __init__(self, manipulator=None, dataSource=None, minimumValue=0,
                  maximumValue=0, step=0, objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
+
+        self.observe(self._setUnits, 'manipulator')
+
         self.manipulator = manipulator
         self.dataSource = dataSource
         self.minimumValue = minimumValue
         self.maximumValue = maximumValue
         self.step = step
         self.currentAxis = None
+
+    def _setUnits(self, change):
+        manip = change['new']
+        if manip is None:
+            return
+
+        self.traits()['minimumValue'].metadata['unit'] = manip.unit
+        self.traits()['maximumValue'].metadata['unit'] = manip.unit
+        self.traits()['step'].metadata['unit'] = manip.unit
+        self.traits()['positioningVelocity'].metadata['unit'] = \
+            (manip.unit or '') + '/s'
+        self.traits()['scanVelocity'].metadata['unit'] = \
+            (manip.unit or '') + '/s'
 
     async def _doContinuousScan(self, axis, step):
         await self.manipulator.beginScan(axis[0], axis[-1],
