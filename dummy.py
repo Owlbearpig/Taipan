@@ -17,6 +17,10 @@ class DummyManipulator(Manipulator):
         super().__init__()
         self.set_trait('status', Manipulator.Status.TargetReached)
 
+    @property
+    def unit(self):
+        return 'ps'
+
     async def moveTo(self, val: float, velocity=None):
         self.velocity = velocity
         values = np.linspace(self.value, val, 50)
