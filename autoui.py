@@ -11,6 +11,7 @@ from common import ComponentBase, DataSet
 from scan import Scan
 from traitlets import Instance, Float, Bool, Integer
 from test import AppRoot
+from collections import OrderedDict
 
 
 def is_component_trait(x):
@@ -24,9 +25,9 @@ def create_spinbox_entry(component, name, trait, datatype):
     else:
         spinbox = QtWidgets.QSpinBox()
 
-    spinbox.setToolTip(component.traits()[name].help)
-    spinbox.setMinimum(component.traits()[name].min or -int('0x80000000', 16))
-    spinbox.setMaximum(component.traits()[name].max or int('0x7FFFFFFF', 16))
+    spinbox.setToolTip(trait.help)
+    spinbox.setMinimum(trait.min or -int('0x80000000', 16))
+    spinbox.setMaximum(trait.max or int('0x7FFFFFFF', 16))
 
     unit = component.trait_metadata(name, 'unit', None)
     spinbox.setSuffix(unit and ' ' + unit)
@@ -40,21 +41,48 @@ def create_spinbox_entry(component, name, trait, datatype):
     layout.setStretch(0, 1)
     layout.setStretch(1, 0)
 
-    spinbox.setValue(getattr(component, name))
+    spinbox.setValue(trait.get(component))
     component.observe(lambda change: spinbox.setValue(change['new']), name)
 
     return layout
 
 
+def create_checkbox(component, name, prettyName, trait):
+    checkbox = QtWidgets.QCheckBox(prettyName)
+    checkbox.setChecked(trait.get(component))
+    checkbox.setEnabled(not trait.read_only)
+    component.observe(lambda change: checkbox.setChecked(change['new']), name)
+
+    return checkbox
+
+
+def _group(trait):
+    return trait.metadata.get('group', 'General')
+
+def _prettyName(trait, name):
+    return trait.metadata.get('name', name)
+
 def generate_component_ui(name, component):
-    widget = QtWidgets.QWidget()
-    layout = QtWidgets.QFormLayout(widget)
+    # filter and sort traits
+    traits = [(name, trait) for name, trait
+              in sorted(component.traits().items(), key=lambda x: x[0])
+              if not is_component_trait(trait)]
 
-    for name, trait in sorted(component.traits().items(), key=lambda x: x[0]):
-        if (is_component_trait(trait)):
-            continue  # skip sub-components
+    # pre-create group boxes
+    groups = OrderedDict()
 
-        prettyName = component.trait_metadata(name, 'name', name)
+    for name, trait in traits:
+        group = _group(trait)
+
+        if group not in groups:
+            box = QtWidgets.QGroupBox(group)
+            QtWidgets.QFormLayout(box)
+            groups[group] = box
+
+    for name, trait in traits:
+        prettyName = _prettyName(trait, name)
+        group = _group(trait)
+        layout = groups[group].layout()
 
         if (isinstance(trait, Integer)):
             layout.addRow(prettyName + ": ",
@@ -62,6 +90,24 @@ def generate_component_ui(name, component):
         if (isinstance(trait, Float)):
             layout.addRow(prettyName + ": ",
                           create_spinbox_entry(component, name, trait, float))
+
+    for name, trait in traits:
+        if not isinstance(trait, Bool):
+            continue
+        prettyName = _prettyName(trait, name)
+        group = _group(trait)
+
+        layout = groups[group].layout()
+        layout.addRow(None,
+                      create_checkbox(component, name, prettyName, trait))
+
+    widget = QtWidgets.QWidget()
+    grid = QtWidgets.QGridLayout(widget)
+    grid.setContentsMargins(-1, 0, 0, 0)
+    for i, group in enumerate(groups.values()):
+        row = int(i / 2)
+        col = i % 2
+        grid.addWidget(group, row, col)
 
     return widget
 
