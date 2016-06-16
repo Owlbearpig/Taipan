@@ -59,8 +59,10 @@ def create_checkbox(component, name, prettyName, trait):
 def _group(trait):
     return trait.metadata.get('group', 'General')
 
+
 def _prettyName(trait, name):
     return trait.metadata.get('name', name)
+
 
 def generate_component_ui(name, component):
     # filter and sort traits
