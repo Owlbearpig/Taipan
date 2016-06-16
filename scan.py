@@ -10,6 +10,7 @@ from common import Manipulator, DataSource, DataSet
 import numpy as np
 import warnings
 from traitlets import Bool, Float, Instance
+from copy import deepcopy
 
 
 class Scan(DataSource):
@@ -17,19 +18,24 @@ class Scan(DataSource):
     manipulator = Instance(Manipulator, allow_none=True)
     dataSource = Instance(DataSource, allow_none=True)
 
-    minimumValue = Float(0).tag(help="The Scan's minimum value",
-                                name="Minimum value")
-    maximumValue = Float(0).tag(help="The Scan's maximum value",
-                                name="Maximum value")
-    step = Float(0).tag(help="The step width used for the Scan",
-                        name="Step width")
-    scanVelocity = Float(0).tag(help="The velocity of the Manipulator used "
-                                     "during the scan",
-                                name="Scan velocity")
-    positioningVelocity = Float(0).tag(help="The velocity of the Manipulator "
-                                            "during positioning movement (not "
-                                            "during data acquisiton)",
-                                       name="Positioning velocity")
+    minimumValue = Float(0, help="The Scan's minimum value").tag(
+                            name="Minimum value")
+
+    maximumValue = Float(0, help="The Scan's maximum value").tag(
+                            name="Maximum value")
+
+    step = Float(0, help="The step width used for the Scan").tag(
+                    name="Step width")
+
+    scanVelocity = Float(0, help="The velocity of the Manipulator used during "
+                                 "the scan").tag(
+                            name="Scan velocity")
+
+    positioningVelocity = Float(0, help="The velocity of the Manipulator "
+                                        "during positioning movement (not "
+                                        "during data acquisiton)").tag(
+                                   name="Positioning velocity")
+
     continuousScan = Bool(False)
     retractAtEnd = Bool(False)
     active = Bool(False, read_only=True)
@@ -47,18 +53,32 @@ class Scan(DataSource):
         self.step = step
         self.currentAxis = None
 
+        self.__original_class = self.__class__
+
     def _setUnits(self, change):
+        """Copy the unit from the Manipulator to the metadata of the traits."""
+
+        self.__class__ = self.__original_class
+
         manip = change['new']
         if manip is None:
             return
 
-        self.traits()['minimumValue'].metadata['unit'] = manip.unit
-        self.traits()['maximumValue'].metadata['unit'] = manip.unit
-        self.traits()['step'].metadata['unit'] = manip.unit
-        self.traits()['positioningVelocity'].metadata['unit'] = \
-            (manip.unit or '') + '/s'
-        self.traits()['scanVelocity'].metadata['unit'] = \
-            (manip.unit or '') + '/s'
+        traitsWithBaseUnits = ['minimumValue', 'maximumValue', 'step']
+        traitsWithVelocityUnits = ['positioningVelocity', 'scanVelocity']
+
+        newTraits = {}
+
+        for name, trait in self.traits().items():
+            if name in traitsWithBaseUnits or name in traitsWithVelocityUnits:
+                newTrait = deepcopy(trait)
+                newTrait.metadata['unit'] = manip.unit or ''
+                if name in traitsWithVelocityUnits:
+                    newTrait.metadata['unit'] += '/s'
+
+                newTraits[name] = newTrait
+
+        self.add_traits(**newTraits)
 
     async def _doContinuousScan(self, axis, step):
         await self.manipulator.beginScan(axis[0], axis[-1],
