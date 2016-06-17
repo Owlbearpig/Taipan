@@ -6,6 +6,8 @@ Created on Tue Jun 14 14:57:55 2016
 """
 
 from PyQt5 import QtCore, QtWidgets, QtGui
+from changeindicatorspinbox import ChangeIndicatorSpinBox
+
 import quamash
 import asyncio
 import sys
@@ -28,27 +30,14 @@ def is_component_trait(x):
 
 def create_spinbox_entry(component, name, trait, datatype):
     layout = QtWidgets.QHBoxLayout()
-    if datatype is float:
-        spinbox = QtWidgets.QDoubleSpinBox()
-    else:
-        spinbox = QtWidgets.QSpinBox()
-
+    spinbox = ChangeIndicatorSpinBox(is_double_spinbox=datatype is float,
+                                     actual_value_getter=lambda: getattr(component, name))
     spinbox.setToolTip(trait.help)
     spinbox.setMinimum(trait.min or -int('0x80000000', 16))
     spinbox.setMaximum(trait.max or int('0x7FFFFFFF', 16))
 
     unit = component.trait_metadata(name, 'unit', None)
     spinbox.setSuffix(unit and ' ' + unit)
-
-    spinbox.unchanged_palette = spinbox.palette()
-
-    spinbox.changed_palette = spinbox.palette()
-    highlightColor = spinbox.changed_palette.color(QtGui.QPalette.Highlight)
-    highlightColor.setHsl(0xFF - highlightColor.hslHue(),
-                          highlightColor.hslSaturation(),
-                          highlightColor.lightness())
-
-    spinbox.changed_palette.setColor(QtGui.QPalette.Base, highlightColor)
 
     apply = QtWidgets.QToolButton()
     apply.setText('✓')
@@ -61,20 +50,13 @@ def create_spinbox_entry(component, name, trait, datatype):
 
     def apply_value_to_component():
         setattr(component, name, spinbox.value())
-        check_changed()
-
-    def check_changed():
-        actualValue = getattr(component, name)
-        if spinbox.value() != actualValue:
-            spinbox.setPalette(spinbox.changed_palette)
-        else:
-            spinbox.setPalette(spinbox.unchanged_palette)
 
     spinbox.setValue(trait.get(component))
     component.observe(lambda change: spinbox.setValue(change['new']), name)
     apply.clicked.connect(apply_value_to_component)
+    apply.clicked.connect(spinbox.check_changed)
     spinbox.editingFinished.connect(apply_value_to_component)
-    spinbox.valueChanged.connect(check_changed)
+    spinbox.editingFinished.connect(spinbox.check_changed)
 
     return layout
 
@@ -208,20 +190,21 @@ def generate_ui(component):
 
     return win
 
+if __name__ == '__main__':
+    app = QtWidgets.QApplication(sys.argv)
+    loop = quamash.QEventLoop(app)
+    asyncio.set_event_loop(loop)
 
-app = QtWidgets.QApplication(sys.argv)
-loop = quamash.QEventLoop(app)
-asyncio.set_event_loop(loop)
+    root = AppRoot()
+    root.observe(print)
 
-root = AppRoot()
+    ui = generate_ui(root)
+    ui.show()
 
-ui = generate_ui(root)
-ui.show()
+    root.positioningVelocity = 20
+    root.scanVelocity = 5
+    root.maximumValue = 10
+    root.step = 0.5
 
-root.positioningVelocity = 20
-root.scanVelocity = 5
-root.maximumValue = 10
-root.step = 0.5
-
-with loop:
-    sys.exit(loop.run_forever())
+    with loop:
+        sys.exit(loop.run_forever())
