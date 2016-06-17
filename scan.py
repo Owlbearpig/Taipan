@@ -24,7 +24,8 @@ class Scan(DataSource):
     maximumValue = Float(0, help="The Scan's maximum value").tag(
                             name="Maximum value")
 
-    step = Float(0, help="The step width used for the Scan").tag(
+    step = Float(0, help="The step width used for the Scan",
+                    min=0).tag(
                     name="Step width")
 
     scanVelocity = Float(0, help="The velocity of the Manipulator used during "
