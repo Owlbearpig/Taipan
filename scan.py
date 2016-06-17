@@ -36,9 +36,21 @@ class Scan(DataSource):
                                         "during data acquisiton)").tag(
                                    name="Positioning velocity")
 
-    continuousScan = Bool(False)
-    retractAtEnd = Bool(False)
-    active = Bool(False, read_only=True)
+    continuousScan = Bool(False, help="A continuous Scan moves the Manipulator"
+                                      " from the minimum to the maximum "
+                                      "position and then reads the data from"
+                                      " the DataSource in one go. A "
+                                      "non-continuous scan acquires the data "
+                                      "step by step.").tag(
+                                 name="Continuous scan")
+
+    retractAtEnd = Bool(False, help="Retract the manipulator to the start "
+                                    "position at the end of the scan.").tag(
+                               name="Retract manipulator at end")
+
+    active = Bool(False, read_only=True, help="Whether the scan is currently "
+                                              "acquiring data").tag(
+                                         name="Active")
 
     def __init__(self, manipulator=None, dataSource=None, minimumValue=0,
                  maximumValue=0, step=0, objectName=None, loop=None):
