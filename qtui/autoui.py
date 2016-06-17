@@ -135,8 +135,10 @@ def generate_component_ui(name, component):
     # pre-create group boxes
     groups = OrderedDict()
 
+    hasPlots = False
     for name, trait in chain(traits, component.actions):
         if is_dataset_trait(trait):
+            hasPlots = True
             continue
 
         group = _group(trait)
@@ -184,6 +186,10 @@ def generate_component_ui(name, component):
     controlBox.setContentsMargins(0, 0, 0, 0)
     for i, group in enumerate(groups.values()):
         controlBox.addWidget(group)
+    controlBox.addStretch()
+
+    if not hasPlots:
+        return controlWidget
 
     plotWidget = QtWidgets.QWidget()
     plotBox = QtWidgets.QVBoxLayout(plotWidget)
@@ -199,8 +205,8 @@ def generate_component_ui(name, component):
     splitter = QtWidgets.QSplitter()
     splitter.addWidget(plotWidget)
     splitter.addWidget(controlWidget)
-    splitter.setStretchFactor(0, 3)
-    splitter.setStretchFactor(1, 2)
+    splitter.setStretchFactor(0, 1)
+    splitter.setStretchFactor(1, 0)
     splitter.setChildrenCollapsible(False)
 
     return splitter
