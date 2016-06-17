@@ -5,7 +5,7 @@ Created on Tue Jun 14 14:57:55 2016
 @author: Arno Rehn
 """
 
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets, QtGui
 import quamash
 import asyncio
 import sys
@@ -40,6 +40,16 @@ def create_spinbox_entry(component, name, trait, datatype):
     unit = component.trait_metadata(name, 'unit', None)
     spinbox.setSuffix(unit and ' ' + unit)
 
+    spinbox.unchanged_palette = spinbox.palette()
+
+    spinbox.changed_palette = spinbox.palette()
+    highlightColor = spinbox.changed_palette.color(QtGui.QPalette.Highlight)
+    highlightColor.setHsl(0xFF - highlightColor.hslHue(),
+                          highlightColor.hslSaturation(),
+                          highlightColor.lightness())
+
+    spinbox.changed_palette.setColor(QtGui.QPalette.Base, highlightColor)
+
     apply = QtWidgets.QToolButton()
     apply.setText('✓')
     apply.setAutoRaise(True)
@@ -49,8 +59,22 @@ def create_spinbox_entry(component, name, trait, datatype):
     layout.setStretch(0, 1)
     layout.setStretch(1, 0)
 
+    def apply_value_to_component():
+        setattr(component, name, spinbox.value())
+        check_changed()
+
+    def check_changed():
+        actualValue = getattr(component, name)
+        if spinbox.value() != actualValue:
+            spinbox.setPalette(spinbox.changed_palette)
+        else:
+            spinbox.setPalette(spinbox.unchanged_palette)
+
     spinbox.setValue(trait.get(component))
     component.observe(lambda change: spinbox.setValue(change['new']), name)
+    apply.clicked.connect(apply_value_to_component)
+    spinbox.editingFinished.connect(apply_value_to_component)
+    spinbox.valueChanged.connect(check_changed)
 
     return layout
 
