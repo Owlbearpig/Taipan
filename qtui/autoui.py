@@ -35,6 +35,7 @@ def create_spinbox_entry(component, name, trait, datatype):
     spinbox.setToolTip(trait.help)
     spinbox.setMinimum(trait.min or -int('0x80000000', 16))
     spinbox.setMaximum(trait.max or int('0x7FFFFFFF', 16))
+    spinbox.setReadOnly(trait.read_only)
 
     unit = component.trait_metadata(name, 'unit', None)
     spinbox.setSuffix(unit and ' ' + unit)
@@ -42,6 +43,7 @@ def create_spinbox_entry(component, name, trait, datatype):
     apply = QtWidgets.QToolButton()
     apply.setText('✓')
     apply.setAutoRaise(True)
+    apply.setEnabled(not trait.read_only)
     layout.addWidget(spinbox)
     layout.addWidget(apply)
     layout.setContentsMargins(0, 0, 0, 0)
@@ -51,12 +53,19 @@ def create_spinbox_entry(component, name, trait, datatype):
     def apply_value_to_component():
         setattr(component, name, spinbox.value())
 
+    def apply_value_to_spinbox(change):
+        spinbox.blockSignals(True)
+        spinbox.setValue(change['new'])
+        spinbox.blockSignals(False)
+
     spinbox.setValue(trait.get(component))
-    component.observe(lambda change: spinbox.setValue(change['new']), name)
-    apply.clicked.connect(apply_value_to_component)
-    apply.clicked.connect(spinbox.check_changed)
-    spinbox.editingFinished.connect(apply_value_to_component)
-    spinbox.editingFinished.connect(spinbox.check_changed)
+    component.observe(apply_value_to_spinbox, name)
+
+    if not trait.read_only:
+        apply.clicked.connect(apply_value_to_component)
+        apply.clicked.connect(spinbox.check_changed)
+        spinbox.editingFinished.connect(apply_value_to_component)
+        spinbox.editingFinished.connect(spinbox.check_changed)
 
     return layout
 
@@ -67,6 +76,9 @@ def create_checkbox(component, name, prettyName, trait):
     checkbox.setEnabled(not trait.read_only)
     checkbox.setToolTip(trait.help)
     component.observe(lambda change: checkbox.setChecked(change['new']), name)
+    if not trait.read_only:
+        checkbox.toggled.connect(lambda toggled:
+                                 setattr(component, name, toggled))
 
     return checkbox
 
