@@ -28,6 +28,10 @@ def is_component_trait(x):
     return (isinstance(x, Instance) and issubclass(x.klass, ComponentBase))
 
 
+def is_dataset_trait(x):
+    return (isinstance(x, Instance) and issubclass(x.klass, DataSet))
+
+
 def create_spinbox_entry(component, name, trait, datatype):
     def get_value():
         return trait.get(component)
@@ -96,6 +100,14 @@ def create_action(component, action):
     return qaction
 
 
+def create_plot_area(component, name, prettyName, trait):
+    canvas = MPLCanvas()
+    component.observe(lambda change: canvas.drawDataSet(change['new']), name)
+    canvas.setTitle(prettyName)
+
+    return canvas
+
+
 def _group(trait):
     return trait.metadata.get('group', 'General')
 
@@ -116,6 +128,9 @@ def generate_component_ui(name, component):
     groups = OrderedDict()
 
     for name, trait in chain(traits, component.actions):
+        if is_dataset_trait(trait):
+            continue
+
         group = _group(trait)
 
         if group not in groups:
@@ -124,6 +139,9 @@ def generate_component_ui(name, component):
             groups[group] = box
 
     for name, trait in traits:
+        if is_dataset_trait(trait):
+            continue
+
         prettyName = _prettyName(trait, name)
         group = _group(trait)
         layout = groups[group].layout()
@@ -160,6 +178,14 @@ def generate_component_ui(name, component):
         row = int(i / 2)
         col = i % 2
         grid.addWidget(group, row, col)
+
+    for name, trait in traits:
+        if not is_dataset_trait(trait):
+            continue
+        prettyName = _prettyName(trait, name)
+
+        grid.addWidget(create_plot_area(component, name, prettyName, trait),
+                       grid.rowCount(), 0, 1, 2)
 
     return widget
 
@@ -211,7 +237,6 @@ if __name__ == '__main__':
     asyncio.set_event_loop(loop)
 
     root = AppRoot()
-    root.observe(print)
 
     ui = generate_ui(root)
     ui.show()

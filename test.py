@@ -28,7 +28,7 @@ def register_notification_hooks(component, objectPath=[]):
 
 class AppRoot(Scan):
 
-    currentData = Instance(DataSet, read_only=True)
+    currentData = Instance(DataSet, read_only=True).tag(name="Plot")
 
     def __init__(self, loop=None):
         super().__init__(objectName="Scan", loop=loop)
