@@ -5,9 +5,9 @@ Created on Tue Jun 14 14:57:55 2016
 @author: Arno Rehn
 """
 
-from PyQt5 import QtCore, QtWidgets, QtGui
+from PyQt5 import QtWidgets
 from changeindicatorspinbox import ChangeIndicatorSpinBox
-
+from mplcanvas import MPLCanvas
 import quamash
 import asyncio
 import sys
@@ -29,9 +29,12 @@ def is_component_trait(x):
 
 
 def create_spinbox_entry(component, name, trait, datatype):
+    def get_value():
+        return trait.get(component)
+
     layout = QtWidgets.QHBoxLayout()
     spinbox = ChangeIndicatorSpinBox(is_double_spinbox=datatype is float,
-                                     actual_value_getter=lambda: getattr(component, name))
+                                     actual_value_getter=get_value)
     spinbox.setToolTip(trait.help)
     spinbox.setMinimum(trait.min or -int('0x80000000', 16))
     spinbox.setMaximum(trait.max or int('0x7FFFFFFF', 16))
@@ -58,7 +61,7 @@ def create_spinbox_entry(component, name, trait, datatype):
         spinbox.setValue(change['new'])
         spinbox.blockSignals(False)
 
-    spinbox.setValue(trait.get(component))
+    spinbox.setValue(get_value())
     component.observe(apply_value_to_spinbox, name)
 
     if not trait.read_only:
