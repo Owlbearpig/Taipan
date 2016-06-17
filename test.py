@@ -28,7 +28,12 @@ def register_notification_hooks(component, objectPath=[]):
 
 class AppRoot(Scan):
 
-    currentData = Instance(DataSet, read_only=True).tag(name="Plot")
+    currentData = Instance(DataSet, read_only=True).tag(
+                           name="Plot",
+                           axes_labels=['Time (ps)'],
+                           data_label="Amplitude (nA)")
+
+    foo = Int(42).tag(group="bar")
 
     def __init__(self, loop=None):
         super().__init__(objectName="Scan", loop=loop)

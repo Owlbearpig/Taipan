@@ -40,8 +40,11 @@ def create_spinbox_entry(component, name, trait, datatype):
     spinbox = ChangeIndicatorSpinBox(is_double_spinbox=datatype is float,
                                      actual_value_getter=get_value)
     spinbox.setToolTip(trait.help)
-    spinbox.setMinimum(trait.min or -int('0x80000000', 16))
-    spinbox.setMaximum(trait.max or int('0x7FFFFFFF', 16))
+
+    spinbox.setMinimum(-int('0x80000000', 16) if trait.min is None
+                       else trait.min)
+    spinbox.setMaximum(int('0x7FFFFFFF', 16) if trait.max is None
+                       else trait.max)
     spinbox.setReadOnly(trait.read_only)
 
     unit = component.trait_metadata(name, 'unit', None)
@@ -101,8 +104,13 @@ def create_action(component, action):
 
 
 def create_plot_area(component, name, prettyName, trait):
+    def draw(change):
+        canvas.drawDataSet(change['new'],
+                           trait.metadata.get('axes_labels', None),
+                           trait.metadata.get('data_label', None))
+
     canvas = MPLCanvas()
-    component.observe(lambda change: canvas.drawDataSet(change['new']), name)
+    component.observe(draw, name)
     canvas.setTitle(prettyName)
 
     return canvas
@@ -117,7 +125,7 @@ def _prettyName(trait, name):
 
 
 def generate_component_ui(name, component):
-    widget = QtWidgets.QWidget()
+    controlWidget = QtWidgets.QWidget()
 
     # filter and sort traits
     traits = [(name, trait) for name, trait
@@ -134,7 +142,7 @@ def generate_component_ui(name, component):
         group = _group(trait)
 
         if group not in groups:
-            box = QtWidgets.QGroupBox(group, widget)
+            box = QtWidgets.QGroupBox(group, controlWidget)
             QtWidgets.QFormLayout(box)
             groups[group] = box
 
@@ -167,27 +175,35 @@ def generate_component_ui(name, component):
         group = _group(action)
         layout = groups[group].layout()
         qaction = create_action(component, action)
-        qaction.setParent(widget)
+        qaction.setParent(controlWidget)
         btn = QtWidgets.QToolButton()
         btn.setDefaultAction(qaction)
         layout.addRow(None, btn)
 
-    grid = QtWidgets.QGridLayout(widget)
-    grid.setContentsMargins(-1, 0, 0, 0)
+    controlBox = QtWidgets.QVBoxLayout(controlWidget)
+    controlBox.setContentsMargins(0, 0, 0, 0)
     for i, group in enumerate(groups.values()):
-        row = int(i / 2)
-        col = i % 2
-        grid.addWidget(group, row, col)
+        controlBox.addWidget(group)
+
+    plotWidget = QtWidgets.QWidget()
+    plotBox = QtWidgets.QVBoxLayout(plotWidget)
+    plotBox.setContentsMargins(0, 0, 0, 0)
 
     for name, trait in traits:
         if not is_dataset_trait(trait):
             continue
         prettyName = _prettyName(trait, name)
 
-        grid.addWidget(create_plot_area(component, name, prettyName, trait),
-                       grid.rowCount(), 0, 1, 2)
+        plotBox.addWidget(create_plot_area(component, name, prettyName, trait))
 
-    return widget
+    splitter = QtWidgets.QSplitter()
+    splitter.addWidget(plotWidget)
+    splitter.addWidget(controlWidget)
+    splitter.setStretchFactor(0, 3)
+    splitter.setStretchFactor(1, 2)
+    splitter.setChildrenCollapsible(False)
+
+    return splitter
 
 
 def generate_ui(component):
