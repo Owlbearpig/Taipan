@@ -8,10 +8,10 @@ Created on Tue Jun 14 14:57:55 2016
 from PyQt5 import QtCore, QtWidgets
 import sys
 from common import ComponentBase, DataSet
-from scan import Scan
 from traitlets import Instance, Float, Bool, Integer
 from test import AppRoot
 from collections import OrderedDict
+from itertools import chain
 
 
 def is_component_trait(x):
@@ -51,9 +51,17 @@ def create_checkbox(component, name, prettyName, trait):
     checkbox = QtWidgets.QCheckBox(prettyName)
     checkbox.setChecked(trait.get(component))
     checkbox.setEnabled(not trait.read_only)
+    checkbox.setToolTip(trait.help)
     component.observe(lambda change: checkbox.setChecked(change['new']), name)
 
     return checkbox
+
+
+def create_action(component, action):
+    qaction = QtWidgets.QAction(action.metadata.get('name', action.__name__),
+                                None)
+    qaction.setToolTip(action.help)
+    return qaction
 
 
 def _group(trait):
@@ -65,6 +73,8 @@ def _prettyName(trait, name):
 
 
 def generate_component_ui(name, component):
+    widget = QtWidgets.QWidget()
+
     # filter and sort traits
     traits = [(name, trait) for name, trait
               in sorted(component.traits().items(), key=lambda x: x[0])
@@ -73,11 +83,11 @@ def generate_component_ui(name, component):
     # pre-create group boxes
     groups = OrderedDict()
 
-    for name, trait in traits:
+    for name, trait in chain(traits, component.actions):
         group = _group(trait)
 
         if group not in groups:
-            box = QtWidgets.QGroupBox(group)
+            box = QtWidgets.QGroupBox(group, widget)
             QtWidgets.QFormLayout(box)
             groups[group] = box
 
@@ -103,7 +113,15 @@ def generate_component_ui(name, component):
         layout.addRow(None,
                       create_checkbox(component, name, prettyName, trait))
 
-    widget = QtWidgets.QWidget()
+    for name, action in component.actions:
+        group = _group(action)
+        layout = groups[group].layout()
+        qaction = create_action(component, action)
+        qaction.setParent(widget)
+        btn = QtWidgets.QToolButton()
+        btn.setDefaultAction(qaction)
+        layout.addRow(None, btn)
+
     grid = QtWidgets.QGridLayout(widget)
     grid.setContentsMargins(-1, 0, 0, 0)
     for i, group in enumerate(groups.values()):

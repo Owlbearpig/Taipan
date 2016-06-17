@@ -15,10 +15,21 @@ class TimeoutException(Exception):
     pass
 
 
-def action(prettyName):
+def action(name=None, help=None, **kwargs):
+    if name is None:
+        name = ''
+    if help is None:
+        help = ''
+
+    kwargs['name'] = name
+    kwargs['help'] = help
+
     def action_impl(method):
-        method._actionName = prettyName
+        method._isAction = True
+        method.metadata = kwargs
+        method.help = help
         return method
+
     return action_impl
 
 
@@ -26,9 +37,10 @@ def _dumb_list_of_actions(inst):
     for name in dir(inst):
         try:
             attr = getattr(inst, name, None)
-            prettyName = getattr(attr, '_actionName', None)
-            if prettyName is not None:
-                yield name, prettyName, attr
+            if not attr._isAction:
+                continue
+
+            yield name, attr
         except AttributeError:
             pass
         except traitlets.TraitError:
@@ -47,8 +59,8 @@ class ComponentBase(traitlets.HasTraits):
             self._loop = asyncio.get_event_loop()
 
         self.__actions = []
-        for name, prettyName, memb in _dumb_list_of_actions(self):
-            self.__actions.append((memb, prettyName))
+        for name, memb in _dumb_list_of_actions(self):
+            self.__actions.append((name, memb))
 
     @property
     def actions(self):
@@ -78,15 +90,12 @@ class DataSource(ComponentBase):
     def __init__(self, objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
 
-    @action("Start")
     def start(self):
         pass
 
-    @action("Stop")
     def stop(self):
         pass
 
-    @action("Restart")
     def restart(self):
         self.stop()
         self.start()
@@ -243,11 +252,9 @@ class PostProcessor(DataSource, DataSink):
         super().__init__(objectName=objectName, loop=loop)
         self.source = source
 
-    @action("Start")
     def start(self):
         return self._source.start()
 
-    @action("Stop")
     def stop(self):
         return self._source.stop()
 
