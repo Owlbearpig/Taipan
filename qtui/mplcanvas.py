@@ -81,7 +81,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
         else:
             self.axes.plot([], [], alpha=.25)
         self.axes.hold(True)
-        self.axes.plot(dataset.axes[0] - 2, dataset.data)
+        self.axes.plot(dataset.axes[0], dataset.data)
 
         self.axes.legend(['Previous', 'Current'])
 
