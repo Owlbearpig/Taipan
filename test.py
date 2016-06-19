@@ -47,17 +47,3 @@ class AppRoot(Scan):
     @action("Take measurement")
     async def takeMeasurement(self):
         self.set_trait('currentData', await self.readDataSet())
-
-
-if __name__ == '__main__':
-    root = AppRoot()
-    register_notification_hooks(root)
-
-    root.minimumValue = 0
-    root.maximumValue = 10
-    root.step = 1
-    root.positioningVelocity = 100
-    root.scanVelocity = 10
-
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(root.takeMeasurement())
