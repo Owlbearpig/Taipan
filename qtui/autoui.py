@@ -6,14 +6,11 @@ Created on Tue Jun 14 14:57:55 2016
 """
 
 from PyQt5 import QtWidgets
-from changeindicatorspinbox import ChangeIndicatorSpinBox
-from mplcanvas import MPLCanvas
-import quamash
+from .changeindicatorspinbox import ChangeIndicatorSpinBox
+from .mplcanvas import MPLCanvas
 import asyncio
-import sys
 from common import ComponentBase, DataSet
 from traitlets import Instance, Float, Bool, Integer
-from test import AppRoot
 from collections import OrderedDict
 from itertools import chain
 
@@ -252,21 +249,3 @@ def generate_ui(component):
     tree.itemClicked.connect(lambda x: stack.setCurrentIndex(x.widgetId))
 
     return win
-
-if __name__ == '__main__':
-    app = QtWidgets.QApplication(sys.argv)
-    loop = quamash.QEventLoop(app)
-    asyncio.set_event_loop(loop)
-
-    root = AppRoot()
-
-    ui = generate_ui(root)
-    ui.show()
-
-    root.positioningVelocity = 20
-    root.scanVelocity = 5
-    root.maximumValue = 10
-    root.step = 0.5
-
-    with loop:
-        sys.exit(loop.run_forever())
