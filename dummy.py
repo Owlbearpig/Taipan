@@ -62,6 +62,7 @@ class DummyContinuousDataSource(DataSource):
         taxis = np.arange(self.manip._start,
                           self.manip._stop, self.manip._step)
         omega = 2 * np.pi * 5
-        data = np.sin(omega * taxis)
+        data = np.sin(omega * taxis) * 1e-9
+        data += 5e-3 * (np.random.random(data.shape) - 0.5) * np.max(data)
         dataSet = DataSet(data, [taxis])
         return dataSet
