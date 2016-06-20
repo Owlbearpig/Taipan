@@ -5,18 +5,16 @@ Created on Wed Oct 14 15:04:51 2015
 @author: pumphaus
 """
 
-from common import action
-from scan import Scan
-from dummy import DummyManipulator, DummyContinuousDataSource, DataSet
-from traitlets import Instance
+from common import DataSet, action, traits, Scan
+from dummy import DummyManipulator, DummyContinuousDataSource
 
 
 class AppRoot(Scan):
 
-    currentData = Instance(DataSet, read_only=True).tag(
-                           name="Plot",
-                           axes_labels=['Time (ps)'],
-                           data_label="Amplitude (nA)")
+    currentData = traits.DataSet(read_only=True).tag(
+                                 name="Plot",
+                                 axes_labels=['Time (ps)'],
+                                 data_label="Amplitude (nA)")
 
     def __init__(self, loop=None):
         super().__init__(objectName="Scan", loop=loop)

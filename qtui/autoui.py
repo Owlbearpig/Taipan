@@ -9,7 +9,8 @@ from PyQt5 import QtWidgets
 from .changeindicatorspinbox import ChangeIndicatorSpinBox
 from .mplcanvas import MPLCanvas
 import asyncio
-from common import ComponentBase, DataSet
+from common import ComponentBase
+from common.traits import DataSet as DataSetTrait
 from traitlets import Instance, Float, Bool, Integer
 from collections import OrderedDict
 from itertools import chain
@@ -23,10 +24,6 @@ def run_action(func):
 
 def is_component_trait(x):
     return (isinstance(x, Instance) and issubclass(x.klass, ComponentBase))
-
-
-def is_dataset_trait(x):
-    return (isinstance(x, Instance) and issubclass(x.klass, DataSet))
 
 
 def create_spinbox_entry(component, name, trait, datatype):
@@ -134,7 +131,7 @@ def generate_component_ui(name, component):
 
     hasPlots = False
     for name, trait in chain(traits, component.actions):
-        if is_dataset_trait(trait):
+        if isinstance(trait, DataSetTrait):
             hasPlots = True
             continue
 
@@ -146,7 +143,7 @@ def generate_component_ui(name, component):
             groups[group] = box
 
     for name, trait in traits:
-        if is_dataset_trait(trait):
+        if isinstance(trait, DataSetTrait):
             continue
 
         prettyName = _prettyName(trait, name)
@@ -193,7 +190,7 @@ def generate_component_ui(name, component):
     plotBox.setContentsMargins(0, 0, 0, 0)
 
     for name, trait in traits:
-        if not is_dataset_trait(trait):
+        if not isinstance(trait, DataSetTrait):
             continue
         prettyName = _prettyName(trait, name)
 
