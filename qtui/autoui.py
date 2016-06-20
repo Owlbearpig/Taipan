@@ -101,8 +101,7 @@ def create_plot_area(component, name, prettyName, trait):
     def draw(change):
         canvas.drawDataSet(change['new'],
                            trait.metadata.get('axes_labels', None),
-                           trait.metadata.get('data_label', None),
-                           trait.metadata.get('prefer_logscale', False))
+                           trait.metadata.get('data_label', None))
 
     canvas = MPLCanvas()
     component.observe(draw, name)
