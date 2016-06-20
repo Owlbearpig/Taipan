@@ -10,6 +10,8 @@ from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg,
                                                 NavigationToolbar2QT)
 from matplotlib.figure import Figure
 import matplotlib
+import numpy as np
+from warnings import warn
 
 
 def style_mpl():
@@ -74,14 +76,25 @@ class MPLCanvas(QtWidgets.QGroupBox):
         super().resizeEvent(e)
         self.fig.tight_layout()
 
-    def drawDataSet(self, dataset, axes_labels, data_label):
-        self.axes.hold(False)
-        if self.dataSet is not None:
-            self.axes.plot(self.dataSet.axes[0], self.dataSet.data, alpha=.25)
-        else:
+    def _draw(self, data, logscale, **kwargs):
+        if data is None:
             self.axes.plot([], [], alpha=.25)
+            return
+
+        dataArray = data.data
+        if np.iscomplexobj(dataArray):
+            warn("Plot function received complex array."
+                 "Plotting magnitude only")
+            dataArray = np.abs(dataArray)
+
+        plotfn = self.axes.semilogy if logscale else self.axes.plot
+        plotfn(data.axes[0], dataArray, **kwargs)
+
+    def drawDataSet(self, dataset, axes_labels, data_label, logscale=False):
+        self.axes.hold(False)
+        self._draw(self.dataSet, alpha=.25, logscale=logscale)
         self.axes.hold(True)
-        self.axes.plot(dataset.axes[0], dataset.data)
+        self._draw(dataset, logscale=logscale)
 
         self.axes.legend(['Previous', 'Current'])
 
