@@ -5,25 +5,10 @@ Created on Wed Oct 14 15:04:51 2015
 @author: pumphaus
 """
 
-from common import ComponentBase, action
+from common import action
 from scan import Scan
 from dummy import DummyManipulator, DummyContinuousDataSource, DataSet
-import asyncio
-from traitlets import Instance, Int
-
-
-def register_notification_hooks(component, objectPath=[]):
-    for name, trait in component.attributes.items():
-        if (isinstance(trait, Instance) and
-            issubclass(trait.klass, ComponentBase)):
-
-            cInst = getattr(component, name)
-            register_notification_hooks(cInst, objectPath + [name])
-        else:
-            def print_change(change):
-                print("Change at {}: {}".format(objectPath, change))
-
-            component.observe(print_change, name)
+from traitlets import Instance
 
 
 class AppRoot(Scan):
@@ -32,8 +17,6 @@ class AppRoot(Scan):
                            name="Plot",
                            axes_labels=['Time (ps)'],
                            data_label="Amplitude (nA)")
-
-    foo = Int(42).tag(group="bar")
 
     def __init__(self, loop=None):
         super().__init__(objectName="Scan", loop=loop)
