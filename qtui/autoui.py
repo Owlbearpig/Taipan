@@ -11,7 +11,7 @@ from .mplcanvas import MPLCanvas
 import asyncio
 from common import ComponentBase
 from common.traits import DataSet as DataSetTrait
-from traitlets import Instance, Float, Bool, Integer
+from traitlets import Instance, Float, Bool, Integer, Enum
 from collections import OrderedDict
 from itertools import chain
 
@@ -111,6 +111,22 @@ def create_plot_area(component, name, prettyName, trait):
     return canvas
 
 
+def create_combobox(component, name, trait):
+    combobox = QtWidgets.QComboBox()
+    for item in trait.values:
+        combobox.addItem(item.name, item)
+
+    combobox.setCurrentText(trait.get(component).name)
+
+    component.observe(lambda change:
+                      combobox.setCurrentText(change['new'].name), name)
+
+    combobox.currentIndexChanged.connect(lambda:
+        setattr(component, name, combobox.currentData()))
+
+    return combobox
+
+
 def _group(trait):
     return trait.metadata.get('group', 'General')
 
@@ -157,6 +173,9 @@ def generate_component_ui(name, component):
         if (isinstance(trait, Float)):
             layout.addRow(prettyName + ": ",
                           create_spinbox_entry(component, name, trait, float))
+        if isinstance(trait, Enum) and not trait.read_only:
+            layout.addRow(prettyName + ": ",
+                          create_combobox(component, name, trait))
 
     for name, trait in traits:
         if not isinstance(trait, Bool):
