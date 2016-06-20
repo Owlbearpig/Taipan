@@ -8,6 +8,7 @@ Created on Wed Oct 14 15:04:51 2015
 from common import DataSet, action, traits, Scan
 from common.fouriertransform import FourierTransform
 from dummy import DummyManipulator, DummyContinuousDataSource
+from traitlets import Instance
 
 
 class AppRoot(Scan):
@@ -20,6 +21,8 @@ class AppRoot(Scan):
     current_ft = traits.DataSet(read_only=True).tag(
                                 name="Spectrum",
                                 prefer_logscale=True)
+
+    fft = Instance(FourierTransform)
 
     def __init__(self, loop=None):
         super().__init__(objectName="Scan", loop=loop)
