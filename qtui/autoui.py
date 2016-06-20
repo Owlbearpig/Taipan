@@ -226,6 +226,7 @@ def generate_ui(component):
             make_tree_items(cInst, name, depth + 1, newItem)
 
     win = QtWidgets.QWidget()
+    win.setWindowTitle(getattr(component, "title", "Taipan"))
     tree = QtWidgets.QTreeWidget(win)
     tree.setColumnCount(1)
     tree.setHeaderHidden(True)

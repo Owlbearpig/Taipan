@@ -18,6 +18,7 @@ class AppRoot(Scan):
 
     def __init__(self, loop=None):
         super().__init__(objectName="Scan", loop=loop)
+        self.title = "Dummy measurement program"
         self.manipulator = DummyManipulator()
         self.manipulator.objectName = "Dummy Manipulator"
         self.dataSource = DummyContinuousDataSource(manip=self.manipulator)
