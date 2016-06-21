@@ -6,7 +6,24 @@ Created on Wed Oct 14 15:04:51 2015
 """
 
 from common import DataSet, action, traits, Scan
+from common.unitconverter import UnitConversionManipulatorProxy
 from dummy import DummyManipulator, DummyContinuousDataSource
+import scipy.constants as constants
+
+
+class THzUnitConversionManipulatorProxy(UnitConversionManipulatorProxy):
+
+    @staticmethod
+    def toManipulatorUnits(ps):
+        return constants.speed_of_light * ps * 1e-12 * 1e3 / 2
+
+    @staticmethod
+    def fromManipulatorUnits(mm):
+        return 2 * mm / (constants.speed_of_light * 1e-12 * 1e3)
+
+    @property
+    def unit(self):
+        return 'ps'
 
 
 class AppRoot(Scan):
@@ -19,7 +36,8 @@ class AppRoot(Scan):
     def __init__(self, loop=None):
         super().__init__(objectName="Scan", loop=loop)
         self.title = "Dummy measurement program"
-        self.manipulator = DummyManipulator()
+        manip = DummyManipulator()
+        self.manipulator = THzUnitConversionManipulatorProxy(manip)
         self.manipulator.objectName = "Dummy Manipulator"
         self.dataSource = DummyContinuousDataSource(manip=self.manipulator)
         self.dataSource.objectName = "Dummy DataSource"

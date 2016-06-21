@@ -19,7 +19,7 @@ class DummyManipulator(Manipulator):
 
     @property
     def unit(self):
-        return 'ps'
+        return 'mm'
 
     async def moveTo(self, val: float, velocity=None):
         self.velocity = velocity
