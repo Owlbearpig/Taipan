@@ -41,7 +41,8 @@ def create_spinbox_entry(component, name, trait, datatype):
                        else trait.max)
     spinbox.setReadOnly(trait.read_only)
 
-    unit = component.trait_metadata(name, 'unit', None)
+    unit = (component.trait_metadata(name, 'unit', None) or
+            getattr(component, 'unit', None))
     spinbox.setSuffix(unit and ' ' + unit)
 
     apply = QtWidgets.QToolButton()
