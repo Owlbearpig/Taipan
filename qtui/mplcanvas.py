@@ -110,6 +110,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
         self.axes.plot(data.axes[0], data.data, **kwargs)
 
         delta = np.mean(np.diff(data.axes[0]))
+        print(delta)
         winFn = self.windowFunctionMap[self.windowComboBox.currentData()]
         Y = np.fft.rfft(data.data * winFn(len(data.data)), axis=0)
         Y /= len(Y)
@@ -129,8 +130,11 @@ class MPLCanvas(QtWidgets.QGroupBox):
         self.ft_axes.legend(['Previous', 'Current'])
 
         if self._axesLabels:
-            self.axes.set_xlabel(self._axesLabels[0])
-            self.ft_axes.set_xlabel('1/(' + self._axesLabels[0] + ')')
+            self.axes.set_xlabel('{} [{:C~}]'.format(
+                                 self._axesLabels[0], self.dataSet.axes)
+            self.ft_axes.set_xlabel('1 / {} [1 / {:C~}]' .format(
+                                    self._axesLabels[0],
+                                    self.dataSet.axes[0].units))
 
         if self._dataLabel:
             self.axes.set_ylabel(self._dataLabel)

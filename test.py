@@ -13,8 +13,8 @@ class AppRoot(Scan):
 
     currentData = traits.DataSet(read_only=True).tag(
                                  name="Time domain",
-                                 axes_labels=['Time (ps)'],
-                                 data_label="Amplitude (nA)")
+                                 axes_labels=['Time'],
+                                 data_label="Amplitude")
 
     def __init__(self, loop=None):
         super().__init__(objectName="Scan", loop=loop)
@@ -27,14 +27,12 @@ class AppRoot(Scan):
         self.continuousScan = True
         self.set_trait('currentData', DataSet())
 
-#        self.minimumValue = Q_(0)
-#        self.maximumValue = Q_(10)
-#        self.step = Q_(0.01)
-#        self.positioningVelocity = Q_(20)
-#        self.scanVelocity = Q_(20)
+        self.minimumValue = Q_(0, 'mm')
+        self.maximumValue = Q_(1, 'mm')
+        self.step = Q_(0.01, 'mm')
+        self.positioningVelocity = Q_(20, 'mm/s')
+        self.scanVelocity = Q_(20, 'mm/s')
 
     @action("Take measurement")
     async def takeMeasurement(self):
         self.set_trait('currentData', await self.readDataSet())
-
-root = AppRoot()
