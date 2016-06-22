@@ -27,11 +27,11 @@ class AppRoot(Scan):
         self.continuousScan = True
         self.set_trait('currentData', DataSet())
 
-        self.minimumValue = Q_(0)
-        self.maximumValue = Q_(10)
-        self.step = Q_(0.01)
-        self.positioningVelocity = Q_(20)
-        self.scanVelocity = Q_(20)
+#        self.minimumValue = Q_(0)
+#        self.maximumValue = Q_(10)
+#        self.step = Q_(0.01)
+#        self.positioningVelocity = Q_(20)
+#        self.scanVelocity = Q_(20)
 
     @action("Take measurement")
     async def takeMeasurement(self):

@@ -59,6 +59,8 @@ class Scan(DataSource):
                  maximumValue=Q_(0), step=Q_(0), objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
 
+        self.observe(self._setUnits, 'manipulator')
+
         self.manipulator = manipulator
         self.dataSource = dataSource
         self.minimumValue = minimumValue
@@ -77,17 +79,26 @@ class Scan(DataSource):
         if manip is None:
             return
 
+        print("Manipulator changed to {}".format(manip))
+
         traitsWithBaseUnits = ['minimumValue', 'maximumValue', 'step']
         traitsWithVelocityUnits = ['positioningVelocity', 'scanVelocity']
+
+        baseUnits = manip.trait_metadata('value', 'preferred_units')
+        velocityUnits = manip.trait_metadata('velocity', 'preferred_units')
 
         newTraits = {}
 
         for name, trait in self.traits().items():
             if name in traitsWithBaseUnits or name in traitsWithVelocityUnits:
                 newTrait = deepcopy(trait)
-                newTrait.metadata['unit'] = manip.unit or ''
+                newTrait.metadata['preferred_units'] = baseUnits
+                newTrait.default_value = 0 * baseUnits
+                if newTrait.min is not None:
+                    newTrait.min = 0 * baseUnits
                 if name in traitsWithVelocityUnits:
-                    newTrait.metadata['unit'] += '/s'
+                    newTrait.metadata['preferred_units'] = velocityUnits
+                    newTrait.default_value = 0 * velocityUnits
 
                 newTraits[name] = newTrait
 

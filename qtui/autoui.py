@@ -14,6 +14,8 @@ from common.traits import DataSet as DataSetTrait
 from traitlets import Instance, Float, Bool, Integer, Enum
 from collections import OrderedDict
 from itertools import chain
+from common.traits import Quantity
+from common.units import ureg, Q_
 
 
 def run_action(func):
@@ -26,24 +28,24 @@ def is_component_trait(x):
     return (isinstance(x, Instance) and issubclass(x.klass, ComponentBase))
 
 
-def create_spinbox_entry(component, name, trait, datatype):
+def create_spinbox_entry(component, name, trait):
     def get_value():
-        return trait.get(component)
+        return trait.get(component).magnitude
 
     layout = QtWidgets.QHBoxLayout()
-    spinbox = ChangeIndicatorSpinBox(is_double_spinbox=datatype is float,
+    spinbox = ChangeIndicatorSpinBox(is_double_spinbox=True,
                                      actual_value_getter=get_value)
     spinbox.setToolTip(trait.help)
 
-    spinbox.setMinimum(-int('0x80000000', 16) if trait.min is None
-                       else trait.min)
-    spinbox.setMaximum(int('0x7FFFFFFF', 16) if trait.max is None
-                       else trait.max)
+    spinbox.setMinimum(float('-inf') if trait.min is None else trait.min.magnitude)
+    spinbox.setMaximum(float('inf') if trait.max is None else trait.max.magnitude)
     spinbox.setReadOnly(trait.read_only)
-
-    unit = (component.trait_metadata(name, 'unit', None) or
-            getattr(component, 'unit', None))
-    spinbox.setSuffix(unit and ' ' + unit)
+    units = (trait.metadata.get('preferred_units', None) or
+                     trait.get(component).units)
+    print("Units for {}: pref: {}, trait: {}, chosen: {}"
+          .format(name, trait.metadata.get('preferred_units', None), trait.get(component).units,
+                  units))
+    spinbox.setSuffix(" {:C~}".format(units))
 
     apply = QtWidgets.QToolButton()
     apply.setText('✓')
@@ -56,15 +58,18 @@ def create_spinbox_entry(component, name, trait, datatype):
     layout.setStretch(1, 0)
 
     def apply_value_to_component():
-        setattr(component, name, spinbox.value())
+        val = spinbox.value() * units
+        print("apply to {}: {:C~}".format(name, val))
+        setattr(component, name, val)
 
-    def apply_value_to_spinbox(change):
+    def apply_value_to_spinbox(val):
         spinbox.blockSignals(True)
-        spinbox.setValue(change['new'])
+        print("new value to {} spinbox: {:C~}".format(name, val))
+        spinbox.setValue(val.to(units).magnitude)
         spinbox.blockSignals(False)
 
-    spinbox.setValue(get_value())
-    component.observe(apply_value_to_spinbox, name)
+    apply_value_to_spinbox(trait.get(component))
+    component.observe(lambda c: apply_value_to_spinbox(c['new']), name)
 
     if not trait.read_only:
         apply.clicked.connect(apply_value_to_component)
@@ -167,12 +172,9 @@ def generate_component_ui(name, component):
         group = _group(trait)
         layout = groups[group].layout()
 
-        if (isinstance(trait, Integer)):
+        if (isinstance(trait, Quantity)):
             layout.addRow(prettyName + ": ",
-                          create_spinbox_entry(component, name, trait, int))
-        if (isinstance(trait, Float)):
-            layout.addRow(prettyName + ": ",
-                          create_spinbox_entry(component, name, trait, float))
+                          create_spinbox_entry(component, name, trait))
         if isinstance(trait, Enum) and not trait.read_only:
             layout.addRow(prettyName + ": ",
                           create_combobox(component, name, trait))

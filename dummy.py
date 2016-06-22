@@ -17,10 +17,16 @@ class DummyManipulator(Manipulator):
     def __init__(self):
         super().__init__()
         self.set_trait('status', Manipulator.Status.TargetReached)
-        self.unit = ureg.mm
+
+        self.setPreferredUnits(ureg.mm, ureg.mm / ureg.second)
+        self.velocity = Q_(1, 'mm/s')
+        self.set_trait('value', Q_(0, 'mm'))
 
     async def moveTo(self, val, velocity=None):
-        self.velocity = velocity.to('mm/s').magnitude
+        if velocity is None:
+            velocity = self.velocity
+
+        velocity = velocity.to('mm/s').magnitude
         val = val.to('mm').magnitude
         curVal = self.value.to('mm').magnitude
 

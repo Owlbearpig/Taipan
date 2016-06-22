@@ -9,7 +9,9 @@ import asyncio
 import enum
 import numpy as np
 import traitlets
+from copy import deepcopy
 from .units import ureg, Q_
+from .traits import Quantity
 
 
 def action(name=None, help=None, **kwargs):
@@ -105,10 +107,6 @@ class DataSource(ComponentBase):
 class DAQDevice(DataSource):
 
     @property
-    def unit(self):
-        return None
-
-    @property
     def numChannels(self):
         return None
 
@@ -128,9 +126,9 @@ class Manipulator(ComponentBase):
         Moving = 2
         Error = 3
 
-    velocity = traitlets.Float(0).tag(prettyName="Velocity")
-    value = traitlets.Float(0, read_only=True).tag(prettyName="Value")
-    targetValue = traitlets.Float(0).tag(prettyName="Value")
+    velocity = Quantity(Q_(0)).tag(prettyName="Velocity")
+    value = Quantity(Q_(0), read_only=True).tag(prettyName="Value")
+    targetValue = Quantity(Q_(0)).tag(prettyName="Target value")
     status = traitlets.Enum(Status, default_value=Status.Undefined,
                             read_only=True)
 
@@ -138,9 +136,25 @@ class Manipulator(ComponentBase):
         super().__init__(objectName=objectName, loop=loop)
         self._trigStart = None
         self._trigStop = None
-        self._trigStep = 0
-        self.__velocity = 0
-        self.unit = ureg.dimensionless
+        self._trigStep = Q_(0)
+        self.__original_class = self.__class__
+
+    def setPreferredUnits(self, units, velocityUnits):
+        self.__class__ = self.__original_class
+
+        allTraits = self.traits()
+
+        newValueTrait = deepcopy(allTraits['value'])
+        newValueTrait.metadata['preferred_units'] = units
+
+        newTargetValueTrait = deepcopy(allTraits['targetValue'])
+        newTargetValueTrait.metadata['preferred_units'] = units
+
+        newVelocityTrait = deepcopy(allTraits['velocity'])
+        newVelocityTrait.metadata['preferred_units'] = velocityUnits
+
+        self.add_traits(value=newValueTrait, targetValue=newTargetValueTrait,
+                        velocity=newVelocityTrait)
 
     @traitlets.observe("targetValue")
     def _targetValueObserver(self, change):
