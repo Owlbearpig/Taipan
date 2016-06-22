@@ -167,16 +167,20 @@ class Scan(DataSource):
             if (self.maximumValue < self.minimumValue):
                 theStep = -theStep
 
+            stepUnits = theStep.units
+
             realStep, realStart, realStop = \
                 await self.manipulator.configureTrigger(theStep,
                                                         self.minimumValue,
                                                         self.maximumValue)
 
-            realStep = realStep.to(self.manipulator.unit).magnitude
-            realStart = realStart.to(self.manipulator.unit).magnitude
-            realStop = realStop.to(self.manipulator.unit).magnitude
+            realStep = realStep.to(stepUnits)
+            realStart = realStart.to(stepUnits)
+            realStop = realStop.to(stepUnits)
 
-            axis = np.arange(realStart, realStop, realStep) * self.manipulator.unit
+            axis = np.arange(realStart.magnitude,
+                             realStop.magnitude,
+                             realStep.magnitude) * stepUnits
             self.currentAxis = axis.copy()
 
             dataSet = None

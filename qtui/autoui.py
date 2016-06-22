@@ -42,9 +42,6 @@ def create_spinbox_entry(component, name, trait):
     spinbox.setReadOnly(trait.read_only)
     units = (trait.metadata.get('preferred_units', None) or
                      trait.get(component).units)
-    print("Units for {}: pref: {}, trait: {}, chosen: {}"
-          .format(name, trait.metadata.get('preferred_units', None), trait.get(component).units,
-                  units))
     spinbox.setSuffix(" {:C~}".format(units))
 
     apply = QtWidgets.QToolButton()
@@ -59,12 +56,10 @@ def create_spinbox_entry(component, name, trait):
 
     def apply_value_to_component():
         val = spinbox.value() * units
-        print("apply to {}: {:C~}".format(name, val))
         setattr(component, name, val)
 
     def apply_value_to_spinbox(val):
         spinbox.blockSignals(True)
-        print("new value to {} spinbox: {:C~}".format(name, val))
         spinbox.setValue(val.to(units).magnitude)
         spinbox.blockSignals(False)
 

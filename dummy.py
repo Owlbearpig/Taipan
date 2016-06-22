@@ -66,10 +66,12 @@ class DummyContinuousDataSource(DataSource):
         self.manip = manip
 
     async def readDataSet(self):
-        taxis = np.arange(self.manip._start,
-                          self.manip._stop, self.manip._step)
-        omega = 2 * np.pi * 5
-        data = np.sin(omega * taxis) * 1e-9
+        taxis = np.arange(self.manip._start.magnitude,
+                          self.manip._stop.magnitude,
+                          self.manip._step.magnitude) * self.manip._step.units
+        omega = 2 * np.pi * 5 / ureg.mm
+        data = np.sin(omega * taxis)
         data += 5e-3 * (np.random.random(data.shape) - 0.5) * np.max(data)
+        data = data * ureg.nA
         dataSet = DataSet(data, [taxis])
         return dataSet

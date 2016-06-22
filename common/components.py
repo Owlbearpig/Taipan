@@ -126,7 +126,7 @@ class Manipulator(ComponentBase):
         Moving = 2
         Error = 3
 
-    velocity = Quantity(Q_(0)).tag(prettyName="Velocity")
+    velocity = Quantity(Q_(1)).tag(prettyName="Velocity")
     value = Quantity(Q_(0), read_only=True).tag(prettyName="Value")
     targetValue = Quantity(Q_(0)).tag(prettyName="Target value")
     status = traitlets.Enum(Status, default_value=Status.Undefined,
@@ -146,12 +146,15 @@ class Manipulator(ComponentBase):
 
         newValueTrait = deepcopy(allTraits['value'])
         newValueTrait.metadata['preferred_units'] = units
+        newValueTrait.default_value = 0 * units
 
         newTargetValueTrait = deepcopy(allTraits['targetValue'])
         newTargetValueTrait.metadata['preferred_units'] = units
+        newTargetValueTrait.default_value = 0 * units
 
         newVelocityTrait = deepcopy(allTraits['velocity'])
         newVelocityTrait.metadata['preferred_units'] = velocityUnits
+        newVelocityTrait.default_value = 1 * velocityUnits
 
         self.add_traits(value=newValueTrait, targetValue=newTargetValueTrait,
                         velocity=newVelocityTrait)
