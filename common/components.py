@@ -9,10 +9,7 @@ import asyncio
 import enum
 import numpy as np
 import traitlets
-
-
-class TimeoutException(Exception):
-    pass
+from .units import ureg, Q_
 
 
 def action(name=None, help=None, **kwargs):
@@ -143,10 +140,7 @@ class Manipulator(ComponentBase):
         self._trigStop = None
         self._trigStep = 0
         self.__velocity = 0
-
-    @property
-    def unit(self):
-        return None
+        self.unit = ureg.dimensionless
 
     @traitlets.observe("targetValue")
     def _targetValueObserver(self, change):
@@ -260,38 +254,3 @@ class PostProcessor(DataSource, DataSink):
 
     async def readDataSet(self):
         return self.process(await self._source.readDataSet())
-
-
-class DataSet:
-
-    def __init__(self, data=None, axes=None):
-        super().__init__()
-        if data is None:
-            data = np.array(0.0)
-        if axes is None:
-            axes = []
-        self.data = data
-        self.axes = axes
-
-    @property
-    def isConsistent(self):
-        return len(self.axes) == self.data.ndim and \
-               all([len(ax) == shape
-                    for (ax, shape) in zip(self.axes, self.data.shape)])
-
-    def checkConsistency(self):
-        if not self.isConsistent:
-            raise Exception("DataSet is inconsistent! "
-                            "Number of axes: %d, data dimension: %d, "
-                            "axes lengths: %s, data shape: %s" %
-                            (len(self.axes), self.data.ndim,
-                             [len(ax) for ax in self.axes],
-                             self.data.shape))
-
-    def __repr__(self):
-        return 'DataSet(%s, %s)' % (repr(self.data), repr(self.axes))
-
-    def __str__(self):
-        return 'DataSet with:\n    %s\n  and axes:\n    %s' % \
-                (repr(self.data).replace('\n', '\n    '),
-                 repr(self.axes).replace('\n', '\n    '))

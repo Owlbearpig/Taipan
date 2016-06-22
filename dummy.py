@@ -9,6 +9,7 @@ from common import DataSource, Manipulator, DataSet, ComponentBase
 import asyncio
 import numpy as np
 from traitlets import Instance
+from common.units import Q_, ureg
 
 
 class DummyManipulator(Manipulator):
@@ -16,18 +17,18 @@ class DummyManipulator(Manipulator):
     def __init__(self):
         super().__init__()
         self.set_trait('status', Manipulator.Status.TargetReached)
+        self.unit = ureg.mm
 
-    @property
-    def unit(self):
-        return 'mm'
+    async def moveTo(self, val, velocity=None):
+        self.velocity = velocity.to('mm/s').magnitude
+        val = val.to('mm').magnitude
+        curVal = self.value.to('mm').magnitude
 
-    async def moveTo(self, val: float, velocity=None):
-        self.velocity = velocity
-        values = np.linspace(self.value, val, 50)
+        values = np.linspace(curVal, val, 50)
         dt = abs(np.mean(np.diff(values)) / velocity)
         for target in values:
             await asyncio.sleep(dt)
-            self.set_trait('value', target)
+            self.set_trait('value', Q_(target, 'mm'))
 
     async def configureTrigger(self, step, start=None, stop=None):
         self._step = step

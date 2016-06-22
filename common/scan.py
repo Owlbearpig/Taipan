@@ -11,6 +11,8 @@ import numpy as np
 import warnings
 from traitlets import Bool, Float, Instance
 from copy import deepcopy
+from common.traits import Quantity
+from common.units import ureg, Q_
 
 
 class Scan(DataSource):
@@ -18,24 +20,24 @@ class Scan(DataSource):
     manipulator = Instance(Manipulator, allow_none=True)
     dataSource = Instance(DataSource, allow_none=True)
 
-    minimumValue = Float(0, help="The Scan's minimum value").tag(
-                            name="Minimum value")
+    minimumValue = Quantity(Q_(0), help="The Scan's minimum value").tag(
+                               name="Minimum value")
 
-    maximumValue = Float(0, help="The Scan's maximum value").tag(
-                            name="Maximum value")
+    maximumValue = Quantity(Q_(0), help="The Scan's maximum value").tag(
+                               name="Maximum value")
 
-    step = Float(0, help="The step width used for the Scan",
-                    min=0).tag(
-                    name="Step width")
+    step = Quantity(Q_(0), help="The step width used for the Scan",
+                           min=Q_(0)).tag(
+                           name="Step width")
 
-    scanVelocity = Float(0, help="The velocity of the Manipulator used during "
-                                 "the scan").tag(
-                            name="Scan velocity")
+    scanVelocity = Quantity(Q_(0), help="The velocity of the Manipulator used during "
+                                    "the scan").tag(
+                                   name="Scan velocity")
 
-    positioningVelocity = Float(0, help="The velocity of the Manipulator "
+    positioningVelocity = Quantity(Q_(0), help="The velocity of the Manipulator "
                                         "during positioning movement (not "
                                         "during data acquisiton)").tag(
-                                   name="Positioning velocity")
+                                      name="Positioning velocity")
 
     continuousScan = Bool(False, help="A continuous Scan moves the Manipulator"
                                       " from the minimum to the maximum "
@@ -53,11 +55,9 @@ class Scan(DataSource):
                                               "acquiring data").tag(
                                          name="Active")
 
-    def __init__(self, manipulator=None, dataSource=None, minimumValue=0,
-                 maximumValue=0, step=0, objectName=None, loop=None):
+    def __init__(self, manipulator=None, dataSource=None, minimumValue=Q_(0),
+                 maximumValue=Q_(0), step=Q_(0), objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
-
-        self.observe(self._setUnits, 'manipulator')
 
         self.manipulator = manipulator
         self.dataSource = dataSource
@@ -137,7 +137,7 @@ class Scan(DataSource):
 
         axes = accumulator[0].axes.copy()
         axes.insert(0, axis)
-        data = np.array([dset.data for dset in accumulator])
+        data = np.array([dset.data.magnitude for dset in accumulator]) * accumulator[0].units
 
         return DataSet(data, axes)
 
@@ -161,8 +161,12 @@ class Scan(DataSource):
                                                         self.minimumValue,
                                                         self.maximumValue)
 
-            axis = np.arange(realStart, realStop, realStep)
-            self.currentAxis = np.copy(axis)
+            realStep = realStep.to(self.manipulator.unit).magnitude
+            realStart = realStart.to(self.manipulator.unit).magnitude
+            realStop = realStop.to(self.manipulator.unit).magnitude
+
+            axis = np.arange(realStart, realStop, realStep) * self.manipulator.unit
+            self.currentAxis = axis.copy()
 
             dataSet = None
 

@@ -5,25 +5,8 @@ Created on Wed Oct 14 15:04:51 2015
 @author: pumphaus
 """
 
-from common import DataSet, action, traits, Scan
-from common.unitconverter import UnitConversionManipulatorProxy
+from common import DataSet, action, traits, ComponentBase, Scan, ureg, Q_
 from dummy import DummyManipulator, DummyContinuousDataSource
-import scipy.constants as constants
-
-
-class THzUnitConversionManipulatorProxy(UnitConversionManipulatorProxy):
-
-    @staticmethod
-    def toManipulatorUnits(ps):
-        return constants.speed_of_light * ps * 1e-12 * 1e3 / 2
-
-    @staticmethod
-    def fromManipulatorUnits(mm):
-        return 2 * mm / (constants.speed_of_light * 1e-12 * 1e3)
-
-    @property
-    def unit(self):
-        return 'ps'
 
 
 class AppRoot(Scan):
@@ -37,19 +20,21 @@ class AppRoot(Scan):
         super().__init__(objectName="Scan", loop=loop)
         self.title = "Dummy measurement program"
         manip = DummyManipulator()
-        self.manipulator = THzUnitConversionManipulatorProxy(manip)
+        self.manipulator = manip
         self.manipulator.objectName = "Dummy Manipulator"
         self.dataSource = DummyContinuousDataSource(manip=self.manipulator)
         self.dataSource.objectName = "Dummy DataSource"
         self.continuousScan = True
         self.set_trait('currentData', DataSet())
 
-        self.minimumValue = 0
-        self.maximumValue = 10
-        self.step = 0.01
-        self.positioningVelocity = 20
-        self.scanVelocity = 20
+        self.minimumValue = Q_(0)
+        self.maximumValue = Q_(10)
+        self.step = Q_(0.01)
+        self.positioningVelocity = Q_(20)
+        self.scanVelocity = Q_(20)
 
     @action("Take measurement")
     async def takeMeasurement(self):
         self.set_trait('currentData', await self.readDataSet())
+
+root = AppRoot()
