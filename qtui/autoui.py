@@ -15,7 +15,6 @@ from traitlets import Instance, Float, Bool, Integer, Enum
 from collections import OrderedDict
 from itertools import chain
 from common.traits import Quantity
-from common.units import ureg, Q_
 
 
 def run_action(func):
@@ -37,11 +36,13 @@ def create_spinbox_entry(component, name, trait):
                                      actual_value_getter=get_value)
     spinbox.setToolTip(trait.help)
 
-    spinbox.setMinimum(float('-inf') if trait.min is None else trait.min.magnitude)
-    spinbox.setMaximum(float('inf') if trait.max is None else trait.max.magnitude)
+    spinbox.setMinimum(float('-inf') if trait.min is None
+                       else trait.min.magnitude)
+    spinbox.setMaximum(float('inf') if trait.max is None
+                       else trait.max.magnitude)
     spinbox.setReadOnly(trait.read_only)
     units = (trait.metadata.get('preferred_units', None) or
-                     trait.get(component).units)
+             trait.get(component).units)
     spinbox.setSuffix(" {:C~}".format(units))
 
     apply = QtWidgets.QToolButton()
@@ -123,8 +124,9 @@ def create_combobox(component, name, trait):
     component.observe(lambda change:
                       combobox.setCurrentText(change['new'].name), name)
 
-    combobox.currentIndexChanged.connect(lambda:
-        setattr(component, name, combobox.currentData()))
+    combobox.currentIndexChanged.connect(
+        lambda: setattr(component, name, combobox.currentData())
+    )
 
     return combobox
 

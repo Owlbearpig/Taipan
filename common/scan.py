@@ -21,23 +21,24 @@ class Scan(DataSource):
     dataSource = Instance(DataSource, allow_none=True)
 
     minimumValue = Quantity(Q_(0), help="The Scan's minimum value").tag(
-                               name="Minimum value")
+                                   name="Minimum value")
 
     maximumValue = Quantity(Q_(0), help="The Scan's maximum value").tag(
-                               name="Maximum value")
+                                   name="Maximum value")
 
     step = Quantity(Q_(0), help="The step width used for the Scan",
                            min=Q_(0)).tag(
                            name="Step width")
 
-    scanVelocity = Quantity(Q_(0), help="The velocity of the Manipulator used during "
-                                    "the scan").tag(
+    scanVelocity = Quantity(Q_(0), help="The velocity of the Manipulator used "
+                                        "during the scan").tag(
                                    name="Scan velocity")
 
-    positioningVelocity = Quantity(Q_(0), help="The velocity of the Manipulator "
-                                        "during positioning movement (not "
-                                        "during data acquisiton)").tag(
-                                      name="Positioning velocity")
+    positioningVelocity = Quantity(Q_(0), help="The velocity of the "
+                                               "Manipulator during positioning"
+                                               " movement (not during data "
+                                               "acquisiton)").tag(
+                                          name="Positioning velocity")
 
     continuousScan = Bool(False, help="A continuous Scan moves the Manipulator"
                                       " from the minimum to the maximum "
@@ -78,8 +79,6 @@ class Scan(DataSource):
         manip = change['new']
         if manip is None:
             return
-
-        print("Manipulator changed to {}".format(manip))
 
         traitsWithBaseUnits = ['minimumValue', 'maximumValue', 'step']
         traitsWithVelocityUnits = ['positioningVelocity', 'scanVelocity']
