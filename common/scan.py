@@ -48,6 +48,8 @@ class Scan(DataSource):
                                               "acquiring data").tag(
                                          name="Active")
 
+    progress = Float(0, min=0, max=1, read_only=True).tag(name="Progress")
+
     def __init__(self, manipulator=None, dataSource=None, minimumValue=Q_(0),
                  maximumValue=Q_(0), step=Q_(0), objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
@@ -96,14 +98,37 @@ class Scan(DataSource):
 
         self.add_traits(**newTraits)
 
+    def updateProgress(self, axis):
+        delta = axis[-1] - axis[0]
+
+        def updateProgress(change=None):
+            if change:
+                val = change['new']
+            else:
+                val = self.manipulator.value
+
+            val = val.to(axis.units)
+            prog = float(val / delta)
+
+            prog = max(0, min(1, prog))
+            self.set_trait('progress', prog)
+
+        return updateProgress
+
     async def _doContinuousScan(self, axis, step):
         await self.manipulator.beginScan(axis[0], axis[-1],
                                          self.positioningVelocity)
+
+        updater = self.updateProgress(axis)
+        self.manipulator.observe(updater, 'value')
+
         self.dataSource.start()
         # move half a step over the final position to ensure a trigger
         await self.manipulator.moveTo(axis[-1] + step / 2.0,
                                       self.scanVelocity)
         self.dataSource.stop()
+
+        self.manipulator.unobserve(updater, 'value')
 
         dataSet = await self.dataSource.readDataSet()
         dataSet.checkConsistency()
@@ -140,7 +165,8 @@ class Scan(DataSource):
 
         axes = accumulator[0].axes.copy()
         axes.insert(0, axis)
-        data = np.array([dset.data.magnitude for dset in accumulator]) * accumulator[0].units
+        data = np.array([dset.data.magnitude for dset in accumulator])
+        data = data * accumulator[0].units
 
         return DataSet(data, axes)
 
@@ -149,6 +175,7 @@ class Scan(DataSource):
             raise asyncio.InvalidStateError()
 
         self.set_trait('active', True)
+        self.set_trait('progress', 0)
 
         try:
             self.dataSource.stop()

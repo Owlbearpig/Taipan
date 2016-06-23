@@ -77,6 +77,19 @@ def create_spinbox_entry(component, name, trait):
     return layout
 
 
+def create_progressbar(component, name, trait):
+    progressBar = QtWidgets.QProgressBar()
+    progressBar.setMinimum(trait.min * 1000)
+    progressBar.setMaximum(trait.max * 1000)
+    progressBar.setValue(trait.get(component) * 1000)
+    component.observe(
+        lambda change: progressBar.setValue(change['new'] * 1000),
+        name
+    )
+
+    return progressBar
+
+
 def create_checkbox(component, name, prettyName, trait):
     checkbox = QtWidgets.QCheckBox(prettyName)
     checkbox.setChecked(trait.get(component))
@@ -174,9 +187,18 @@ def generate_component_ui(name, component):
         if (isinstance(trait, Quantity)):
             layout.addRow(prettyName + ": ",
                           create_spinbox_entry(component, name, trait))
-        if isinstance(trait, Enum) and not trait.read_only:
+        elif isinstance(trait, Enum) and not trait.read_only:
             layout.addRow(prettyName + ": ",
                           create_combobox(component, name, trait))
+
+    for name, trait in traits:
+        prettyName = _prettyName(trait, name)
+        group = _group(trait)
+        layout = groups[group].layout()
+
+        if isinstance(trait, Float) and trait.read_only:
+            layout.addRow(prettyName + ": ",
+                          create_progressbar(component, name, trait))
 
     for name, trait in traits:
         if not isinstance(trait, Bool):
