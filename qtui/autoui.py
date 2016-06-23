@@ -5,7 +5,7 @@ Created on Tue Jun 14 14:57:55 2016
 @author: Arno Rehn
 """
 
-from PyQt5 import QtWidgets
+from PyQt5 import QtWidgets, QtCore
 from .changeindicatorspinbox import ChangeIndicatorSpinBox
 from .mplcanvas import MPLCanvas
 import asyncio
@@ -45,6 +45,7 @@ def create_spinbox_entry(component, name, trait):
     spinbox.setSuffix(" {:C~}".format(units))
 
     apply = QtWidgets.QToolButton()
+    apply.setFocusPolicy(QtCore.Qt.NoFocus)
     apply.setText('✓')
     apply.setAutoRaise(True)
     apply.setEnabled(not trait.read_only)
