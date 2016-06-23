@@ -6,13 +6,13 @@ Created on Wed Oct 14 11:18:53 2015
 """
 
 import asyncio
-from common import Manipulator, DataSource, DataSet
+from common import Manipulator, DataSource, DataSet, action
 import numpy as np
 import warnings
 from traitlets import Bool, Float, Instance
 from copy import deepcopy
 from common.traits import Quantity
-from common.units import ureg, Q_
+from common.units import Q_
 
 
 class Scan(DataSource):
@@ -61,8 +61,8 @@ class Scan(DataSource):
         self.minimumValue = minimumValue
         self.maximumValue = maximumValue
         self.step = step
-        self.currentAxis = None
         self.continuousScan = False
+        self._activeFuture = None
 
         self.__original_class = self.__class__
 
@@ -120,15 +120,17 @@ class Scan(DataSource):
                                          self.positioningVelocity)
 
         updater = self.updateProgress(axis)
-        self.manipulator.observe(updater, 'value')
+        try:
+            self.manipulator.observe(updater, 'value')
 
-        self.dataSource.start()
-        # move half a step over the final position to ensure a trigger
-        await self.manipulator.moveTo(axis[-1] + step / 2.0,
-                                      self.scanVelocity)
-        self.dataSource.stop()
+            self.dataSource.start()
+            # move half a step over the final position to ensure a trigger
+            await self.manipulator.moveTo(axis[-1] + step / 2.0,
+                                          self.scanVelocity)
+            self.dataSource.stop()
 
-        self.manipulator.unobserve(updater, 'value')
+        finally:
+            self.manipulator.unobserve(updater, 'value')
 
         dataSet = await self.dataSource.readDataSet()
         dataSet.checkConsistency()
@@ -170,7 +172,21 @@ class Scan(DataSource):
 
         return DataSet(data, axes)
 
-    async def readDataSet(self):
+    @action("Stop")
+    def stop(self):
+        if not self._activeFuture:
+            return
+
+        self._activeFuture.cancel()
+
+    def readDataSet(self):
+        self._activeFuture = self._loop.create_task(self._readDataSetImpl())
+        return self._activeFuture
+
+    async def _readDataSetImpl(self):
+        if not self._activeFuture:
+            raise asyncio.InvalidStateError()
+
         if self.active:
             raise asyncio.InvalidStateError()
 
@@ -200,7 +216,6 @@ class Scan(DataSource):
             axis = np.arange(realStart.magnitude,
                              realStop.magnitude,
                              realStep.magnitude) * stepUnits
-            self.currentAxis = axis.copy()
 
             dataSet = None
 
@@ -219,5 +234,5 @@ class Scan(DataSource):
                                             self.positioningVelocity)
                 )
 
-            self.currentAxis = None
             self.set_trait('active', False)
+            self._activeFuture = None
