@@ -100,6 +100,7 @@ def create_action(component, action):
 
 def create_plot_area(component, name, prettyName, trait):
     def draw(change):
+        canvas.dataIsPower = trait.metadata.get('is_power', False)
         canvas.drawDataSet(change['new'],
                            trait.metadata.get('axes_labels', None),
                            trait.metadata.get('data_label', None))

@@ -68,6 +68,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
         self.mpl_toolbar = NavigationToolbar2QT(self.canvas, self)
 
         self.mpl_toolbar.addSeparator()
+
         self.mpl_toolbar.addWidget(QtWidgets.QLabel("Fourier transform "
                                                     "window: "))
 
@@ -92,6 +93,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
 
         self.fig.tight_layout()
 
+        self.dataIsPower = False
         self.dataSet = None
         self.prevDataSet = None
         self._axesLabels = None
@@ -110,12 +112,14 @@ class MPLCanvas(QtWidgets.QGroupBox):
         self.axes.plot(data.axes[0], data.data, **kwargs)
 
         delta = np.mean(np.diff(data.axes[0]))
-        print(delta)
         winFn = self.windowFunctionMap[self.windowComboBox.currentData()]
-        Y = np.fft.rfft(data.data * winFn(len(data.data)), axis=0)
-        Y /= len(Y)
+        refUnit = 1 * data.data.units
+        Y = np.fft.rfft(data.data / refUnit * winFn(len(data.data)), axis=0)
         freqs = np.fft.rfftfreq(len(data.axes[0]), delta)
-        self.ft_axes.plot(freqs, 20 * np.log10(np.abs(Y)), **kwargs)
+        dBdata = 10 * np.log10(np.abs(Y))
+        if not self.dataIsPower:
+            dBdata *= 2
+        self.ft_axes.plot(freqs, dBdata, **kwargs)
 
     def _replot(self):
         self.axes.hold(False)
@@ -131,14 +135,22 @@ class MPLCanvas(QtWidgets.QGroupBox):
 
         if self._axesLabels:
             self.axes.set_xlabel('{} [{:C~}]'.format(
-                                 self._axesLabels[0], self.dataSet.axes)
+                                 self._axesLabels[0],
+                                 self.dataSet.axes[0].units))
             self.ft_axes.set_xlabel('1 / {} [1 / {:C~}]' .format(
                                     self._axesLabels[0],
                                     self.dataSet.axes[0].units))
 
         if self._dataLabel:
-            self.axes.set_ylabel(self._dataLabel)
-            self.ft_axes.set_ylabel('(FT Amplitude)² (dB)')
+            self.axes.set_ylabel('{} [{:C~}]'.format(
+                                 self._dataLabel,
+                                 self.dataSet.data.units))
+
+            ftUnits = self.dataSet.data.units
+            if not self.dataIsPower:
+                ftUnits = ftUnits ** 2
+
+            self.ft_axes.set_ylabel('Power [dB-({:C~})]'.format(ftUnits))
 
         self.axes.set_title('Data')
         self.ft_axes.set_title('Fourier transformed data')

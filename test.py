@@ -14,7 +14,8 @@ class AppRoot(Scan):
     currentData = traits.DataSet(read_only=True).tag(
                                  name="Time domain",
                                  axes_labels=['Time'],
-                                 data_label="Amplitude")
+                                 data_label="Amplitude",
+                                 is_power=True)
 
     def __init__(self, loop=None):
         super().__init__(objectName="Scan", loop=loop)
