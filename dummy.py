@@ -69,7 +69,7 @@ class DummyContinuousDataSource(DataSource):
         taxis = np.arange(self.manip._start.magnitude,
                           self.manip._stop.magnitude,
                           self.manip._step.magnitude) * self.manip._step.units
-        omega = 2 * np.pi * 5 / ureg.mm
+        omega = 2 * np.pi * 5 * ureg.THz
         data = np.sin(omega * taxis)
         data += 5e-3 * (np.random.random(data.shape) - 0.5) * np.max(data)
         data = data * ureg.nA

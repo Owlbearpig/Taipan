@@ -162,17 +162,17 @@ class Scan(DataSource):
             self.dataSource.stop()
             await self.manipulator.waitForTargetReached()
 
-            # ensure correct step sign
-            theStep = abs(self.step)
-            if (self.maximumValue < self.minimumValue):
-                theStep = -theStep
+            step = abs(self.step)
+            stepUnits = step.units
+            min = self.minimumValue.to(stepUnits)
+            max = self.maximumValue.to(stepUnits)
 
-            stepUnits = theStep.units
+            # ensure correct step sign
+            if (max < min):
+                step = -step
 
             realStep, realStart, realStop = \
-                await self.manipulator.configureTrigger(theStep,
-                                                        self.minimumValue,
-                                                        self.maximumValue)
+                await self.manipulator.configureTrigger(step, min, max)
 
             realStep = realStep.to(stepUnits)
             realStart = realStart.to(stepUnits)

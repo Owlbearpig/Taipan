@@ -48,8 +48,8 @@ class Quantity(TraitType):
                              "specified" % (self.name, class_of(obj),
                                             self.dimensionality, value.dimensionality))
 
-        if ((self.max is not None and (value > self.max)) or
-            (self.min is not None and (value < self.min))):
+        if ((self.max is not None and (value.to(self.max.units) > self.max)) or
+            (self.min is not None and (value.to(self.min.units) < self.min))):
             raise TraitError("The value of the '%s' trait of %s instance should "
                              "be between %s and %s, but a value of %s was "
                              "specified" % (self.name, class_of(obj),
