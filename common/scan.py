@@ -40,14 +40,6 @@ class Scan(DataSource):
                                                "acquisiton)").tag(
                                           name="Positioning velocity")
 
-    continuousScan = Bool(False, help="A continuous Scan moves the Manipulator"
-                                      " from the minimum to the maximum "
-                                      "position and then reads the data from"
-                                      " the DataSource in one go. A "
-                                      "non-continuous scan acquires the data "
-                                      "step by step.").tag(
-                                 name="Continuous scan")
-
     retractAtEnd = Bool(False, help="Retract the manipulator to the start "
                                     "position at the end of the scan.").tag(
                                name="Retract manipulator at end")
@@ -68,6 +60,7 @@ class Scan(DataSource):
         self.maximumValue = maximumValue
         self.step = step
         self.currentAxis = None
+        self.continuousScan = False
 
         self.__original_class = self.__class__
 
