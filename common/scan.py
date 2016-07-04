@@ -108,6 +108,7 @@ class Scan(DataSource):
                 val = self.manipulator.value
 
             val = val.to(axis.units)
+            val = val - axis[0]
             prog = float(val / delta)
 
             prog = max(0, min(1, prog))

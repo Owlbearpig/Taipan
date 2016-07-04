@@ -6,7 +6,7 @@ Created on Mon Nov  9 10:32:30 2015
 """
 
 import numpy as np
-from common import DataSource, DataSet, action
+from common import DataSource, DataSet, action, Q_
 from asyncioext import threaded_async
 from pyvisa import constants
 import struct
@@ -135,10 +135,10 @@ class SR830(DataSource):
     async def readDataSet(self):
         if (self._samplingMode == SR830.SamplingMode.SingleShot):
             data = np.array(await self.readCurrentOutput())
-            dataSet = DataSet(data, [])
+            dataSet = DataSet(Q_(data), [])
             return dataSet
 
         elif (self._samplingMode == SR830.SamplingMode.Buffered):
             data = np.array(await self.readDataBuffer())
-            dataSet = DataSet(data, [np.arange(0, len(data))])
+            dataSet = DataSet(Q_(data), [Q_(np.arange(0, len(data)))])
             return dataSet

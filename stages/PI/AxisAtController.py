@@ -11,6 +11,7 @@ import asyncio
 import re
 import enum
 import traitlets
+from common import ureg, Q_
 
 _replyExpression = re.compile(br'([0-9]+) ([0-9]+) (.*)')
 _valueExpression = re.compile(br'([0-9 ]+)=([0-9a-fA-Fx\.\-]+)$')
@@ -45,6 +46,7 @@ class AxisAtController(Manipulator):
         self._isReferenced = False
         self._isMovingFuture = asyncio.Future()
         self._movementStopped = True
+        self.setPreferredUnits(ureg.mm, ureg.mm / ureg.s)
 
         ensure_weakly_binding_future(self.updateStatus)
 
@@ -80,7 +82,7 @@ class AxisAtController(Manipulator):
     async def singleUpdate(self):
         self._status = await self.send("SRG?", 1)
 
-        self.set_trait('value', await self.send(b'POS?'))
+        self.set_trait('value', Q_(await self.send(b'POS?'), 'mm'))
 
         self.set_trait('isReferenced', bool(await self.send(b'FRF?')))
         self.set_trait('isReferencing',
@@ -187,20 +189,23 @@ class AxisAtController(Manipulator):
         if velocity is None:
             velocity = self.velocity
 
-        await self.send("VEL", velocity)
+        await self.send("VEL", velocity.to('mm/s').magnitude)
 
         self._movementStopped = False
-        await self.send("MOV", val)
+        await self.send("MOV", val.to('mm').magnitude)
         self._isMovingFuture = asyncio.Future()
         await self._isMovingFuture
         return self.isOnTarget and not self._movementStopped
 
     # 0.75 mm buffer for acceleration and proper trigger position
     async def beginScan(self, start, stop, velocity=None):
+        start = start.to('mm')
+        stop = stop.to('mm')
+        velocity = velocity.to('mm/s')
         if stop > start:
-            await self.moveTo(start - 0.75, velocity)
+            await self.moveTo(start - Q_(0.75, 'mm'), velocity)
         else:
-            await self.moveTo(start + 0.75, velocity)
+            await self.moveTo(start + Q_(0.75, 'mm'), velocity)
 
     def stop(self):
         self._movementStopped = True
@@ -216,6 +221,10 @@ class AxisAtController(Manipulator):
     async def configureTrigger(self, step, start=None, stop=None, triggerId=1):
         if start is None or stop is None:
             raise Exception("The start and stop parameters are mandatory!")
+
+        step = step.to('mm').magnitude
+        start = start.to('mm').magnitude
+        stop = stop.to('mm').magnitude
 
         # enable trig output on axis
         await self.send(b"CTO", triggerId, 2, self.axis, includeAxis=False)
@@ -243,4 +252,6 @@ class AxisAtController(Manipulator):
         self._trigStop = await self.send(b"CTO?", triggerId, 9,
                                          includeAxis=False)
 
-        return self._trigStep, self._trigStart, self._trigStop
+        return (Q_(self._trigStep, 'mm'),
+                Q_(self._trigStart, 'mm'),
+                Q_(self._trigStop, 'mm'))
