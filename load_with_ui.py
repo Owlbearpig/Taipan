@@ -6,6 +6,10 @@ Created on Sun Jun 19 16:17:42 2016
 @author: pumphaus
 """
 
+import matplotlib
+# Force usage of the Qt5 backend
+matplotlib.use("Qt5Agg")
+
 from qtui.autoui import generate_ui
 import quamash
 from PyQt5 import QtWidgets
