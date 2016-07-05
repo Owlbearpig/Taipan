@@ -16,18 +16,56 @@ from PyQt5 import QtWidgets
 import asyncio
 import sys
 from os.path import basename, splitext
+import logging
+
+
+class QTextBrowserLoggingHandler(logging.Handler):
+    terminator = '\n'
+
+    def __init__(self, textBrowser):
+        logging.Handler.__init__(self)
+        self.textBrowser = textBrowser
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            text = self.textBrowser.toPlainText()
+            text += msg + self.terminator
+            self.textBrowser.setPlainText(text)
+            self.textBrowser.verticalScrollBar().setValue(
+                self.textBrowser.verticalScrollBar().maximum()
+            )
+        except Exception:
+            self.handleError(record)
+
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
     loop = quamash.QEventLoop(app)
     asyncio.set_event_loop(loop)
+    asyncio.get_event_loop().set_exception_handler(
+        lambda loop, context: logging.error(str(context))
+    )
 
     filename = sys.argv[1]
     theglobals = { '__name__': splitext(basename(filename))[0] }
     exec(compile(open(filename, 'rb').read(), filename, 'exec'), theglobals)
 
     root = theglobals['AppRoot']()
-    w = generate_ui(root)
+
+    if hasattr(root, 'initialize'):
+        maybecoro = root.initialize()
+        if asyncio.iscoroutine(maybecoro):
+            loop.run_until_complete(maybecoro)
+
+    w, msgBrowser = generate_ui(root)
+
+    logging.captureWarnings(True)
+    handler = QTextBrowserLoggingHandler(msgBrowser)
+    formatter = logging.Formatter('%(asctime)s:%(levelname)s: %(message)s')
+    handler.setFormatter(formatter)
+    logging.getLogger().addHandler(handler)
+
     w.show()
 
     with loop:

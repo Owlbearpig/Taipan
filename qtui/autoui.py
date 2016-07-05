@@ -275,7 +275,7 @@ def generate_ui(component):
     tree.setHeaderHidden(True)
     make_tree_items(component, "", 0, tree.invisibleRootItem())
 
-    layout = QtWidgets.QHBoxLayout(win)
+    layout = QtWidgets.QVBoxLayout(win)
     splitter = QtWidgets.QSplitter()
     splitter.setChildrenCollapsible(False)
     layout.addWidget(splitter)
@@ -289,4 +289,17 @@ def generate_ui(component):
 
     tree.itemClicked.connect(lambda x: stack.setCurrentIndex(x.widgetId))
 
-    return win
+    messagePane = QtWidgets.QGroupBox("Messages", win)
+    layout.addWidget(messagePane)
+    messagePane.setCheckable(True)
+
+    msgPaneLayout = QtWidgets.QVBoxLayout(messagePane)
+    msgBrowser = QtWidgets.QTextBrowser(messagePane)
+    msgPaneLayout.addWidget(msgBrowser)
+
+    messagePane.toggled.connect(msgBrowser.setVisible)
+
+    layout.setStretch(0, 1)
+    layout.setStretch(1, 0)
+
+    return win, msgBrowser
