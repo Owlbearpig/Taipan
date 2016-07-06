@@ -43,9 +43,6 @@ if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
     loop = quamash.QEventLoop(app)
     asyncio.set_event_loop(loop)
-    asyncio.get_event_loop().set_exception_handler(
-        lambda loop, context: logging.error(str(context))
-    )
 
     filename = sys.argv[1]
     theglobals = { '__name__': splitext(basename(filename))[0] }
