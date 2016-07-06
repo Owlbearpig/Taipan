@@ -67,28 +67,30 @@ class TW4B(DataSource):
     def __init__(self, name_or_ip=None, objectName=None, loop=None):
         super().__init__(objectName, loop)
 
-        systems = self.discovered_systems()
-        if not systems:
-            raise Exception("No TW4B compatible devices found")
+        self.ip = None
 
-        if name_or_ip is None:
-            self.ip = next(iter(systems.keys()))
-        else:
-            self.ip = None
+        try:
+            socket.inet_aton(name_or_ip)
+            self.ip = name_or_ip
+        except OSError:
+            pass
 
-            try:
-                socket.inet_aton(name_or_ip)
-                self.ip = name_or_ip
-            except OSError:
+        if self.ip is None:
+            systems = self.discovered_systems()
+            if not systems:
+                raise Exception("No TW4B compatible devices found")
+
+            if name_or_ip is None:
+                self.ip = next(iter(systems.keys()))
+            else:
                 matches = ([ip for ip, name in systems.items()
                             if name == name_or_ip])
                 if matches:
                     self.ip = matches[0]
 
-        if not self.ip:
+        if self.ip is None:
             raise Exception("No suitable device found for identifier {}"
                             .format(name_or_ip))
-
 
     def send_command(self, command):
         # magic bytes, always the same
@@ -98,7 +100,6 @@ class TW4B(DataSource):
 
         self.control_writer.write(command)
 
-
     async def read_message(self):
         header = await self.control_reader.read(20)
         magic1, magic2, code, timestamp, length = struct.unpack('>IIIII',
@@ -106,11 +107,9 @@ class TW4B(DataSource):
         msg = await self.control_reader.read(length)
         return msg.decode('ascii')
 
-
     async def query(self, command):
         self.send_command(command)
         return await self.read_message()
-
 
     async def initialize(self):
         self.control_reader, self.control_writer = \
