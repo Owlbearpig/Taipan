@@ -245,13 +245,11 @@ class AxisAtController(Manipulator):
         await self.send(b"TRO", triggerId, 1, includeAxis=False)
 
         # ask for the actually set start, stop and step parameters
-        self._trigStep = await self.send(b"CTO?", triggerId, 1,
-                                         includeAxis=False)
-        self._trigStart = await self.send(b"CTO?", triggerId, 10,
-                                          includeAxis=False)
-        self._trigStop = await self.send(b"CTO?", triggerId, 9,
-                                         includeAxis=False)
+        self._trigStep = Q_(await self.send(b"CTO?", triggerId, 1,
+                                            includeAxis=False), 'mm')
+        self._trigStart = Q_(await self.send(b"CTO?", triggerId, 10,
+                                             includeAxis=False), 'mm')
+        self._trigStop = Q_(await self.send(b"CTO?", triggerId, 9,
+                                            includeAxis=False), 'mm')
 
-        return (Q_(self._trigStep, 'mm'),
-                Q_(self._trigStart, 'mm'),
-                Q_(self._trigStop, 'mm'))
+        return self._trigStep, self._trigStart, self._trigStop
