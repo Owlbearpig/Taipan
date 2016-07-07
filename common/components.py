@@ -9,6 +9,7 @@ import asyncio
 import enum
 import numpy as np
 import traitlets
+from traitlets import Instance
 from copy import deepcopy
 from .units import ureg, Q_
 from .traits import Quantity
@@ -46,6 +47,10 @@ def _dumb_list_of_actions(inst):
             pass
 
 
+def is_component_trait(x):
+    return (isinstance(x, Instance) and issubclass(x.klass, ComponentBase))
+
+
 class ComponentBase(traitlets.HasTraits):
 
     def __init__(self, objectName=None, loop=None):
@@ -60,6 +65,18 @@ class ComponentBase(traitlets.HasTraits):
         self.__actions = []
         for name, memb in _dumb_list_of_actions(self):
             self.__actions.append((name, memb))
+
+    async def __aenter__(self):
+        for name, trait in self.traits().items():
+            if is_component_trait(trait):
+                await trait.get(self).__aenter__()
+        return self
+
+    async def __aexit__(self, *args):
+        for name, trait in self.traits().items():
+            if is_component_trait(trait):
+                await trait.get(self).__aexit__(*args)
+        return self
 
     @property
     def actions(self):

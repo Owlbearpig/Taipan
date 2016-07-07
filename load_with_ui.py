@@ -38,6 +38,21 @@ class QTextBrowserLoggingHandler(logging.Handler):
         except Exception:
             self.handleError(record)
 
+async def run(app, rootClass, loop):
+    async with rootClass() as root:
+        w, msgBrowser = generate_ui(root)
+
+        logging.captureWarnings(True)
+        handler = QTextBrowserLoggingHandler(msgBrowser)
+        formatter = logging.Formatter('%(asctime)s:%(levelname)s: %(message)s')
+        handler.setFormatter(formatter)
+        logging.getLogger().addHandler(handler)
+
+        w.show()
+
+        aboutToQuit = asyncio.Future(loop=loop)
+        app.aboutToQuit.connect(lambda: aboutToQuit.set_result(True))
+        await aboutToQuit
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
@@ -48,22 +63,9 @@ if __name__ == '__main__':
     theglobals = { '__name__': splitext(basename(filename))[0] }
     exec(compile(open(filename, 'rb').read(), filename, 'exec'), theglobals)
 
-    root = theglobals['AppRoot']()
+    rootClass = theglobals['AppRoot']
 
-    if hasattr(root, 'initialize'):
-        maybecoro = root.initialize()
-        if asyncio.iscoroutine(maybecoro):
-            loop.run_until_complete(maybecoro)
-
-    w, msgBrowser = generate_ui(root)
-
-    logging.captureWarnings(True)
-    handler = QTextBrowserLoggingHandler(msgBrowser)
-    formatter = logging.Formatter('%(asctime)s:%(levelname)s: %(message)s')
-    handler.setFormatter(formatter)
-    logging.getLogger().addHandler(handler)
-
-    w.show()
+    loop.create_task(run(app, rootClass, loop))
 
     with loop:
         sys.exit(loop.run_forever())
