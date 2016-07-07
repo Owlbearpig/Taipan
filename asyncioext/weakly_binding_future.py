@@ -19,3 +19,4 @@ def ensure_weakly_binding_future(method):
     weakly_bound_method = method.__func__.__get__(proxy_object)
     future = asyncio.ensure_future(weakly_bound_method())
     canceller.future = future
+    return future
