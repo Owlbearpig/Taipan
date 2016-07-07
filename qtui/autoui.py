@@ -28,22 +28,37 @@ def is_component_trait(x):
 
 
 def create_spinbox_entry(component, name, trait):
-    def get_value():
+    is_integer = isinstance(trait, Integer)
+
+    def get_value_with_units():
         return trait.get(component).magnitude
 
+    def get_value_without_units():
+        return trait.get(component)
+
+    get_value = (get_value_with_units if isinstance(trait, Quantity)
+                 else get_value_without_units)
+
     layout = QtWidgets.QHBoxLayout()
-    spinbox = ChangeIndicatorSpinBox(is_double_spinbox=True,
+    spinbox = ChangeIndicatorSpinBox(is_double_spinbox=not is_integer,
                                      actual_value_getter=get_value)
     spinbox.setToolTip(trait.help)
 
-    spinbox.setMinimum(float('-inf') if trait.min is None
-                       else trait.min.magnitude)
-    spinbox.setMaximum(float('inf') if trait.max is None
-                       else trait.max.magnitude)
+    if not is_integer:
+        spinbox.setMinimum(float('-inf') if trait.min is None
+                           else trait.min.magnitude)
+        spinbox.setMaximum(float('inf') if trait.max is None
+                           else trait.max.magnitude)
+    else:
+        spinbox.setMinimum(-2147483648 if trait.min is None else trait.min)
+        spinbox.setMaximum(2147483647 if trait.max is None else trait.max)
+
     spinbox.setReadOnly(trait.read_only)
-    units = (trait.metadata.get('preferred_units', None) or
-             trait.get(component).units)
-    spinbox.setSuffix(" {:C~}".format(units))
+
+    if isinstance(trait, Quantity):
+        units = (trait.metadata.get('preferred_units', None) or
+                 trait.get(component).units)
+        spinbox.setSuffix(" {:C~}".format(units))
 
     apply = QtWidgets.QToolButton()
     apply.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -56,14 +71,30 @@ def create_spinbox_entry(component, name, trait):
     layout.setStretch(0, 1)
     layout.setStretch(1, 0)
 
-    def apply_value_to_component():
+    def apply_value_to_component_with_units():
         val = spinbox.value() * units
         setattr(component, name, val)
 
-    def apply_value_to_spinbox(val):
+    def apply_value_to_component_without_units():
+        setattr(component, name, spinbox.value())
+
+    apply_value_to_component = \
+        (apply_value_to_component_with_units if isinstance(trait, Quantity)
+         else apply_value_to_component_without_units)
+
+    def apply_value_to_spinbox_with_units(val):
         spinbox.blockSignals(True)
         spinbox.setValue(val.to(units).magnitude)
         spinbox.blockSignals(False)
+
+    def apply_value_to_spinbox_without_units(val):
+        spinbox.blockSignals(True)
+        spinbox.setValue(val)
+        spinbox.blockSignals(False)
+
+    apply_value_to_spinbox = \
+        (apply_value_to_spinbox_with_units if isinstance(trait, Quantity)
+         else apply_value_to_spinbox_without_units)
 
     apply_value_to_spinbox(trait.get(component))
     component.observe(lambda c: apply_value_to_spinbox(c['new']), name)
@@ -185,6 +216,9 @@ def generate_component_ui(name, component):
         layout = groups[group].layout()
 
         if (isinstance(trait, Quantity)):
+            layout.addRow(prettyName + ": ",
+                          create_spinbox_entry(component, name, trait))
+        if (isinstance(trait, Integer)):
             layout.addRow(prettyName + ": ",
                           create_spinbox_entry(component, name, trait))
         elif isinstance(trait, Enum) and not trait.read_only:
