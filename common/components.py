@@ -76,7 +76,6 @@ class ComponentBase(traitlets.HasTraits):
         for name, trait in self.traits().items():
             if is_component_trait(trait):
                 await trait.get(self).__aexit__(*args)
-        return self
 
     @property
     def actions(self):
