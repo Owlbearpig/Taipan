@@ -54,6 +54,7 @@ async def run(app, rootClass, loop):
         app.aboutToQuit.connect(lambda: aboutToQuit.set_result(True))
         await aboutToQuit
 
+
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
     loop = quamash.QEventLoop(app)
@@ -65,7 +66,5 @@ if __name__ == '__main__':
 
     rootClass = theglobals['AppRoot']
 
-    loop.create_task(run(app, rootClass, loop))
-
     with loop:
-        sys.exit(loop.run_forever())
+        sys.exit(loop.run_until_complete(run(app, rootClass, loop)))
