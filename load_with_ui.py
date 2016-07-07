@@ -47,6 +47,7 @@ async def run(app, rootClass, loop):
         formatter = logging.Formatter('%(asctime)s:%(levelname)s: %(message)s')
         handler.setFormatter(formatter)
         logging.getLogger().addHandler(handler)
+        logging.getLogger().setLevel(logging.INFO)
 
         w.show()
 
