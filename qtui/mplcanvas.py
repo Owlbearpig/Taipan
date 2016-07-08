@@ -208,6 +208,8 @@ class MPLCanvas(QtWidgets.QGroupBox):
 
         if redraw_axes:
             self.canvas.draw()
+            self.backgrounds = [self.canvas.copy_from_bbox(ax.bbox)
+                                for ax in (self.axes, self.ft_axes)]
         else:
             for bg in self.backgrounds:
                 self.canvas.restore_region(bg)
