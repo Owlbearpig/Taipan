@@ -92,7 +92,6 @@ class TW4B(DataSource):
 
     currentData = DataSetTrait(read_only=True)
 
-
     def __init__(self, name_or_ip=None, objectName=None, loop=None):
         super().__init__(objectName, loop)
 
@@ -125,7 +124,6 @@ class TW4B(DataSource):
 
         self._statusUpdater = None
         self._pulseReader = None
-        self.cnt = 0
 
     def send_command(self, command):
         # magic bytes, always the same
@@ -153,10 +151,7 @@ class TW4B(DataSource):
 
             data = DataSet(pulse, [axis])
 
-            if (self.cnt == 0):
-                self.set_trait('currentData', data)
-            self.cnt = (self.cnt + 1) % 10
-
+            self.set_trait('currentData', data)
             self.set_trait('acq_current_avg', min(self.acq_current_avg + 1, self.acq_avg))
 
     async def read_message(self):
@@ -179,7 +174,6 @@ class TW4B(DataSource):
 
     async def singleUpdate(self):
         ident, status = _status2dict(await self.query("SYSTEM : TELL STATUS"))
-        print(status)
 
         self._traitChangesDueToStatusUpdate = True
         self.set_trait('identification', ident)
