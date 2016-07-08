@@ -226,13 +226,15 @@ def generate_component_ui(name, component):
                           create_combobox(component, name, trait))
 
     for name, trait in traits:
+        if not isinstance(trait, Float) or not trait.read_only:
+            continue
+
         prettyName = _prettyName(trait, name)
         group = _group(trait)
         layout = groups[group].layout()
 
-        if isinstance(trait, Float) and trait.read_only:
-            layout.addRow(prettyName + ": ",
-                          create_progressbar(component, name, trait))
+        layout.addRow(prettyName + ": ",
+                      create_progressbar(component, name, trait))
 
     for name, trait in traits:
         if not isinstance(trait, Bool):
