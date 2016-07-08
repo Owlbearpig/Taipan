@@ -13,6 +13,7 @@ import matplotlib
 import numpy as np
 from scipy.signal import windows
 import enum
+import time
 
 
 def style_mpl():
@@ -61,6 +62,8 @@ class MPLCanvas(QtWidgets.QGroupBox):
     _axesLabels = None
     _prevDataLabel = None
     _dataLabel = None
+
+    _lastPlotTime = 0
 
     def __init__(self, parent=None):
         style_mpl()
@@ -219,6 +222,12 @@ class MPLCanvas(QtWidgets.QGroupBox):
             self.canvas.blit(self.ft_axes.bbox)
 
     def drawDataSet(self, newDataSet, axes_labels, data_label):
+        plotTime = time.perf_counter()
+        if (plotTime - self._lastPlotTime < 0.1):
+            return
+
+        self._lastPlotTime = plotTime
+
         self.prevDataSet = self.dataSet
         self.dataSet = newDataSet
 
