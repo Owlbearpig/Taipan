@@ -15,6 +15,7 @@ import io
 from common.traits import Quantity, DataSet as DataSetTrait
 from traitlets import Bool, Float, Unicode, observe, Integer
 import numpy as np
+import traceback
 
 class TW4BException(Exception):
     pass
@@ -134,11 +135,21 @@ class TW4B(DataSource):
         self.control_writer.write(command)
         self.set_trait('busy', True)
 
+    expected_magic1 = 0xCDEF1234
+    expected_magic2 = 0x789AFEDC
+
     async def read_pulse_data(self):
         while True:
             header = await self.data_reader.readexactly(36)
             (magic1, magic2, code, timestamp, tiasens, begin, resolution,
              amplitude, length) = struct.unpack('>IIIIIIIII', header)
+
+            if (magic1 != self.expected_magic1 or
+                magic2 != self.expected_magic2):
+                logging.warning("Corrupted pulse received! "
+                                "Buffer overrun?")
+                continue
+
             pulsedata = await self.data_reader.readexactly(length)
             pulse = np.array(struct.unpack('>{}i'.format(int(length / 4)),
                                            pulsedata), dtype=float)
@@ -153,6 +164,7 @@ class TW4B(DataSource):
 
             self.set_trait('currentData', data)
             self.set_trait('acq_current_avg', min(self.acq_current_avg + 1, self.acq_avg))
+
 
     async def read_message(self):
         async with self._commlock:
