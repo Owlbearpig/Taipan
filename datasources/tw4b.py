@@ -91,7 +91,8 @@ class TW4B(DataSource):
     identification = Unicode('Undefined', read_only=True)
     firmware_version = Unicode('Undefined', read_only=True)
 
-    currentData = DataSetTrait(read_only=True)
+    currentData = DataSetTrait(read_only=True).tag(data_label="Amplitude",
+                                                   axes_labels=["Time"])
 
     def __init__(self, name_or_ip=None, objectName=None, loop=None):
         super().__init__(objectName, loop)
