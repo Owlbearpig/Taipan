@@ -64,6 +64,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
     _dataLabel = None
 
     _lastPlotTime = 0
+    _isLiveData = False
 
     def __init__(self, parent=None):
         style_mpl()
@@ -128,11 +129,24 @@ class MPLCanvas(QtWidgets.QGroupBox):
         self._redrawTimer.setInterval(0)
         self._redrawTimer.timeout.connect(self._redraw_background)
 
+        # will be disconnected in drawDataSet() when live data is detected.
+        self._redraw_id = self.canvas.mpl_connect('draw_event',
+                                                  self._redraw_artists)
+
+    def _redraw_artists(self, *args):
+        if not self._isLiveData:
+            self.axes.draw_artist(self._lines[0])
+            self.ft_axes.draw_artist(self._ftlines[0])
+
+        self.axes.draw_artist(self._lines[1])
+        self.ft_axes.draw_artist(self._ftlines[1])
+
     def _redraw_background(self):
         self.fig.tight_layout()
         self.canvas.draw()
         self.backgrounds = [self.fig.canvas.copy_from_bbox(ax.bbox) for ax in
                             (self.axes, self.ft_axes)]
+        self._redraw_artists()
 
     def showEvent(self, e):
         super().showEvent(e)
@@ -165,8 +179,9 @@ class MPLCanvas(QtWidgets.QGroupBox):
 
     def _replot(self, redraw_axes=False, redraw_axes_labels=False,
                 redraw_data_label=False):
-        self._dataSetToLines(self.prevDataSet, self._lines[0],
-                             self._ftlines[0])
+        if not self._isLiveData:
+            self._dataSetToLines(self.prevDataSet, self._lines[0],
+                                 self._ftlines[0])
         self._dataSetToLines(self.dataSet, self._lines[1], self._ftlines[1])
 
         if self._axesLabels and redraw_axes_labels:
@@ -214,10 +229,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
             for bg in self.backgrounds:
                 self.canvas.restore_region(bg)
 
-        self.axes.draw_artist(self._lines[0])
-        self.axes.draw_artist(self._lines[1])
-        self.ft_axes.draw_artist(self._ftlines[0])
-        self.ft_axes.draw_artist(self._ftlines[1])
+        self._redraw_artists()
 
         if not redraw_axes:
             self.canvas.blit(self.axes.bbox)
@@ -225,6 +237,19 @@ class MPLCanvas(QtWidgets.QGroupBox):
 
     def drawDataSet(self, newDataSet, axes_labels, data_label):
         plotTime = time.perf_counter()
+
+        looksLikeLiveData = plotTime - self._lastPlotTime < 1
+
+        if looksLikeLiveData != self._isLiveData:
+            if looksLikeLiveData:
+                self.canvas.mpl_disconnect(self._redraw_id)
+            else:
+                self._redraw_id = self.canvas.mpl_connect('draw_event',
+                                                          self._redraw_artists)
+
+        self._isLiveData = looksLikeLiveData
+
+        # artificially limit the replot rate to 5 Hz
         if (plotTime - self._lastPlotTime < 0.2):
             return
 
