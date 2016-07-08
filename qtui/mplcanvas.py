@@ -44,11 +44,14 @@ class MPLCanvas(QtWidgets.QGroupBox):
         Rectangular = 0
         Hann = 1
         Flattop = 2
+        Tukey_5Percent = 3
 
     windowFunctionMap = {
-        WindowTypes.Rectangular: lambda M: windows.boxcar(M, sym=False),
-        WindowTypes.Hann:        lambda M: windows.hann(M, sym=False),
-        WindowTypes.Flattop:     lambda M: windows.flattop(M, sym=False),
+        WindowTypes.Rectangular:    lambda M: windows.boxcar(M, sym=False),
+        WindowTypes.Hann:           lambda M: windows.hann(M, sym=False),
+        WindowTypes.Flattop:        lambda M: windows.flattop(M, sym=False),
+        WindowTypes.Tukey_5Percent: lambda M: windows.tukey(M, sym=False,
+                                                            alpha=0.05),
     }
 
     dataIsPower = False
@@ -178,13 +181,24 @@ class MPLCanvas(QtWidgets.QGroupBox):
 
             self.ft_axes.set_ylabel('Power [dB-({:C~})]'.format(ftUnits))
 
-        redraw_axes = redraw_axes or redraw_axes_labels or redraw_data_label
+        prev_xlim = self.axes.get_xlim()
+        prev_ylim = self.axes.get_ylim()
+        prev_ft_xlim = self.ft_axes.get_xlim()
+        prev_ft_ylim = self.ft_axes.get_ylim()
+
+        self.axes.relim()
+        self.axes.autoscale_view()
+        self.ft_axes.relim()
+        self.ft_axes.autoscale_view()
+
+        redraw_axes = (redraw_axes or redraw_axes_labels or
+                       redraw_data_label or
+                       prev_xlim != self.axes.get_xlim() or
+                       prev_ylim != self.axes.get_ylim() or
+                       prev_ft_xlim != self.ft_axes.get_xlim() or
+                       prev_ft_ylim != self.ft_axes.get_ylim())
 
         if redraw_axes:
-            self.axes.relim()
-            self.axes.autoscale_view()
-            self.ft_axes.relim()
-            self.ft_axes.autoscale_view()
             self.canvas.draw()
         else:
             for bg in self.backgrounds:
@@ -204,8 +218,15 @@ class MPLCanvas(QtWidgets.QGroupBox):
         self.dataSet = newDataSet
 
         redraw_axes = (self.prevDataSet is None or
-                       not np.array_equal(self.prevDataSet.axes,
-                                          self.dataSet.axes))
+                       len(self.prevDataSet.axes) != len(self.dataSet.axes))
+        if not redraw_axes:
+            for x, y in zip(self.prevDataSet.axes, self.dataSet.axes):
+                if x.units != y.units:
+                    redraw_axes = True
+                    break
+                if not np.array_equal(x.magnitude, y.magnitude):
+                    redraw_axes = True
+                    break
 
         redraw_axes_labels = (self._axesLabels != axes_labels or
                               self.prevDataSet and self.dataSet and
