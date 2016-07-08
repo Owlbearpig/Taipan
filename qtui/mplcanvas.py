@@ -223,7 +223,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
 
     def drawDataSet(self, newDataSet, axes_labels, data_label):
         plotTime = time.perf_counter()
-        if (plotTime - self._lastPlotTime < 0.1):
+        if (plotTime - self._lastPlotTime < 0.2):
             return
 
         self._lastPlotTime = plotTime
