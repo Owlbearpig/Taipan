@@ -12,7 +12,6 @@ from matplotlib.figure import Figure
 import matplotlib
 import numpy as np
 from scipy.signal import windows
-from warnings import warn
 import enum
 
 
@@ -51,6 +50,14 @@ class MPLCanvas(QtWidgets.QGroupBox):
         WindowTypes.Hann:        lambda M: windows.hann(M, sym=False),
         WindowTypes.Flattop:     lambda M: windows.flattop(M, sym=False),
     }
+
+    dataIsPower = False
+    dataSet = None
+    prevDataSet = None
+    _prevAxesLabels = None
+    _axesLabels = None
+    _prevDataLabel = None
+    _dataLabel = None
 
     def __init__(self, parent=None):
         style_mpl()
@@ -93,24 +100,31 @@ class MPLCanvas(QtWidgets.QGroupBox):
 
         self.fig.tight_layout()
 
-        self.dataIsPower = False
-        self.dataSet = None
-        self.prevDataSet = None
-        self._axesLabels = None
-        self._dataLabel = None
+        self._lines = self.axes.plot([], [], [], [], animated=True)
+        self._lines[0].set_alpha(0.25)
+        self._ftlines = self.ft_axes.plot([], [], [], [], animated=True)
+        self._ftlines[0].set_alpha(0.25)
+        self.axes.legend(['Previous', 'Current'])
+        self.ft_axes.legend(['Previous', 'Current'])
+        self.axes.set_title('Data')
+        self.ft_axes.set_title('Fourier transformed data')
+        self._redraw_background()
+
+    def _redraw_background(self):
+        self.fig.tight_layout()
+        self.canvas.draw()
+        self.backgrounds = [self.fig.canvas.copy_from_bbox(ax.bbox) for ax in
+                            (self.axes, self.ft_axes)]
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self._redraw_background()
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
-        self.fig.tight_layout()
+        self._redraw_background()
 
-    def _drawDataSet(self, data, **kwargs):
-        if data is None:
-            self.axes.plot([], [], **kwargs)
-            self.ft_axes.plot([], [], **kwargs)
-            return
-
-        self.axes.plot(data.axes[0], data.data, **kwargs)
-
+    def get_ft_data(self, data):
         delta = np.mean(np.diff(data.axes[0]))
         winFn = self.windowFunctionMap[self.windowComboBox.currentData()]
         refUnit = 1 * data.data.units
@@ -119,21 +133,25 @@ class MPLCanvas(QtWidgets.QGroupBox):
         dBdata = 10 * np.log10(np.abs(Y))
         if not self.dataIsPower:
             dBdata *= 2
-        self.ft_axes.plot(freqs, dBdata, **kwargs)
+        return (freqs, dBdata)
 
-    def _replot(self):
-        self.axes.hold(False)
-        self.ft_axes.hold(False)
-        self._drawDataSet(self.prevDataSet, alpha=.25)
+    def _dataSetToLines(self, data, line, ftline):
+        if data is None:
+            line.set_data([], [])
+            ftline.set_data([], [])
+            return
 
-        self.axes.hold(True)
-        self.ft_axes.hold(True)
-        self._drawDataSet(self.dataSet)
+        line.set_data(data.axes[0], data.data)
+        freqs, dBdata = self.get_ft_data(data)
+        ftline.set_data(freqs, dBdata)
 
-        self.axes.legend(['Previous', 'Current'])
-        self.ft_axes.legend(['Previous', 'Current'])
+    def _replot(self, redraw_axes=False, redraw_axes_labels=False,
+                redraw_data_label=False):
+        self._dataSetToLines(self.prevDataSet, self._lines[0],
+                             self._ftlines[0])
+        self._dataSetToLines(self.dataSet, self._lines[1], self._ftlines[1])
 
-        if self._axesLabels:
+        if self._axesLabels and redraw_axes_labels:
             self.axes.set_xlabel('{} [{:C~}]'.format(
                                  self._axesLabels[0],
                                  self.dataSet.axes[0].units))
@@ -141,7 +159,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
                                     self._axesLabels[0],
                                     self.dataSet.axes[0].units))
 
-        if self._dataLabel:
+        if self._dataLabel and redraw_data_label:
             self.axes.set_ylabel('{} [{:C~}]'.format(
                                  self._dataLabel,
                                  self.dataSet.data.units))
@@ -152,23 +170,45 @@ class MPLCanvas(QtWidgets.QGroupBox):
 
             self.ft_axes.set_ylabel('Power [dB-({:C~})]'.format(ftUnits))
 
-        self.axes.set_title('Data')
-        self.ft_axes.set_title('Fourier transformed data')
+        redraw_axes = redraw_axes or redraw_axes_labels or redraw_data_label
 
-        self.axes.autoscale()
-        self.axes.autoscale_view()
-        self.ft_axes.autoscale()
-        self.ft_axes.autoscale_view()
+        if redraw_axes:
+            self.axes.relim()
+            self.axes.autoscale_view()
+            self.ft_axes.relim()
+            self.ft_axes.autoscale_view()
+            self.canvas.draw()
+        else:
+            for bg in self.backgrounds:
+                self.canvas.restore_region(bg)
 
-        self.fig.tight_layout()
+        self.axes.draw_artist(self._lines[0])
+        self.axes.draw_artist(self._lines[1])
+        self.ft_axes.draw_artist(self._ftlines[0])
+        self.ft_axes.draw_artist(self._ftlines[1])
 
-        self.canvas.draw()
+        if not redraw_axes:
+            self.canvas.blit(self.axes.bbox)
+            self.canvas.blit(self.ft_axes.bbox)
 
     def drawDataSet(self, newDataSet, axes_labels, data_label):
         self.prevDataSet = self.dataSet
         self.dataSet = newDataSet
 
+        redraw_axes = (self.prevDataSet is None or
+                       not np.array_equal(self.prevDataSet.axes,
+                                          self.dataSet.axes))
+
+        redraw_axes_labels = (self._axesLabels != axes_labels or
+                              self.prevDataSet and self.dataSet and
+                              self.prevDataSet.axes[0].units !=
+                                  self.dataSet.axes[0].units)
+        redraw_data_label = (self._dataLabel != data_label or
+                             self.prevDataSet and self.dataSet and
+                             self.prevDataSet.data.units !=
+                                 self.dataSet.data.units)
+
         self._axesLabels = axes_labels
         self._dataLabel = data_label
 
-        self._replot()
+        self._replot(redraw_axes, redraw_axes_labels, redraw_data_label)
