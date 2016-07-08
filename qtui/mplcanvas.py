@@ -79,6 +79,10 @@ class MPLCanvas(QtWidgets.QGroupBox):
 
         self.mpl_toolbar.addSeparator()
 
+        self.ft_autoscale = self.mpl_toolbar.addAction("Auto-scale FT")
+        self.ft_autoscale.setCheckable(True)
+        self.ft_autoscale.setChecked(True)
+
         self.mpl_toolbar.addWidget(QtWidgets.QLabel("Fourier transform "
                                                     "window: "))
 
@@ -188,8 +192,9 @@ class MPLCanvas(QtWidgets.QGroupBox):
 
         self.axes.relim()
         self.axes.autoscale_view()
-        self.ft_axes.relim()
-        self.ft_axes.autoscale_view()
+        if (self.ft_autoscale.isChecked()):
+            self.ft_axes.relim()
+            self.ft_axes.autoscale_view()
 
         redraw_axes = (redraw_axes or redraw_axes_labels or
                        redraw_data_label or
