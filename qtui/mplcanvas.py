@@ -5,7 +5,7 @@ Created on Fri Jun 17 12:51:41 2016
 @author: Arno Rehn
 """
 
-from PyQt5 import QtWidgets, QtGui
+from PyQt5 import QtCore, QtWidgets, QtGui
 from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg,
                                                 NavigationToolbar2QT)
 from matplotlib.figure import Figure
@@ -110,6 +110,14 @@ class MPLCanvas(QtWidgets.QGroupBox):
         self.ft_axes.set_title('Fourier transformed data')
         self._redraw_background()
 
+        # Use a timer with a timeout of 0 to initiate redrawing of the canvas.
+        # This ensures that the eventloop has run once more and prevents
+        # artifacts.
+        self._redrawTimer = QtCore.QTimer(self)
+        self._redrawTimer.setSingleShot(True)
+        self._redrawTimer.setInterval(0)
+        self._redrawTimer.timeout.connect(self._redraw_background)
+
     def _redraw_background(self):
         self.fig.tight_layout()
         self.canvas.draw()
@@ -118,11 +126,11 @@ class MPLCanvas(QtWidgets.QGroupBox):
 
     def showEvent(self, e):
         super().showEvent(e)
-        self._redraw_background()
+        self._redrawTimer.start()
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
-        self._redraw_background()
+        self._redrawTimer.start()
 
     def get_ft_data(self, data):
         delta = np.mean(np.diff(data.axes[0]))
