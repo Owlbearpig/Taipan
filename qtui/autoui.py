@@ -345,7 +345,8 @@ def generate_ui(component):
         widget = generate_component_ui(prettyName, component)
         newItem.widgetId = stack.addWidget(widget)
 
-        for name, trait in component.attributes.items():
+        for name, trait in sorted(component.attributes.items(),
+                                  key=lambda x: x[0]):
             if not is_component_trait(trait):
                 continue
             cInst = getattr(component, name)
