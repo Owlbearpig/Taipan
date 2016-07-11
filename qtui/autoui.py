@@ -15,7 +15,9 @@ from common.traits import DataSet as DataSetTrait
 from traitlets import Instance, Float, Bool, Integer, Enum, Unicode
 from collections import OrderedDict
 from itertools import chain
-from common.traits import Quantity
+from common.traits import Quantity, Path as PathTrait
+from pathlib import Path
+import logging
 
 
 def run_action(func):
@@ -165,6 +167,7 @@ def create_combobox(component, name, trait):
         combobox.addItem(item.name, item)
 
     combobox.setCurrentText(trait.get(component).name)
+    combobox.setToolTip(trait.help)
 
     component.observe(lambda change:
                       combobox.setCurrentText(change['new'].name), name)
@@ -179,6 +182,7 @@ def create_combobox(component, name, trait):
 def create_label(component, name, trait):
     label = QtWidgets.QLabel()
     label.setText(trait.get(component))
+    label.setToolTip(trait.help)
 
     component.observe(lambda change: label.setText(change['new']), name)
 
@@ -189,6 +193,7 @@ def create_lineedit(component, name, trait):
     lineEdit = ChangeIndicatorLineEdit(actual_value_getter=
                                        lambda: trait.get(component))
     lineEdit.setText(trait.get(component))
+    lineEdit.setToolTip(trait.help)
 
     def apply_text_to_lineedit(change):
         lineEdit.blockSignals(True)
@@ -205,6 +210,70 @@ def create_lineedit(component, name, trait):
     return lineEdit
 
 
+def create_path_selector(component, name, prettyName, trait):
+    layout = QtWidgets.QHBoxLayout()
+
+    def get_current_path():
+        return str(trait.get(component))
+
+    lineEdit = ChangeIndicatorLineEdit(actual_value_getter=get_current_path)
+    lineEdit.setText(str(trait.get(component)))
+    lineEdit.setToolTip(trait.help)
+
+    def apply_path_to_lineedit(change):
+        lineEdit.blockSignals(True)
+        lineEdit.setText(str(change['new']))
+        lineEdit.blockSignals(False)
+
+    def apply_path_to_component():
+        try:
+            setattr(component, name, Path(lineEdit.text()))
+        except Exception as e:
+            logging.error(e)
+            lineEdit.setText(get_current_path())
+
+    component.observe(apply_path_to_lineedit, name)
+    lineEdit.editingFinished.connect(apply_path_to_component)
+    lineEdit.editingFinished.connect(lineEdit.check_changed)
+
+    choose = QtWidgets.QToolButton()
+    choose.setFocusPolicy(QtCore.Qt.NoFocus)
+    choose.setText('...')
+    choose.setAutoRaise(True)
+    choose.setEnabled(not trait.read_only)
+
+    def choose_path():
+        name = None
+        if trait.is_dir and not trait.is_file:
+            name = QtWidgets.QFileDialog.getExistingDirectory(
+                       caption="Choose " + prettyName)
+
+        else:
+            if trait.must_exist:
+                name, filt = QtWidgets.QFileDialog.getOpenFileName(
+                                 caption="Choose " + prettyName)
+            else:
+                name, filt = QtWidgets.QFileDialog.getSaveFileName(
+                                 caption="Choose " + prettyName)
+
+        if name is None:
+            return
+
+        lineEdit.setText(name)
+        apply_path_to_component()
+        lineEdit.check_changed()
+
+    choose.clicked.connect(choose_path)
+
+    layout.addWidget(lineEdit)
+    layout.addWidget(choose)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setStretch(0, 1)
+    layout.setStretch(1, 0)
+
+    return layout
+
+
 def _group(trait):
     return trait.metadata.get('group', 'General')
 
@@ -214,7 +283,8 @@ def _prettyName(trait, name):
 
 
 traitPriority = {
-    'Unicode': 0,
+    'Unicode': -1,
+    'Path': 0,
     'Float': 1,
     'Int': 1,
     'Quantity': 1,
@@ -290,11 +360,15 @@ def generate_component_ui(name, component):
                           create_checkbox(component, name, prettyName, trait))
         elif isinstance(trait, Unicode):
             if trait.read_only:
-                layout.addRow(name + ": ",
+                layout.addRow(prettyName + ": ",
                               create_label(component, name, trait))
             else:
-                layout.addRow(name + ": ",
+                layout.addRow(prettyName + ": ",
                               create_lineedit(component, name, trait))
+        elif isinstance(trait, PathTrait):
+                layout.addRow(prettyName + ": ",
+                              create_path_selector(component, name, prettyName,
+                                                   trait))
         elif callable(trait):
             qaction = create_action(component, trait)
             qaction.setParent(controlWidget)

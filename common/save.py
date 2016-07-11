@@ -25,11 +25,16 @@ class DataSaver(DataSink):
     extension = {Formats.Text: '.txt', Formats.HDF5: '.hdf5',
                  Formats.Numpy: '.npz'}
 
-    path = PathTrait().tag(name="Path")
+    path = PathTrait(is_file=False, must_exist=True).tag(name="Path")
     fileFormat = EnumTrait(Formats, Formats.Text).tag(name="File format")
     textFileWithHeaders = Bool(False).tag(name="Write header to text files")
-    fileNameTemplate = Unicode('{date}-{name}')
-    mainFileName = Unicode('data')
+    fileNameTemplate = Unicode('{date}-{name}',
+                               help="File name template, valid identifiers "
+                                    "are:\n"
+                                    "{name}: The main file name\n"
+                                    "{date}: The current date and time").tag(
+                               name="File name template")
+    mainFileName = Unicode('data').tag(name="Main file name")
 
     def _getFileName(self):
         date = datetime.now().isoformat().replace(':', '-')
