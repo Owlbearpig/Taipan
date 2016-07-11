@@ -128,6 +128,7 @@ class TW4B(DataSource):
         self._statusUpdater = None
         self._pulseReader = None
         self._setBusyFuture = None
+        self._setAveragesReachedFuture = asyncio.Future()
 
     def send_command(self, command):
         # magic bytes, always the same
@@ -173,7 +174,9 @@ class TW4B(DataSource):
             self.set_trait('currentData', data)
             self.set_trait('acq_current_avg', min(self.acq_current_avg + 1,
                                                   self.acq_avg))
-
+            if (not self._setAveragesReachedFuture.done() and
+                self.acq_current_avg >= self.acq_avg):
+                self._setAveragesReachedFuture.set_result(True)
 
     async def read_message(self):
         async with self._commlock:
@@ -225,44 +228,50 @@ class TW4B(DataSource):
         if self._traitChangesDueToStatusUpdate:
             return
 
-        self.reset_avg()
-
         newVal = change['new'].to('ps').magnitude
-        self._loop.create_task(
-            self.query('ACQUISITION : BEGIN {}'.format(newVal))
-        )
+
+        async def _impl():
+            await self.query('ACQUISITION : BEGIN {}'.format(newVal))
+            await self.reset_avg()
+
+        self._loop.create_task(_impl())
 
     @observe('acq_range')
     def acq_range_changed(self, change):
         if self._traitChangesDueToStatusUpdate:
             return
 
-        self.reset_avg()
-
         newVal = int(change['new'].to('ps').magnitude)
-        self._loop.create_task(
-            self.query('ACQUISITION : RANGE {}'.format(newVal))
-        )
+
+        async def _impl():
+            await self.query('ACQUISITION : RANGE {}'.format(newVal))
+            await self.reset_avg()
+
+        self._loop.create_task(_impl())
 
     @observe('acq_avg')
     def acq_avg_changed(self, change):
-        print("average to {}".format(change['new']))
         self._loop.create_task(
             self.query('ACQUISITION : AVERAGE {}'.format(int(change['new'])))
         )
 
     @action("Start acquisition")
     def start(self):
-        self._loop.create_task(self.query('ACQUISITION : START'))
+        async def _impl():
+            await self.query('ACQUISITION : START')
+            await self.reset_avg()
+        self._loop.create_task(_impl())
 
     @action("Stop acquisition")
     def stop(self):
         self._loop.create_task(self.query('ACQUISITION : STOP'))
 
     @action("Reset average")
-    def reset_avg(self):
-        self._loop.create_task(self.query('ACQUISITION : RESET AVG'))
+    async def reset_avg(self):
+        await self.query('ACQUISITION : RESET AVG')
         self.set_trait('acq_current_avg', 0)
+        if self._setAveragesReachedFuture.done():
+            self._setAveragesReachedFuture = asyncio.Future()
 
     async def __aenter__(self):
         print("Initializing TW4B...")
@@ -294,6 +303,19 @@ class TW4B(DataSource):
 
         self.control_writer.close()
         self.data_writer.close()
+
+    async def readDataSet(self):
+        if not self.acq_on:
+            raise Exception("Trying to read data from TW4B but acquisition is "
+                            "turned off!")
+
+        await self.reset_avg()
+        success = await self._setAveragesReachedFuture
+        if not success:
+            raise Exception("Failed to reach the target averages value!")
+
+        return self.currentData
+
 
     @classmethod
     def discovered_systems(cls):
