@@ -7,6 +7,7 @@ Created on Tue Jun 14 14:57:55 2016
 
 from PyQt5 import QtWidgets, QtCore
 from .changeindicatorspinbox import ChangeIndicatorSpinBox
+from .changeindicatorlineedit import ChangeIndicatorLineEdit
 from .mplcanvas import MPLCanvas
 import asyncio
 from common import ComponentBase
@@ -184,6 +185,26 @@ def create_label(component, name, trait):
     return label
 
 
+def create_lineedit(component, name, trait):
+    lineEdit = ChangeIndicatorLineEdit(actual_value_getter=
+                                       lambda: trait.get(component))
+    lineEdit.setText(trait.get(component))
+
+    def apply_text_to_lineedit(change):
+        lineEdit.blockSignals(True)
+        lineEdit.setText(change['new'])
+        lineEdit.blockSignals(False)
+
+    def apply_text_to_component():
+        setattr(component, name, lineEdit.text())
+
+    component.observe(apply_text_to_lineedit, name)
+    lineEdit.editingFinished.connect(apply_text_to_component)
+    lineEdit.editingFinished.connect(lineEdit.check_changed)
+
+    return lineEdit
+
+
 def _group(trait):
     return trait.metadata.get('group', 'General')
 
@@ -268,8 +289,12 @@ def generate_component_ui(name, component):
             layout.addRow(None,
                           create_checkbox(component, name, prettyName, trait))
         elif isinstance(trait, Unicode):
-            layout.addRow(name + ": ",
-                          create_label(component, name, trait))
+            if trait.read_only:
+                layout.addRow(name + ": ",
+                              create_label(component, name, trait))
+            else:
+                layout.addRow(name + ": ",
+                              create_lineedit(component, name, trait))
         elif callable(trait):
             qaction = create_action(component, trait)
             qaction.setParent(controlWidget)
