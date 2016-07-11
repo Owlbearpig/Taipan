@@ -79,11 +79,11 @@ class TW4B(DataSource):
     discoverer = None
 
     busy = Bool(False, read_only=True).tag(name="Busy")
-    acq_begin = Quantity(Q_(500, 'ps')).tag(name="Start")
-    acq_range = Quantity(Q_(70, 'ps')).tag(name="Range")
+    acq_begin = Quantity(Q_(500, 'ps')).tag(name="Start", priority=0)
+    acq_range = Quantity(Q_(70, 'ps')).tag(name="Range", priority=1)
     acq_on = Bool(False, read_only=True).tag(name="Acquistion active")
-    acq_avg = Integer(1, min=1, max=30000).tag(name="Averages")
-    acq_current_avg = Integer(0, read_only=True).tag(name="Current averages")
+    acq_avg = Integer(1, min=1, max=30000).tag(name="Averages", priority=2)
+    acq_current_avg = Integer(0, read_only=True).tag(name="Current averages", priority=3)
     laser_on = Bool(False).tag(name="Laser on")
     laser_set = Float(50.0, min=0, max=100).tag(name="Laser set-point")
     system_status = Unicode('Undefined', read_only=True).tag(name="Status")
@@ -127,6 +127,7 @@ class TW4B(DataSource):
 
         self._statusUpdater = None
         self._pulseReader = None
+        self._setBusyFuture = None
 
     def send_command(self, command):
         # magic bytes, always the same
@@ -135,7 +136,11 @@ class TW4B(DataSource):
         command = magic + encoded_length + command.encode('ascii')
 
         self.control_writer.write(command)
-        self.set_trait('busy', True)
+
+        if self._setBusyFuture:
+            self._setBusyFuture.cancel()
+        self._setBusyFuture = self._loop.call_later(
+                                  0.1, lambda: self.set_trait('busy', True))
 
     expected_magic1 = 0xCDEF1234
     expected_magic2 = 0x789AFEDC
@@ -154,7 +159,8 @@ class TW4B(DataSource):
 
             pulsedata = await self.data_reader.readexactly(length)
             pulse = np.array(struct.unpack('>{}i'.format(int(length / 4)),
-                                           pulsedata), dtype=float)
+                                           pulsedata), dtype=int)
+            pulse = _fix2float(pulse, 5).astype(float)
             pulse *= _magicScale * _fix2float(tiasens)
             pulse = Q_(pulse, 'nA')
 
@@ -175,6 +181,8 @@ class TW4B(DataSource):
             magic1, magic2, code, timestamp, length = struct.unpack('>IIIII',
                                                                     header)
             msg = await self.control_reader.readexactly(length)
+            if self._setBusyFuture:
+                self._setBusyFuture.cancel()
             self.set_trait('busy', False)
             return msg.decode('ascii')
 
@@ -217,6 +225,8 @@ class TW4B(DataSource):
         if self._traitChangesDueToStatusUpdate:
             return
 
+        self.reset_avg()
+
         newVal = change['new'].to('ps').magnitude
         self._loop.create_task(
             self.query('ACQUISITION : BEGIN {}'.format(newVal))
@@ -226,6 +236,8 @@ class TW4B(DataSource):
     def acq_range_changed(self, change):
         if self._traitChangesDueToStatusUpdate:
             return
+
+        self.reset_avg()
 
         newVal = int(change['new'].to('ps').magnitude)
         self._loop.create_task(
