@@ -78,20 +78,21 @@ class TW4B(DataSource):
 
     discoverer = None
 
-    busy = Bool(False, read_only=True)
-    acq_begin = Quantity(Q_(500, 'ps'))
-    acq_range = Quantity(Q_(70, 'ps'))
-    acq_on = Bool(False, read_only=True)
-    acq_avg = Integer(1, min=1, max=30000)
-    acq_current_avg = Integer(0, read_only=True)
-    laser_on = Bool(False)
-    laser_set = Float(50.0, min=0, max=100)
-    system_status = Unicode('Undefined', read_only=True)
-    serial_number = Unicode('Undefined', read_only=True)
-    identification = Unicode('Undefined', read_only=True)
-    firmware_version = Unicode('Undefined', read_only=True)
+    busy = Bool(False, read_only=True).tag(name="Busy")
+    acq_begin = Quantity(Q_(500, 'ps')).tag(name="Start")
+    acq_range = Quantity(Q_(70, 'ps')).tag(name="Range")
+    acq_on = Bool(False, read_only=True).tag(name="Acquistion active")
+    acq_avg = Integer(1, min=1, max=30000).tag(name="Averages")
+    acq_current_avg = Integer(0, read_only=True).tag(name="Current averages")
+    laser_on = Bool(False).tag(name="Laser on")
+    laser_set = Float(50.0, min=0, max=100).tag(name="Laser set-point")
+    system_status = Unicode('Undefined', read_only=True).tag(name="Status")
+    serial_number = Unicode('Undefined', read_only=True).tag(name="Serial no.")
+    identification = Unicode('Undefined', read_only=True).tag(name="Identification")
+    firmware_version = Unicode('Undefined', read_only=True).tag(name="Firmware ver.")
 
-    currentData = DataSetTrait(read_only=True).tag(data_label="Amplitude",
+    currentData = DataSetTrait(read_only=True).tag(name="Live data",
+                                                   data_label="Amplitude",
                                                    axes_labels=["Time"])
 
     def __init__(self, name_or_ip=None, objectName=None, loop=None):
@@ -164,7 +165,8 @@ class TW4B(DataSource):
             data = DataSet(pulse, [axis])
 
             self.set_trait('currentData', data)
-            self.set_trait('acq_current_avg', min(self.acq_current_avg + 1, self.acq_avg))
+            self.set_trait('acq_current_avg', min(self.acq_current_avg + 1,
+                                                  self.acq_avg))
 
 
     async def read_message(self):
