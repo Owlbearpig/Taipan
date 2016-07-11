@@ -83,9 +83,9 @@ class MPLCanvas(QtWidgets.QGroupBox):
 
         self.mpl_toolbar.addSeparator()
 
-        self.ft_autoscale = self.mpl_toolbar.addAction("Auto-scale FT")
-        self.ft_autoscale.setCheckable(True)
-        self.ft_autoscale.setChecked(True)
+        self.autoscale = self.mpl_toolbar.addAction("Auto-scale")
+        self.autoscale.setCheckable(True)
+        self.autoscale.setChecked(True)
 
         self.mpl_toolbar.addWidget(QtWidgets.QLabel("Fourier transform "
                                                     "window: "))
@@ -126,7 +126,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
         # artifacts.
         self._redrawTimer = QtCore.QTimer(self)
         self._redrawTimer.setSingleShot(True)
-        self._redrawTimer.setInterval(0)
+        self._redrawTimer.setInterval(100)
         self._redrawTimer.timeout.connect(self._redraw_background)
 
         # will be disconnected in drawDataSet() when live data is detected.
@@ -208,9 +208,9 @@ class MPLCanvas(QtWidgets.QGroupBox):
         prev_ft_xlim = self.ft_axes.get_xlim()
         prev_ft_ylim = self.ft_axes.get_ylim()
 
-        self.axes.relim()
-        self.axes.autoscale_view()
-        if (self.ft_autoscale.isChecked()):
+        if (self.autoscale.isChecked()):
+            self.axes.relim()
+            self.axes.autoscale_view()
             self.ft_axes.relim()
             self.ft_axes.autoscale_view()
 
