@@ -21,10 +21,12 @@ class Scan(DataSource):
     dataSource = Instance(DataSource, allow_none=True)
 
     minimumValue = Quantity(Q_(0), help="The Scan's minimum value").tag(
-                                   name="Minimum value")
+                                   name="Minimum value",
+                                   priority=0)
 
     maximumValue = Quantity(Q_(0), help="The Scan's maximum value").tag(
-                                   name="Maximum value")
+                                   name="Maximum value",
+                                   priority=1)
 
     step = Quantity(Q_(0), help="The step width used for the Scan",
                            min=Q_(0)).tag(
