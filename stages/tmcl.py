@@ -102,7 +102,6 @@ class TMCL(Manipulator):
             await self._singleUpdate()
 
     async def _singleUpdate(self):
-        print("update")
         stepPos = await self._get_param(1)
         self.set_trait('value', Q_(self._steps2angle(stepPos), 'deg'))
 
