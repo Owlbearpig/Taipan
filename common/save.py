@@ -12,6 +12,7 @@ from enum import Enum, unique
 from traitlets import Bool, Enum as EnumTrait, Unicode
 import numpy as np
 from datetime import datetime
+import logging
 
 
 class DataSaver(DataSink):
@@ -41,7 +42,7 @@ class DataSaver(DataSink):
         formattedName = self.fileNameTemplate.format(date=date,
                                                      name=self.mainFileName)
         formattedName += self.extension[self.fileFormat]
-        return formattedName
+        return str(self.path.joinpath(formattedName))
 
     def _saveTxt(self, data):
         if len(data.axes) > 1 or len(data.axes) == 0:
@@ -52,7 +53,9 @@ class DataSaver(DataSink):
         header = ''
         if self.textFileWithHeaders:
             header = '{:C} {:C}'.format(data.axes[0].units, data.data.units)
-        np.savetxt(self._getFileName(), toSave, header=header)
+        filename = self._getFileName()
+        np.savetxt(filename, toSave, header=header)
+        return filename
 
     def _saveHDF5(self, data):
         raise NotImplementedError("Saving as HDF5 has not yet been "
@@ -65,11 +68,15 @@ class DataSaver(DataSink):
         unitlessAxes = [ax.magnitude for ax in data.axes]
         np.savez_compressed(fileName, axes=unitlessAxes, axesUnits=axesUnits,
                             data=data.data.magnitude, dataUnits=dataUnits)
+        return fileName
 
     def process(self, data):
+        filename = None
         if self.fileFormat == self.Formats.Text:
-            self._saveTxt(data)
+            filename = self._saveTxt(data)
         elif self.fileFormat == self.Formats.HDF5:
-            self._saveHDF5(data)
+            filename = self._saveHDF5(data)
         elif self.fileFormat == self.Formats.Numpy:
-            self._saveNumpy(data)
+            filename = self._saveNumpy(data)
+
+        logging.info("Saved data as {}".format(filename))
