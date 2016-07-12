@@ -95,7 +95,9 @@ class AxisAtController(Manipulator):
                        bool(self._status & self.StatusBits.Moving.value) or
                        self.isReferencing)
 
-        if self.isOnTarget:
+        if self._movementStopped and not self.isMoving:
+            self.set_trait('status', self.Status.Stopped)
+        elif self.isOnTarget:
             self.set_trait('status', self.Status.TargetReached)
         elif self.isMoving:
             self.set_trait('status', self.Status.Moving)
