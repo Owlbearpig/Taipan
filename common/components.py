@@ -141,6 +141,7 @@ class Manipulator(ComponentBase):
         TargetReached = 1
         Moving = 2
         Error = 3
+        Stopped = 4
 
     velocity = Quantity(Q_(1)).tag(prettyName="Velocity")
     value = Quantity(Q_(0), read_only=True).tag(prettyName="Value")
