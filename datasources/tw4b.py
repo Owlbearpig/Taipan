@@ -99,32 +99,8 @@ class TW4B(DataSource):
         super().__init__(objectName, loop)
 
         self._traitChangesDueToStatusUpdate = False
-        self.ip = None
+        self.name_or_ip = name_or_ip
         self._commlock = asyncio.Lock()
-
-        try:
-            socket.inet_aton(name_or_ip)
-            self.ip = name_or_ip
-        except OSError:
-            pass
-
-        if self.ip is None:
-            systems = self.discovered_systems()
-            if not systems:
-                raise Exception("No TW4B compatible devices found")
-
-            if name_or_ip is None:
-                self.ip = next(iter(systems.keys()))
-            else:
-                matches = ([ip for ip, name in systems.items()
-                            if name == name_or_ip])
-                if matches:
-                    self.ip = matches[0]
-
-        if self.ip is None:
-            raise Exception("No suitable device found for identifier {}"
-                            .format(name_or_ip))
-
         self._statusUpdater = None
         self._pulseReader = None
         self._setBusyFuture = None
@@ -275,6 +251,32 @@ class TW4B(DataSource):
 
     async def __aenter__(self):
         print("Initializing TW4B...")
+
+        self.ip = None
+
+        try:
+            if self.name_or_ip is not None:
+                socket.inet_aton(self.name_or_ip)
+                self.ip = self.name_or_ip
+        except OSError:
+            pass
+
+        if self.ip is None:
+            systems = self.discovered_systems()
+            if not systems:
+                raise Exception("No TW4B compatible devices found")
+
+            if self.name_or_ip is None:
+                self.ip = next(iter(systems.keys()))
+            else:
+                matches = ([ip for ip, name in systems.items()
+                            if name == self.name_or_ip])
+                if matches:
+                    self.ip = matches[0]
+
+        if self.ip is None:
+            raise Exception("No suitable device found for identifier {}"
+                            .format(self.name_or_ip))
 
         self.control_reader, self.control_writer = \
             await asyncio.open_connection(host=self.ip, port=6341,
