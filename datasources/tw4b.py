@@ -15,7 +15,7 @@ import io
 from common.traits import Quantity, DataSet as DataSetTrait
 from traitlets import Bool, Float, Unicode, observe, Integer
 import numpy as np
-import traceback
+
 
 class TW4BException(Exception):
     pass
