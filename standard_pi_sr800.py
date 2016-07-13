@@ -68,8 +68,6 @@ class AppRoot(Scan):
         self.dataSaver = DataSaver(objectName="Data Saver")
 
     async def __aenter__(self):
-        await super().__aenter__()
-
         await self.pi_conn.__aenter__()
         await self.manipulator.__aenter__()
         await self.dataSource.__aenter__()
@@ -77,8 +75,6 @@ class AppRoot(Scan):
         return self
 
     async def __aexit__(self, *args):
-        await super().__aexit__(*args)
-
         await self.dataSource.__aexit__(*args)
         await self.manipulator.__aexit__(*args)
         await self.pi_conn.__aexit__(*args)
