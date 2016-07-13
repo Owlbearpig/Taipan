@@ -256,7 +256,7 @@ def create_path_selector(component, name, prettyName, trait):
                 name, filt = QtWidgets.QFileDialog.getSaveFileName(
                                  caption="Choose " + prettyName)
 
-        if name is None:
+        if not name:
             return
 
         lineEdit.setText(name)
