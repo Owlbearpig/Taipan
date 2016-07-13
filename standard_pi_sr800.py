@@ -6,9 +6,11 @@ Created on Wed Oct 14 15:04:51 2015
 """
 
 from common import DataSet, action, traits, Scan, ureg, Q_
+from common.save import DataSaver
 from pint import Context
 from stages import PI
 from datasources import SR830
+from traitlets import Instance
 import visa
 
 # Create and enable a THz-TDS context where we can convert times to lengths
@@ -32,6 +34,8 @@ rm = visa.ResourceManager()
 
 
 class AppRoot(Scan):
+
+    dataSaver = Instance(DataSaver)
 
     currentData = traits.DataSet(read_only=True).tag(
                                  name="Time domain",
@@ -61,6 +65,8 @@ class AppRoot(Scan):
         self.positioningVelocity = Q_(10, 'ps/s')
         self.scanVelocity = Q_(1, 'ps/s')
 
+        self.dataSaver = DataSaver(objectName="Data Saver")
+
     async def __aenter__(self):
         await super().__aenter__()
 
@@ -80,3 +86,4 @@ class AppRoot(Scan):
     @action("Take measurement")
     async def takeMeasurement(self):
         self.set_trait('currentData', await self.readDataSet())
+        self.dataSaver.process(self.currentData)
