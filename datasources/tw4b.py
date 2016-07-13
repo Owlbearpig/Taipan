@@ -15,40 +15,11 @@ import io
 from common.traits import Quantity, DataSet as DataSetTrait
 from traitlets import Bool, Float, Unicode, observe, Integer
 import numpy as np
+from threading import Thread
 
 
 class TW4BException(Exception):
     pass
-
-
-class TW4BClientProtocol:
-    def __init__(self, new_system_discovered_cb=None, loop=None):
-        if loop is None:
-            loop = asyncio.get_event_loop()
-        self.loop = loop
-        self.discovered_systems = {}
-        self.transport = None
-
-        def no_handler(ip, name): pass
-
-        self.new_system_discovered_cb = new_system_discovered_cb or no_handler
-
-    def connection_made(self, transport):
-        logging.info("TW4B Broadcast Receiver: Listening for devices.")
-        self.transport = transport
-
-    def datagram_received(self, data, addr):
-        (ip, name) = data.decode().split('\r')
-        ip = ip.split(' ')[1]
-        if ip not in self.discovered_systems:
-            self.discovered_systems[ip] = name
-            self.new_system_discovered_cb(ip, name)
-
-    def error_received(self, exc):
-        logging.error(exc)
-
-    def connection_lost(self, exc):
-        logging.warning(exc)
 
 
 def _status2dict(status):
@@ -262,7 +233,7 @@ class TW4B(DataSource):
             pass
 
         if self.ip is None:
-            systems = self.discovered_systems()
+            systems = self.discovered_systems
             if not systems:
                 raise Exception("No TW4B compatible devices found")
 
@@ -318,20 +289,29 @@ class TW4B(DataSource):
 
         return self.currentData
 
+    discovered_systems = {}
 
     @classmethod
-    def discovered_systems(cls):
-        return (None if cls.discoverer is None
-                else cls.discoverer.discovered_systems)
-
-    @classmethod
-    async def start_device_discovery(cls, loop=None):
+    def start_device_discovery(cls, loop=None):
         if loop is None:
             loop = asyncio.get_event_loop()
 
-        transport, cls.discoverer = await loop.create_datagram_endpoint(
-            TW4BClientProtocol, local_addr=('0.0.0.0', 58432),
-            reuse_address=True, allow_broadcast=True
-        )
+        def recv_broadcast():
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(('0.0.0.0', 58432))
+            s.settimeout(2)
 
-        return cls.discoverer
+            while not loop.is_closed():
+                try:
+                    data = s.recv(1024)
+                except socket.timeout:
+                    continue
+
+                (ip, name) = data.decode().split('\r')
+                ip = ip.split(' ')[1]
+                if ip not in cls.discovered_systems:
+                    cls.discovered_systems[ip] = name
+
+        cls._discovererThread = Thread(target=recv_broadcast)
+        cls._discovererThread.start()
