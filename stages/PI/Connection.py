@@ -18,7 +18,13 @@ class Connection(ComponentBase):
         self.serial = Serial()
         self._lock = Lock()
 
-    def __del__(self):
+    async def __aenter__(self):
+        await super().__aenter__()
+        self.open()
+        return self
+
+    async def __aexit__(self, *args):
+        await super().__aexit__(*args)
         self.close()
 
     def open(self):

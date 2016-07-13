@@ -43,14 +43,15 @@ class AppRoot(Scan):
         super().__init__(objectName="Scan", loop=loop)
         self.title = "Dummy measurement program"
         self.pi_conn = PI.Connection('COM17')
-        self.pi_conn.open()
 
         pi_stage = PI.AxisAtController(self.pi_conn)
         pi_stage.objectName = "PI C-863"
         pi_stage.setPreferredUnits(ureg.ps, ureg.ps / ureg.s)
         self.manipulator = pi_stage
+
         self.dataSource = SR830(rm.open_resource('GPIB0::10::INSTR'))
         self.dataSource.objectName = "SR830"
+
         self.continuousScan = True
         self.set_trait('currentData', DataSet())
 
@@ -59,6 +60,22 @@ class AppRoot(Scan):
         self.step = Q_(0.05, 'ps')
         self.positioningVelocity = Q_(10, 'ps/s')
         self.scanVelocity = Q_(1, 'ps/s')
+
+    async def __aenter__(self):
+        await super().__aenter__()
+
+        await self.pi_conn.__aenter__()
+        await self.manipulator.__aenter__()
+        await self.dataSource.__aenter__()
+
+        return self
+
+    async def __aexit__(self, *args):
+        await super().__aexit__(*args)
+
+        await self.dataSource.__aexit__(*args)
+        await self.manipulator.__aexit__(*args)
+        await self.pi_conn.__aexit__(*args)
 
     @action("Take measurement")
     async def takeMeasurement(self):

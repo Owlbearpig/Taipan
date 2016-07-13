@@ -11,41 +11,16 @@ from asyncioext import threaded_async
 from pyvisa import constants
 import struct
 import enum
+from traitlets import Enum, Unicode
 
 
 class SR830(DataSource):
-    def __init__(self, resource, init=True):
-        super().__init__()
-        self.resource = resource
-        self.resource.timeout = 150
-        self.resource.read_termination = '\n'
-
-        self._samplingMode = SR830.SamplingMode.Buffered
-
-        if (init):
-            self.initialize()
-
-    def initialize(self):
-        self._identification = self.resource.query('*IDN?')
-        self._isDualChannel = "SR830" in self._identification
-
-    @property
-    def identification(self):
-        return self._identification
 
     class SamplingMode(enum.Enum):
         SingleShot = 0
         Buffered = 1
         ### TODO: support me!
         # Fast = 2
-
-    @property
-    def samplingMode(self):
-        return self._samplingMode
-
-    @samplingMode.setter
-    def samplingMode(self, mode):
-        self._samplingMode = mode
 
     class SampleRate(enum.Enum):
         Rate_62_5_mHz = 0
@@ -64,16 +39,35 @@ class SR830(DataSource):
         Rate_512_Hz = 13
         Trigger = 14
 
-    def setSampleRate(self, rate):
-        self.resource.write('SRAT %d' % rate.value)
+    identification = Unicode(read_only=True)
+    samplingMode = Enum(SamplingMode, SamplingMode.Buffered).tag(
+                        name="Sampling mode")
+    sampleRate = Enum(SampleRate, SampleRate.Rate_512_Hz)
+
+    def __init__(self, resource):
+        super().__init__()
+        self.resource = resource
+        self.resource.timeout = 150
+        self.resource.read_termination = '\n'
 
     @threaded_async
-    def getSampleRate(self):
-        val = int(self.resource.query('SRAT?'))
-        return [item for item in SR830.SampleRate if item.value == val][0]
+    def query(self, x):
+        return self.resource.query(x)
+
+    async def __aenter__(self):
+        await super().__aenter__()
+        self.identification = await self.query('*IDN?')
+        self._isDualChannel = "SR830" in self._identification
+
+        val = int(await self.query('SRAT?'))
+        self.sampleRate = [item for item in SR830.SampleRate
+                           if item.value == val][0]
+
+        return self
 
     @action("Start")
     def start(self):
+        self.resource.write('SRAT %d' % self.sampleRate.value)
         if (self._samplingMode == SR830.SamplingMode.Buffered):
             self.resource.write('REST')
             self.resource.write('STRT')
@@ -98,10 +92,6 @@ class SR830(DataSource):
         self.resource.timeout = 150
         self.resource.read_termination = '\n'
         return data
-
-    @threaded_async
-    def dataPointCount(self):
-        return int(self.resource.query('SPTS?'))
 
     @threaded_async
     def readDataBuffer(self):
@@ -133,12 +123,12 @@ class SR830(DataSource):
         return float(self.resource.query('OUTP? %d' % idx))
 
     async def readDataSet(self):
-        if (self._samplingMode == SR830.SamplingMode.SingleShot):
+        if (self.samplingMode == SR830.SamplingMode.SingleShot):
             data = np.array(await self.readCurrentOutput())
             dataSet = DataSet(Q_(data), [])
             return dataSet
 
-        elif (self._samplingMode == SR830.SamplingMode.Buffered):
+        elif (self.samplingMode == SR830.SamplingMode.Buffered):
             data = np.array(await self.readDataBuffer())
             dataSet = DataSet(Q_(data), [Q_(np.arange(0, len(data)))])
             return dataSet

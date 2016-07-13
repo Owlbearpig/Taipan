@@ -48,10 +48,16 @@ class AxisAtController(Manipulator):
         self._movementStopped = True
         self.setPreferredUnits(ureg.mm, ureg.mm / ureg.s)
 
-        ensure_weakly_binding_future(self.updateStatus)
+    async def __aenter__(self):
+        await super().__aenter__()
 
-    def __del__(self):
-        print("deleted AxisAtController!")
+        self._updateFuture = ensure_weakly_binding_future(self.updateStatus)
+
+        return self
+
+    async def __aexit__(self, *args):
+        await super().__aexit__(*args)
+        self._updateFuture.cancel()
 
     def handleError(self, msg):
         errorCode = int(msg)
