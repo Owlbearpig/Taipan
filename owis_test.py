@@ -5,7 +5,7 @@ Created on Fri Jul 15 14:26:21 2016
 @author: Arno Rehn
 """
 
-from common import ComponentBase, Manipulator
+from common import ComponentBase, Manipulator, Q_
 from stages.owis import Connection, AxisAtController
 from traitlets import Instance
 
@@ -19,7 +19,7 @@ class AppRoot(ComponentBase):
         self.title = "Owis Test App"
 
         self.conn = Connection('/tmp/owis')
-        self.axis = AxisAtController(self.conn, axis=3)
+        self.axis = AxisAtController(self.conn, axis=3, pitch=Q_(200, 'count/mm'))
 
     async def __aenter__(self):
         await self.conn.__aenter__()

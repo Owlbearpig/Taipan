@@ -15,10 +15,12 @@ Created on Fri Oct 16 14:23:33 2015
 from common import Manipulator, action
 from asyncioext import ensure_weakly_binding_future
 import asyncio
-from traitlets import Bool, Unicode
+from traitlets import Int, Bool, Unicode, observe
 from common import ureg, Q_
 import traceback
 import logging
+from pint.context import Context
+import uuid
 
 
 class AxisAtController(Manipulator):
@@ -56,7 +58,9 @@ class AxisAtController(Manipulator):
     motorPowerStageError = Bool(read_only=True).tag(
                                 name="Motor power stage error")
 
-    def __init__(self, connection=None, axis=1):
+    def __init__(self, connection=None, axis=1, pitch=Q_(1)):
+        """ Axis `axis` at connection `connection`. Has pitch `pitch` in units
+        of 'full step count/length'."""
         super().__init__()
         self.connection = connection
         self.axis = axis
@@ -65,13 +69,42 @@ class AxisAtController(Manipulator):
         self.set_trait('statusMessage', self._StatusMap[self._status])
         self._isMovingFuture = asyncio.Future()
         self._isMovingFuture.set_result(True)
-        self.setPreferredUnits(ureg.count, ureg.count / ureg.s)
-        self.velocity = Q_(1600, 'count/s')
+
+        self.prefPosUnit = (ureg.count / pitch).units
+        self.prefVelocUnit = (ureg.count / ureg.s / pitch).units
+        self.setPreferredUnits(self.prefPosUnit, self.prefVelocUnit)
+
+        self._microstepResolution = 50
+        self._pitch = pitch
+        self.define_context()
+
+        if not pitch.dimensionless:
+            self.velocity = Q_(1, 'mm/s')
+        else:
+            self.velocity = Q_(2000, 'count/s')
+
+    def define_context(self):
+        self.contextName = 'Owis-{}'.format(uuid.uuid4())
+        context = Context(self.contextName)
+
+        if not self._pitch.dimensionless:
+            context.add_transformation('', '[length]',
+                                       lambda ureg, x: x / (self._pitch * self._microstepResolution))
+            context.add_transformation('[length]', '[]',
+                                       lambda ureg, x: x * self._pitch * self._microstepResolution)
+            context.add_transformation('1/[time]', '[length]/[time]',
+                                       lambda ureg, x: x / (self._pitch * self._microstepResolution))
+            context.add_transformation('[length]/[time]', '1/[time]',
+                                       lambda ureg, x: x * self._pitch * self._microstepResolution)
+
+        ureg.add_context(context)
 
     async def __aenter__(self):
         await super().__aenter__()
 
+        self._microstepResolution = await self.queryAxisVariable('mcstp')
         self._updateFuture = ensure_weakly_binding_future(self.updateStatus)
+
         return self
 
     async def __aexit__(self, *args):
@@ -101,6 +134,8 @@ class AxisAtController(Manipulator):
         self.set_trait('statusMessage', self._StatusMap[self._status])
 
         cnt = await self.queryAxisVariable('cnt') * ureg.count
+        with ureg.context(self.contextName):
+            cnt = cnt.to(self.prefPosUnit)
         self.set_trait('value', cnt)
 
         if (not self._isMovingFuture.done() and
@@ -162,12 +197,13 @@ class AxisAtController(Manipulator):
         if velocity is None:
             velocity = self.velocity
 
-        velocity = velocity.to('count/s').magnitude
+        with ureg.context(self.contextName):
+            velocity = velocity.to('count/s').magnitude
 
-        # From the manual. 256µs is the sampling period of the encoder
-        velocity *= 256e-6 * 65536
+            # From the manual. 256µs is the sampling period of the encoder
+            velocity *= 256e-6 * 65536
 
-        val = val.to('count').magnitude
+            val = val.to('count').magnitude
 
         await self.halt()
 
