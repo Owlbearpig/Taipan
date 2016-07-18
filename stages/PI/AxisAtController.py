@@ -45,6 +45,7 @@ class AxisAtController(Manipulator):
         self._status = 0x0
         self._isReferenced = False
         self._isMovingFuture = asyncio.Future()
+        self._isMovingFuture.set_result(True)
         self._movementStopped = True
         self.setPreferredUnits(ureg.mm, ureg.mm / ureg.s)
 
@@ -112,6 +113,9 @@ class AxisAtController(Manipulator):
 
         if not self._isMovingFuture.done() and not self.isMoving:
             self._isMovingFuture.set_result(self._movementStopped)
+
+    async def waitForTargetReached(self, timeout=30):
+        return await self._isMovingFuture
 
     async def send(self, command, *args, includeAxis=True):
         """ Send a command to the controller. The axis ID will automatically
