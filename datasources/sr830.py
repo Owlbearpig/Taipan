@@ -48,7 +48,6 @@ class SR830(DataSource):
         super().__init__()
         self.resource = resource
         self.resource.timeout = 150
-        self.resource.read_termination = '\n'
 
     @threaded_async
     def query(self, x):
@@ -56,8 +55,8 @@ class SR830(DataSource):
 
     async def __aenter__(self):
         await super().__aenter__()
-        self.identification = await self.query('*IDN?')
-        self._isDualChannel = "SR830" in self._identification
+        self.set_trait('identification', await self.query('*IDN?'))
+        self._isDualChannel = "SR830" in self.identification
 
         val = int(await self.query('SRAT?'))
         self.sampleRate = [item for item in SR830.SampleRate
@@ -68,7 +67,7 @@ class SR830(DataSource):
     @action("Start")
     def start(self):
         self.resource.write('SRAT %d' % self.sampleRate.value)
-        if (self._samplingMode == SR830.SamplingMode.Buffered):
+        if (self.samplingMode == SR830.SamplingMode.Buffered):
             self.resource.write('REST')
             self.resource.write('STRT')
 
@@ -86,11 +85,17 @@ class SR830(DataSource):
         return ret
 
     def _readExactly(self, size):
-        self.resource.read_termination = None
+        prev_read_termination = None
+        if self.resource.read_termination is not None:
+            prev_read_termination = self.resource.read_termination
+            self.resource.read_termination = None
+
         self.resource.timeout = 10000
         data = self.resource.visalib.read(self.resource.session, size)
         self.resource.timeout = 150
-        self.resource.read_termination = '\n'
+
+        if prev_read_termination is not None:
+            self.resource.read_termination = prev_read_termination
         return data
 
     @threaded_async
