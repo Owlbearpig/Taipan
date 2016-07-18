@@ -41,6 +41,7 @@ class QTextBrowserLoggingHandler(logging.Handler):
 async def run(app, rootClass, loop):
     async with rootClass() as root:
         w, msgBrowser = generate_ui(root)
+        w.resize(1024, 480)
 
         logging.captureWarnings(True)
         handler = QTextBrowserLoggingHandler(msgBrowser)
