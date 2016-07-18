@@ -41,7 +41,7 @@ class TMCL(Manipulator):
     }
 
     stepAngle = EnumTrait(StepAngle, StepAngle.Step_1_8).tag(name="Step angle")
-    angularAcceleration = Quantity(Q_(20, 'deg/(s*s)')).tag(
+    angularAcceleration = Quantity(Q_(100), min=Q_(0), max=Q_(2047)).tag(
                               name='Acceleration')
     microSteps = EnumTrait(Microsteps, Microsteps.Microsteps_64).tag(
                               name="Microstepping")
@@ -55,9 +55,9 @@ class TMCL(Manipulator):
         self.comm._ser.baudrate = baud
         self.axis = axis
 
-        self.setPreferredUnits(ureg.deg, ureg.deg / ureg.s)
+        self.setPreferredUnits(ureg.deg, ureg.dimensionless)
 
-        self.velocity = Q_(15, 'deg/s')
+        self.velocity = Q_(20)
         self.set_trait('value', Q_(0, 'deg'))
 
         self.set_trait('status', self.Status.TargetReached)
@@ -116,9 +116,8 @@ class TMCL(Manipulator):
             velocity = self.velocity
 
         val = self._angle2steps(val.to('deg').magnitude)
-        velocity = self._angle2steps(velocity.to('deg/s').magnitude)
-        accel = self._angle2steps(self.angularAcceleration.to('deg/(s*s)')
-                                  .magnitude)
+        velocity = velocity.magnitude
+        accel = self.angularAcceleration.magnitude
 
         if not self._isMovingFuture.done():
             self.stop()
