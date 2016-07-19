@@ -83,9 +83,10 @@ class MPLCanvas(QtWidgets.QGroupBox):
 
         self.mpl_toolbar.addSeparator()
 
-        self.autoscale = self.mpl_toolbar.addAction("Auto-scale")
-        self.autoscale.setCheckable(True)
-        self.autoscale.setChecked(True)
+        self.autoscaleAction = self.mpl_toolbar.addAction("Auto-scale")
+        self.autoscaleAction.setCheckable(True)
+        self.autoscaleAction.setChecked(True)
+        self.autoscaleAction.triggered.connect(self._autoscale)
 
         self.mpl_toolbar.addWidget(QtWidgets.QLabel("Fourier transform "
                                                     "window: "))
@@ -119,7 +120,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
         self.ft_axes.legend(['Previous', 'Current'])
         self.axes.set_title('Data')
         self.ft_axes.set_title('Fourier transformed data')
-        self._redraw_background()
+        self._redraw()
 
         # Use a timer with a timeout of 0 to initiate redrawing of the canvas.
         # This ensures that the eventloop has run once more and prevents
@@ -127,7 +128,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
         self._redrawTimer = QtCore.QTimer(self)
         self._redrawTimer.setSingleShot(True)
         self._redrawTimer.setInterval(100)
-        self._redrawTimer.timeout.connect(self._redraw_background)
+        self._redrawTimer.timeout.connect(self._redraw)
 
         # will be disconnected in drawDataSet() when live data is detected.
         self._redraw_id = self.canvas.mpl_connect('draw_event',
@@ -141,7 +142,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
         self.axes.draw_artist(self._lines[1])
         self.ft_axes.draw_artist(self._ftlines[1])
 
-    def _redraw_background(self):
+    def _redraw(self):
         self.fig.tight_layout()
         self.canvas.draw()
         self.backgrounds = [self.fig.canvas.copy_from_bbox(ax.bbox) for ax in
@@ -177,6 +178,27 @@ class MPLCanvas(QtWidgets.QGroupBox):
         freqs, dBdata = self.get_ft_data(data)
         ftline.set_data(freqs, dBdata)
 
+    def _autoscale(self, *, redraw=True):
+        prev_xlim = self.axes.get_xlim()
+        prev_ylim = self.axes.get_ylim()
+        prev_ft_xlim = self.ft_axes.get_xlim()
+        prev_ft_ylim = self.ft_axes.get_ylim()
+
+        self.axes.relim()
+        self.axes.autoscale()
+        self.ft_axes.relim()
+        self.ft_axes.autoscale()
+
+        need_redraw = (prev_xlim != self.axes.get_xlim() or
+                       prev_ylim != self.axes.get_ylim() or
+                       prev_ft_xlim != self.ft_axes.get_xlim() or
+                       prev_ft_ylim != self.ft_axes.get_ylim())
+
+        if need_redraw and redraw:
+            self._redraw()
+
+        return need_redraw
+
     def _replot(self, redraw_axes=False, redraw_axes_labels=False,
                 redraw_data_label=False):
         if not self._isLiveData:
@@ -203,35 +225,19 @@ class MPLCanvas(QtWidgets.QGroupBox):
 
             self.ft_axes.set_ylabel('Power [dB-({:C~})]'.format(ftUnits))
 
-        prev_xlim = self.axes.get_xlim()
-        prev_ylim = self.axes.get_ylim()
-        prev_ft_xlim = self.ft_axes.get_xlim()
-        prev_ft_ylim = self.ft_axes.get_ylim()
+        axis_limits_changed = False
+        if (self.autoscaleAction.isChecked()):
+            axis_limits_changed = self._autoscale(redraw=False)
 
-        if (self.autoscale.isChecked()):
-            self.axes.relim()
-            self.axes.autoscale_view()
-            self.ft_axes.relim()
-            self.ft_axes.autoscale_view()
-
-        redraw_axes = (redraw_axes or redraw_axes_labels or
-                       redraw_data_label or
-                       prev_xlim != self.axes.get_xlim() or
-                       prev_ylim != self.axes.get_ylim() or
-                       prev_ft_xlim != self.ft_axes.get_xlim() or
-                       prev_ft_ylim != self.ft_axes.get_ylim())
-
-        if redraw_axes:
-            self.canvas.draw()
-            self.backgrounds = [self.canvas.copy_from_bbox(ax.bbox)
-                                for ax in (self.axes, self.ft_axes)]
+        # check whether a full redraw is necessary or if simply redrawing
+        # the data lines is enough
+        if (redraw_axes or redraw_axes_labels or
+                redraw_data_label or axis_limits_changed):
+            self._redraw()
         else:
             for bg in self.backgrounds:
                 self.canvas.restore_region(bg)
-
-        self._redraw_artists()
-
-        if not redraw_axes:
+            self._redraw_artists()
             self.canvas.blit(self.axes.bbox)
             self.canvas.blit(self.ft_axes.bbox)
 
@@ -263,9 +269,6 @@ class MPLCanvas(QtWidgets.QGroupBox):
         if not redraw_axes:
             for x, y in zip(self.prevDataSet.axes, self.dataSet.axes):
                 if x.units != y.units:
-                    redraw_axes = True
-                    break
-                if not np.array_equal(x.magnitude, y.magnitude):
                     redraw_axes = True
                     break
 
