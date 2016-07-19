@@ -171,7 +171,7 @@ class Scan(DataSource):
         axes = accumulator[0].axes.copy()
         axes.insert(0, axis)
         data = np.array([dset.data.magnitude for dset in accumulator])
-        data = data * accumulator[0].units
+        data = data * accumulator[0].data.units
 
         return DataSet(data, axes)
 
