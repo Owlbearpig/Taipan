@@ -63,4 +63,4 @@ class AppRoot(Scan):
     @action("Take measurement")
     async def takeMeasurement(self):
         self.set_trait('currentData', await self.readDataSet())
-        self.dataSaver.process(self.currentData)
+#        self.dataSaver.process(self.currentData)

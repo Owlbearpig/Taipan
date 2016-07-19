@@ -8,7 +8,14 @@ Created on Tue Jun 14 14:57:55 2016
 from PyQt5 import QtWidgets, QtCore
 from .changeindicatorspinbox import ChangeIndicatorSpinBox
 from .changeindicatorlineedit import ChangeIndicatorLineEdit
-from .mplcanvas import MPLCanvas
+
+try:
+    from .pyqtgraphplotter import PyQtGraphPlotter
+    usePyQtGraph = True
+except:
+    from .mplcanvas import MPLCanvas
+    usePyQtGraph = False
+
 import asyncio
 from common import ComponentBase
 from common.traits import DataSet as DataSetTrait
@@ -148,13 +155,24 @@ def create_action(component, action):
 
 
 def create_plot_area(component, name, prettyName, trait):
-    def draw(change):
-        canvas.dataIsPower = trait.metadata.get('is_power', False)
-        canvas.drawDataSet(change['new'],
-                           trait.metadata.get('axes_labels', None),
-                           trait.metadata.get('data_label', None))
+    if usePyQtGraph:
+        def draw(change):
+            canvas.drawDataSet(change['new'])
+    else:
+        def draw(change):
+            canvas.dataIsPower = trait.metadata.get('is_power', False)
+            canvas.drawDataSet(change['new'],
+                               trait.metadata.get('axes_labels', None),
+                               trait.metadata.get('data_label', None))
 
-    canvas = MPLCanvas()
+    if usePyQtGraph:
+        canvas = PyQtGraphPlotter()
+        canvas.setLabels(trait.metadata.get('axes_labels', None),
+                         trait.metadata.get('data_label', None))
+        canvas.dataIsPower = trait.metadata.get('is_power', False)
+    else:
+        canvas = MPLCanvas()
+
     component.observe(draw, name)
     canvas.setTitle(prettyName)
 
