@@ -68,7 +68,7 @@ class PyQtGraphPlotter(QtWidgets.QGroupBox):
         self.windowComboBox.currentIndexChanged.connect(self._updateFTWindow)
 
         self.pglwidget = pg.GraphicsLayoutWidget(self)
-        self.pglwidget.setBackground(None)
+        self.pglwidget.setBackground(pal.color(QtGui.QPalette.Base))
 
         vbox = QtWidgets.QVBoxLayout(self)
         vbox.addWidget(self.toolbar)
@@ -77,8 +77,8 @@ class PyQtGraphPlotter(QtWidgets.QGroupBox):
         self.plot = self.pglwidget.addPlot(row=0, col=0)
         self.ft_plot = self.pglwidget.addPlot(row=1, col=0)
 
-        self.plot.vb.setBackgroundColor(pal.color(QtGui.QPalette.Base))
-        self.ft_plot.vb.setBackgroundColor(pal.color(QtGui.QPalette.Base))
+        self.plot.showGrid(x=True, y=True)
+        self.ft_plot.showGrid(x=True, y=True)
 
         self._lines = []
         self._lines.append(self.plot.plot())
@@ -91,6 +91,7 @@ class PyQtGraphPlotter(QtWidgets.QGroupBox):
         self._ft_lines.append(self.ft_plot.plot())
         self._ft_lines[0].setPen(darkerHighlightPen)
         self._ft_lines[1].setPen(highlightPen)
+
         self._lastPlotTime = time.perf_counter()
 
     def setLabels(self, axesLabels, dataLabel):
