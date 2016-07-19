@@ -16,6 +16,7 @@ from common.traits import Quantity, DataSet as DataSetTrait
 from traitlets import Bool, Float, Unicode, observe, Integer
 import numpy as np
 from threading import Thread
+from multiprocessing import Process, Queue
 
 
 class TW4BException(Exception):
@@ -44,6 +45,41 @@ def _fix2float(v, bits=16):
 
 _magicScale = 5.9605E-10
 
+
+def read_pulse_data(ip, q):
+    loop = asyncio.get_event_loop()
+
+    data_reader, data_writer = \
+        loop.run_until_complete(
+            asyncio.open_connection(host=ip, port=6342, loop=loop))
+
+    expected_magic1 = 0xCDEF1234
+    expected_magic2 = 0x789AFEDC
+
+    async def _impl():
+        while True:
+            header = await data_reader.readexactly(36)
+            (magic1, magic2, code, timestamp, tiasens, begin, resolution,
+             amplitude, length) = struct.unpack('>IIIIIIIII', header)
+
+            if (magic1 != expected_magic1 or
+                magic2 != expected_magic2):
+                logging.warning("Corrupted pulse received! "
+                                "Buffer overrun?")
+                continue
+
+            pulsedata = await data_reader.readexactly(length)
+            pulse = np.array(struct.unpack('>{}i'.format(int(length / 4)),
+                                           pulsedata), dtype=int)
+            pulse = _fix2float(pulse, 5).astype(float)
+            pulse *= _magicScale * _fix2float(tiasens)
+            q.put((pulse, begin))
+
+    loop.run_until_complete(_impl())
+    print("TW4B Data Reader quitting...")
+    data_writer.close()
+    q.close()
+    loop.close()
 
 class TW4B(DataSource):
 
@@ -90,40 +126,27 @@ class TW4B(DataSource):
         self._setBusyFuture = self._loop.call_later(
                                   0.1, lambda: self.set_trait('busy', True))
 
-    expected_magic1 = 0xCDEF1234
-    expected_magic2 = 0x789AFEDC
-
-    async def read_pulse_data(self):
+    async def readPulseFromQueue(self):
         while True:
-            header = await self.data_reader.readexactly(36)
-            (magic1, magic2, code, timestamp, tiasens, begin, resolution,
-             amplitude, length) = struct.unpack('>IIIIIIIII', header)
+            # yield control to the event loop once
+            await asyncio.sleep(0)
 
-            if (magic1 != self.expected_magic1 or
-                magic2 != self.expected_magic2):
-                logging.warning("Corrupted pulse received! "
-                                "Buffer overrun?")
-                continue
+            while not self.pulseQueue.empty():
+                pulse, begin = self.pulseQueue.get()
+                pulse = Q_(pulse, 'nA')
 
-            pulsedata = await self.data_reader.readexactly(length)
-            pulse = np.array(struct.unpack('>{}i'.format(int(length / 4)),
-                                           pulsedata), dtype=int)
-            pulse = _fix2float(pulse, 5).astype(float)
-            pulse *= _magicScale * _fix2float(tiasens)
-            pulse = Q_(pulse, 'nA')
+                start_ps = _fix2float(begin)
+                axis = np.arange(len(pulse)) * 0.05 + start_ps
+                axis = Q_(axis, 'ps')
 
-            start_ps = _fix2float(begin)
-            axis = np.arange(len(pulse)) * 0.05 + start_ps
-            axis = Q_(axis, 'ps')
+                data = DataSet(pulse, [axis])
 
-            data = DataSet(pulse, [axis])
-
-            self.set_trait('currentData', data)
-            self.set_trait('acq_current_avg', min(self.acq_current_avg + 1,
-                                                  self.acq_avg))
-            if (not self._setAveragesReachedFuture.done() and
-                self.acq_current_avg >= self.acq_avg):
-                self._setAveragesReachedFuture.set_result(True)
+                self.set_trait('currentData', data)
+                self.set_trait('acq_current_avg', min(self.acq_current_avg + 1,
+                                                      self.acq_avg))
+                if (not self._setAveragesReachedFuture.done() and
+                    self.acq_current_avg >= self.acq_avg):
+                    self._setAveragesReachedFuture.set_result(True)
 
     async def read_message(self):
         async with self._commlock:
@@ -253,9 +276,12 @@ class TW4B(DataSource):
             await asyncio.open_connection(host=self.ip, port=6341,
                                           loop=self._loop)
 
-        self.data_reader, self.data_writer = \
-            await asyncio.open_connection(host=self.ip, port=6342,
-                                          loop=self._loop)
+        self.pulseQueue = Queue()
+        self.dataReaderProcess = Process(target=read_pulse_data,
+                                         args=(self.ip, self.pulseQueue))
+        self.dataReaderProcess.start()
+
+        self.pulseReader = ensure_weakly_binding_future(self.readPulseFromQueue)
 
         ok = await self.read_message()
         if ok != 'OK':
@@ -263,7 +289,6 @@ class TW4B(DataSource):
 
         await self.singleUpdate()
         self._statusUpdater = ensure_weakly_binding_future(self.updateStatus)
-        self._pulseReader = ensure_weakly_binding_future(self.read_pulse_data)
 
         return self
 
@@ -271,11 +296,10 @@ class TW4B(DataSource):
         print("closing tw4b")
         await super().__aexit__(*args)
 
+        self.pulseReader.cancel()
         self._statusUpdater.cancel()
-        self._pulseReader.cancel()
-
+        self.dataReaderProcess.terminate()
         self.control_writer.close()
-        self.data_writer.close()
 
     async def readDataSet(self):
         if not self.acq_on:
