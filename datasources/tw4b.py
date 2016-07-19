@@ -203,14 +203,14 @@ class TW4B(DataSource):
         )
 
     @action("Start acquisition")
-    def start(self):
+    def start_acq(self):
         async def _impl():
             await self.query('ACQUISITION : START')
             await self.reset_avg()
         self._loop.create_task(_impl())
 
     @action("Stop acquisition")
-    def stop(self):
+    def stop_acq(self):
         self._loop.create_task(self.query('ACQUISITION : STOP'))
 
     @action("Reset average")
