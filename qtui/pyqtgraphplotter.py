@@ -68,7 +68,7 @@ class PyQtGraphPlotter(QtWidgets.QGroupBox):
         self.windowComboBox.currentIndexChanged.connect(self._updateFTWindow)
 
         self.pglwidget = pg.GraphicsLayoutWidget(self)
-        self.pglwidget.setBackground(pal.color(QtGui.QPalette.Base))
+        self.pglwidget.setBackground(None)
 
         vbox = QtWidgets.QVBoxLayout(self)
         vbox.addWidget(self.toolbar)
@@ -79,6 +79,9 @@ class PyQtGraphPlotter(QtWidgets.QGroupBox):
 
         self.plot.showGrid(x=True, y=True)
         self.ft_plot.showGrid(x=True, y=True)
+
+        self._make_plot_background(self.plot)
+        self._make_plot_background(self.ft_plot)
 
         self._lines = []
         self._lines.append(self.plot.plot())
@@ -93,6 +96,17 @@ class PyQtGraphPlotter(QtWidgets.QGroupBox):
         self._ft_lines[1].setPen(highlightPen)
 
         self._lastPlotTime = time.perf_counter()
+
+    def _make_plot_background(self, plot, brush=None):
+        if brush is None:
+            brush = pg.mkBrush(self.palette().color(QtGui.QPalette.Base))
+
+        vb_bg = QtWidgets.QGraphicsRectItem(plot)
+        vb_bg.setRect(plot.vb.rect())
+        vb_bg.setBrush(brush)
+        vb_bg.setFlag(QtWidgets.QGraphicsItem.ItemStacksBehindParent)
+        vb_bg.setZValue(-1e9)
+        plot.vb.sigResized.connect(lambda x: vb_bg.setRect(x.geometry()))
 
     def setLabels(self, axesLabels, dataLabel):
         self.axesLabels = axesLabels
