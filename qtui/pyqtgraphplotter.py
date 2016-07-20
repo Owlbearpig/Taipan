@@ -77,6 +77,9 @@ class PyQtGraphPlotter(QtWidgets.QGroupBox):
         self.plot = self.pglwidget.addPlot(row=0, col=0)
         self.ft_plot = self.pglwidget.addPlot(row=1, col=0)
 
+        self.plot.setLabels(title="Data")
+        self.ft_plot.setLabels(title="Magnitude spectrum")
+
         self.plot.showGrid(x=True, y=True)
         self.ft_plot.showGrid(x=True, y=True)
 
