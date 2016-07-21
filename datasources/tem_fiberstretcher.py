@@ -5,68 +5,74 @@ Created on Wed Jul 20 16:07:15 2016
 @author: Arno Rehn
 """
 
+import asyncio
 from common import DataSource, ureg, Q_
 from asyncioext import threaded_async
 from threading import Lock
 import re
+from serial import Serial, aio as aioserial
+from serial.threaded import LineReader
 
 
-_replyExpression = re.compile(br'([a-zA-Z0-9]+)=\s*([0-9]+)')
+_replyExpression = re.compile(r'([a-zA-Z0-9]+)=\s*([0-9]+)')
 
 
 class TEMFiberStretcher(DataSource):
+
+    _lineReader = None
 
     def __init__(self, controlPort, dataPort, objectName=None, loop=None):
         super().__init__(objectName, loop)
 
         self.controlPort = controlPort
         self.dataPort = dataPort
-
         self.commLock = Lock()
 
     @classmethod
     def _sanitizeCommand(cls, cmd):
-        # convert `cmd` to a bytearray
-        if isinstance(cmd, str):
-            cmd = bytearray(cmd, 'ascii')
-        else:
-            cmd = bytearray(cmd)
-
         cmd = cmd.lower()
         return cmd
 
     def query(self, var):
-        reply = self.send(var + b'=\r\n')
-        return reply
+        reply = self.send(var + '=')
 
     def setVar(self, var, value):
         value = int(value)
 
-    def send(self, command, nReplies=1):
+    def send(self, command):
         command = self._sanitizeCommand(command)
-        with self.commLock:
-            self.controlPort.write(command + b'\r\n')
+        self._lineReader.write_line(command)
 
-            replies = []
-
-            while nReplies:
-                replies.append(self.controlPort.readline().strip())
-                nReplies -= 1
-
-            return replies
+    def handle_line(self, line):
+        print(line)
 
     async def __aenter__(self):
-        await super().__aenter__(self)
-#        self.query()
+        await super().__aenter__()
+
+        self._controlTransport, self._lineReader = \
+            await aioserial.create_serial_connection(self._loop, LineReader,
+                                                     self.controlPort,
+                                                     baudrate=57600)
+        self._lineReader.handle_line = self.handle_line
+        await asyncio.sleep(0)
+
         return self
 
 if __name__ == '__main__':
-    from serial import Serial
+    loop = asyncio.get_event_loop()
 
-#    fs = TEMFiberStretcher(Serial('/tmp/fiberstretcher0', 57600), None)
-#    print(fs.send('helloaa'))
+    async def run():
+        async with TEMFiberStretcher('/tmp/fiberstretcher0', None, loop=loop) as fs:
+            fs.send('hello')
+            await asyncio.sleep(2)
+
+    loop.run_until_complete(run())
+
+
+#    print(fs.send('hello'))
 #    print(fs.query('RecInterval'))
 
-    reply = b'RecInterval= 20'
-    match = _replyExpression.match(reply)
-    print(match.groups())
+#    reply = 'RecInterval asd= 20'
+#    match = _replyExpression.match(reply)
+#    assert match, 'failed'
+#
