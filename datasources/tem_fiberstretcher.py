@@ -10,16 +10,17 @@ from common import DataSet, DataSource, Q_, action
 from asyncioext import ensure_weakly_binding_future
 from threading import Lock
 import re
-from serial import Serial, aio as aioserial
+from serial import aio as aioserial
 from serial.threaded import Packetizer, LineReader
 import logging
-from traitlets import Bool, Int, observe
+from traitlets import Bool, Enum, Int, observe
+import enum
 from multiprocessing import Process, Queue
 import struct
 import binascii
 import numpy as np
 import time
-from common.traits import DataSet as DataSetTrait
+from common.traits import DataSet as DataSetTrait, Quantity
 import traceback
 
 _replyExpression = re.compile(r'([a-zA-Z0-9]+)=\s*([0-9]+)')
@@ -45,8 +46,6 @@ class PulseReader(Packetizer):
         rawPulse = binascii.a2b_hex(hexPulse)
         pulse = struct.unpack('>{}h'.format(int(len(rawPulse) / 2)), rawPulse)
         pulse = np.array(pulse, dtype=float)
-        pulse -= np.mean(pulse)
-        print("putting pulse with length {}".format(len(pulse)))
         self.q.put(pulse)
 
 
@@ -60,7 +59,37 @@ def read_pulse_data(port, q):
     loop.run_forever()
 
 
+_dt = 4.36968965E-15 * 1e12
+
+
+def _counts2ps(x):
+    return Q_(x * _dt, 'ps')
+
+
+def _ps2counts(x):
+    return int(x.to('ps').magnitude / _dt)
+
+
+def _millivolts2volts(x):
+    return Q_(x / 1000, 'V')
+
+
+def _volts2millivolts(x):
+    return int(x.to('V').magnitude * 1000)
+
+
 class TEMFiberStretcher(DataSource):
+
+    @enum.unique
+    class Averages(enum.Enum):
+        Avg_1 = 0
+        Avg_2 = 1
+        Avg_4 = 2
+        Avg_8 = 3
+        Avg_16 = 4
+        Avg_32 = 5
+        Avg_64 = 6
+        Avg_128 = 7
 
     _lineReader = None
 
@@ -68,19 +97,24 @@ class TEMFiberStretcher(DataSource):
 
     _blockObserver = False
 
-    recPoints = Int(0, read_only=True)
-    recStart = Int(0)
-    recStop = Int(0)
-    recInterval = Int(0)
-    average = Int(0)
-    mScanEnable = Bool(False)
-    scanEnable = Bool(False)
-    measurement = Bool(False)
-    risingOnly = Bool(True)
+#    recPoints = Int(0, read_only=True)
+    recStart = Quantity(Q_(0, 'ps')).tag(i2q=_counts2ps, q2i=_ps2counts,
+                                         priority=0, group="Data acquisition")
+    recStop = Quantity(Q_(0, 'ps')).tag(i2q=_counts2ps, q2i=_ps2counts,
+                                        priority=1, group="Data acquisition")
+    recInterval = Quantity(Q_(0, 'ps')).tag(i2q=_counts2ps, q2i=_ps2counts,
+                                            priority=2, group="Data acquisition")
+    average = Enum(Averages, Averages.Avg_1).tag(group="Data acquisition")
+    measurement = Bool(False).tag(group="Data acquisition")
+    risingOnly = Bool(True).tag(group="Data acquisition")
 
-    scanRecStart = Int(0)
+    mScanEnable = Bool(False).tag(group="Stepper motor scan")
 
-    dcValue = Int(0)
+    scanRecStart = Int(0).tag(group="Piezo scan")
+    scanEnable = Bool(False).tag(group="Piezo scan")
+
+    dcValue = Quantity(Q_(0, 'V')).tag(i2q=_millivolts2volts,
+                                       q2i=_volts2millivolts)
     dcOut = Bool(False)
 
     currentData = DataSetTrait(read_only=True).tag(name="Live data",
@@ -96,7 +130,7 @@ class TEMFiberStretcher(DataSource):
 
         self.handlers.append(self.update_handler)
 
-    @observe('recPoints', 'recStart', 'recStop', 'average', 'mScanEnable',
+    @observe('recStart', 'recStop', 'average', 'mScanEnable',
              'scanEnable', 'measurement', 'risingOnly', 'recInterval', 'dcOut',
              'dcValue', 'scanRecStart')
     def observer(self, change):
@@ -105,7 +139,15 @@ class TEMFiberStretcher(DataSource):
         if self._blockObserver:
             return
 
-        self.setVar(change['name'], change['new'])
+        val = change['new']
+
+        trait = self.traits()[change['name']]
+        if isinstance(trait, Quantity):
+            val = trait.metadata.get('q2i')(val)
+        if isinstance(trait, Enum):
+            val = val.value
+
+        self.setVar(change['name'], val)
 
     @classmethod
     def _sanitizeCommand(cls, cmd):
@@ -138,8 +180,14 @@ class TEMFiberStretcher(DataSource):
         trait = possibleTraits[0]
         self._blockObserver = True
         try:
-            traitType = type(trait.get(self))
-            trait.set(self, traitType(val))
+            if isinstance(trait, Quantity):
+                val = int(val)
+                val = trait.metadata.get('i2q')(val)
+            else:
+                traitType = type(trait.get(self))
+                val = traitType(val)
+
+            trait.set(self, val)
         finally:
             self._blockObserver = False
 
@@ -173,8 +221,6 @@ class TEMFiberStretcher(DataSource):
     def handle_error(self, error):
         print(error)
 
-    _dt = 4.36968965E-15 * 1e12
-
     async def readPulseFromQueue(self):
         try:
             while True:
@@ -186,7 +232,7 @@ class TEMFiberStretcher(DataSource):
                     pulse = Q_(pulse)
 
                     axis = (self.recStart + np.arange(len(pulse)) *
-                            self.recInterval) * self._dt
+                            self.recInterval)
                     axis = Q_(axis, 'ps')
 
                     data = DataSet(pulse, [axis])
@@ -212,7 +258,6 @@ class TEMFiberStretcher(DataSource):
         self.send('measurement=')
         self.send('mscanenable=')
         self.send('scanenable=')
-        self.send('recpoints=')
         self.send('recinterval=')
         self.send('recstart=')
         self.send('recstop=')
@@ -220,6 +265,7 @@ class TEMFiberStretcher(DataSource):
         self.send('risingonly=')
         self.send('dcvalue=')
         self.send('dcout=')
+        self.send('scanrecstart=')
 
         self.measurement = False
         self.mScanEnable = False
