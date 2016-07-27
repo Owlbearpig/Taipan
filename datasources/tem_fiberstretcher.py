@@ -136,6 +136,8 @@ class TEMFiberStretcher(DataSource):
 
         self.handlers.append(self.update_handler)
 
+        self.newDataReady = asyncio.Future()
+
     _traitVars = ['recStart', 'recStop', 'average', 'mScanEnable', 'mTarget',
                   'mSpeedMax', 'mSpeedMin', 'scanEnable', 'measurement',
                   'risingOnly', 'recInterval',  'dcOut', 'dcValue',
@@ -229,6 +231,21 @@ class TEMFiberStretcher(DataSource):
 
     def handle_error(self, error):
         print(error)
+
+    @observe("currentData")
+    def currentDataChanged(self, change):
+        assert (not self.newDataReady.done()), \
+               "newDataReady Future should never be done at this stage!"
+
+        # ensure that callbacks/coroutines only run after we've set a new
+        # asyncio.Future
+        fut = self.newDataReady
+        self.newDataReady = asyncio.Future()
+        fut.set_result(change['new'])
+
+    async def readDataSet(self):
+        await self.newDataReady
+        return await self.newDataReady
 
     async def readPulseFromQueue(self):
         try:
