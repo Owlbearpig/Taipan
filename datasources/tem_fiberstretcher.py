@@ -19,11 +19,10 @@ from multiprocessing import Process, Queue
 import struct
 import binascii
 import numpy as np
-import time
 from common.traits import DataSet as DataSetTrait, Quantity
-import traceback
 
-_replyExpression = re.compile(r'([a-zA-Z0-9]+)=\s*([0-9]+)')
+
+_replyExpression = re.compile(r'([a-zA-Z0-9]+)=\s*(-?[0-9]+)')
 
 
 class PulseReader(Packetizer):
@@ -120,8 +119,9 @@ class TEMFiberStretcher(DataSource):
     scanEnable = Bool(False).tag(group="Piezo scan")
 
     dcValue = Quantity(Q_(0, 'V')).tag(i2q=_millivolts2volts,
-                                       q2i=_volts2millivolts)
-    dcOut = Bool(False)
+                                       q2i=_volts2millivolts,
+                                       group="Emitter Voltage")
+    dcOut = Bool(False).tag(group="Emitter Voltage")
 
     currentData = DataSetTrait(read_only=True).tag(name="Live data",
                                                    data_label="Amplitude",
@@ -248,26 +248,23 @@ class TEMFiberStretcher(DataSource):
         return await self.newDataReady
 
     async def readPulseFromQueue(self):
-        try:
-            while True:
-                # yield control to the event loop once
-                await asyncio.sleep(0)
+        while True:
+            # yield control to the event loop once
+            await asyncio.sleep(0)
 
-                while not self._pulseQueue.empty():
-                    pulse = self._pulseQueue.get()
-                    pulse = Q_(pulse)
+            while not self._pulseQueue.empty():
+                pulse = self._pulseQueue.get()
+                pulse = Q_(pulse)
 
-                    axis = (self.recStart + np.arange(len(pulse)) *
-                            self.recInterval)
-                    axis = Q_(axis, 'ps')
+                axis = (self.recStart + np.arange(len(pulse)) *
+                        self.recInterval)
+                axis = Q_(axis, 'ps')
 
-                    data = DataSet(pulse, [axis])
+                data = DataSet(pulse, [axis])
 
-                    self.set_trait('currentData', data)
-        except:
-            traceback.print_exc()
+                self.set_trait('currentData', data)
 
-    @action("Reset counter")
+    @action("Reset counter", group="Data acquisition")
     def resetCounter(self):
         self.send("ResetCounter")
 
@@ -304,7 +301,7 @@ class TEMFiberStretcher(DataSource):
         self.mScanEnable = False
         self.scanEnable = False
         self._pulseFromQueueReader.cancel()
-        time.sleep(1)
+        await asyncio.sleep(1)
         self._pulseReader.terminate()
         await super().__aexit__(*args)
 
