@@ -52,13 +52,14 @@ async def run(app, rootClass, loop):
 
         w.show()
 
-        aboutToQuit = asyncio.Future(loop=loop)
-        app.aboutToQuit.connect(lambda: aboutToQuit.set_result(True))
-        await aboutToQuit
+        lastWindowClosed = asyncio.Future(loop=loop)
+        app.lastWindowClosed.connect(lambda: lastWindowClosed.set_result(True))
+        await lastWindowClosed
 
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
     loop = quamash.QEventLoop(app)
     asyncio.set_event_loop(loop)
 
