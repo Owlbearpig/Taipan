@@ -20,6 +20,7 @@ import struct
 import binascii
 import numpy as np
 from common.traits import DataSet as DataSetTrait, Quantity
+import time
 
 
 _replyExpression = re.compile(r'([a-zA-Z0-9]+)=\s*(-?[0-9]+)')
@@ -96,36 +97,50 @@ class TEMFiberStretcher(DataSource):
 
     _blockObserver = False
 
-#    recPoints = Int(0, read_only=True)
-    recStart = Quantity(Q_(0, 'ps')).tag(i2q=_counts2ps, q2i=_ps2counts,
+    measurementRate = Quantity(Q_(0, 'Hz'), read_only=True).tag(
+                                            name="Rate",
+                                            group="Data acquisition")
+    recStart = Quantity(Q_(0, 'ps')).tag(name="Start",
+                                         i2q=_counts2ps, q2i=_ps2counts,
                                          priority=0, group="Data acquisition")
-    recStop = Quantity(Q_(0, 'ps')).tag(i2q=_counts2ps, q2i=_ps2counts,
+    recStop = Quantity(Q_(0, 'ps')).tag(name="Stop",
+                                        i2q=_counts2ps, q2i=_ps2counts,
                                         priority=1, group="Data acquisition")
-    recInterval = Quantity(Q_(0, 'ps')).tag(i2q=_counts2ps, q2i=_ps2counts,
+    recInterval = Quantity(Q_(0, 'ps')).tag(name="Step",
+                                            i2q=_counts2ps, q2i=_ps2counts,
                                             priority=2, group="Data acquisition")
-    average = Enum(Averages, Averages.Avg_1).tag(group="Data acquisition")
-    measurement = Bool(False).tag(group="Data acquisition")
-    risingOnly = Bool(True).tag(group="Data acquisition")
+    average = Enum(Averages, Averages.Avg_1).tag(name="Averages",
+                                                 group="Data acquisition")
+    measurement = Bool(False).tag(name="Record data",
+                                  group="Data acquisition")
+    risingOnly = Bool(True).tag(name="Rising only", group="Data acquisition")
 
-    mTarget = Int(0).tag(group="Stepper motor")
-    mScanEnable = Bool(False).tag(group="Stepper motor")
-    mSpeedMax = Int(0).tag(group="Stepper motor")
-    mSpeedMin = Int(0).tag(group="Stepper motor")
+    mTarget = Int(0).tag(name="Motor target position", group="Stepper motor")
+    mScanEnable = Bool(False).tag(name="Motor scan active",
+                                  group="Stepper motor")
+    mSpeedMax = Int(0).tag(name="Maximum speed", group="Stepper motor")
+    mSpeedMin = Int(0).tag(name="Minimum speed", group="Stepper motor")
 
-    scanRecStart = Int(0).tag(group="Piezo scan")
-    scanOffset = Int(0).tag(group="Piezo scan")
-    scanFrequency = Int(0).tag(group="Piezo scan")
-    scanAmpl = Int(0).tag(group="Piezo scan")
-    scanEnable = Bool(False).tag(group="Piezo scan")
+    scanRecStart = Int(0).tag(name="Start", group="Piezo scan")
+    scanOffset = Quantity(Q_(0, 'V'), min=Q_(-5, 'V'), max=Q_(5, 'V')).tag(
+                                      name="Offset", group="Piezo scan",
+                                      i2q=_millivolts2volts,
+                                      q2i=_volts2millivolts)
+    scanFrequency = Int(0).tag(name="Frequency", group="Piezo scan")
+    scanAmpl = Int(0).tag(name="Amplitude", group="Piezo scan")
+    scanEnable = Bool(False).tag(name="Piezo scan active", group="Piezo scan")
 
-    dcValue = Quantity(Q_(0, 'V')).tag(i2q=_millivolts2volts,
+    dcValue = Quantity(Q_(0, 'V')).tag(name="DC Voltage",
+                                       i2q=_millivolts2volts,
                                        q2i=_volts2millivolts,
                                        group="Emitter Voltage")
-    dcOut = Bool(False).tag(group="Emitter Voltage")
+    dcOut = Bool(False).tag(name="DC output active", group="Emitter Voltage")
 
     currentData = DataSetTrait(read_only=True).tag(name="Live data",
                                                    data_label="Amplitude",
                                                    axes_labels=["Time"])
+
+    _lastDataTime = 0
 
     def __init__(self, controlPort, dataPort, objectName=None, loop=None):
         super().__init__(objectName, loop)
@@ -236,6 +251,11 @@ class TEMFiberStretcher(DataSource):
     def currentDataChanged(self, change):
         assert (not self.newDataReady.done()), \
                "newDataReady Future should never be done at this stage!"
+
+        t = time.perf_counter()
+        rate = 1.0 / (t - self._lastDataTime)
+        self._lastDataTime = t
+        self.set_trait('measurementRate', Q_(rate, 'Hz'))
 
         # ensure that callbacks/coroutines only run after we've set a new
         # asyncio.Future
