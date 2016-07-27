@@ -108,9 +108,15 @@ class TEMFiberStretcher(DataSource):
     measurement = Bool(False).tag(group="Data acquisition")
     risingOnly = Bool(True).tag(group="Data acquisition")
 
-    mScanEnable = Bool(False).tag(group="Stepper motor scan")
+    mTarget = Int(0).tag(group="Stepper motor")
+    mScanEnable = Bool(False).tag(group="Stepper motor")
+    mSpeedMax = Int(0).tag(group="Stepper motor")
+    mSpeedMin = Int(0).tag(group="Stepper motor")
 
     scanRecStart = Int(0).tag(group="Piezo scan")
+    scanOffset = Int(0).tag(group="Piezo scan")
+    scanFrequency = Int(0).tag(group="Piezo scan")
+    scanAmpl = Int(0).tag(group="Piezo scan")
     scanEnable = Bool(False).tag(group="Piezo scan")
 
     dcValue = Quantity(Q_(0, 'V')).tag(i2q=_millivolts2volts,
@@ -130,9 +136,12 @@ class TEMFiberStretcher(DataSource):
 
         self.handlers.append(self.update_handler)
 
-    @observe('recStart', 'recStop', 'average', 'mScanEnable',
-             'scanEnable', 'measurement', 'risingOnly', 'recInterval', 'dcOut',
-             'dcValue', 'scanRecStart')
+    _traitVars = ['recStart', 'recStop', 'average', 'mScanEnable', 'mTarget',
+                  'mSpeedMax', 'mSpeedMin', 'scanEnable', 'measurement',
+                  'risingOnly', 'recInterval',  'dcOut', 'dcValue',
+                  'scanRecStart', 'scanOffset', 'scanAmpl', 'scanFrequency']
+
+    @observe(*_traitVars)
     def observer(self, change):
         logging.info("TEMFS: Trait change '{x[name]}' = {x[new]}"
                      .format(x=change))
@@ -255,35 +264,29 @@ class TEMFiberStretcher(DataSource):
         self._lineReader.handle_line = self.handle_line
         await asyncio.sleep(0)
 
-        self.send('measurement=')
-        self.send('mscanenable=')
-        self.send('scanenable=')
-        self.send('recinterval=')
-        self.send('recstart=')
-        self.send('recstop=')
-        self.send('average=')
-        self.send('risingonly=')
-        self.send('dcvalue=')
-        self.send('dcout=')
-        self.send('scanrecstart=')
+        for var in self._traitVars:
+            self.send(var + "=")
 
-        self.measurement = False
         self.mScanEnable = False
         self.scanEnable = False
+        self.measurement = True
+        self.dcOut = True
 
         self._pulseQueue = Queue()
         self._pulseReader = Process(target=read_pulse_data,
                                     args=(self.dataPort, self._pulseQueue))
         self._pulseReader.start()
-        self.pulseReaderCoro = ensure_weakly_binding_future(self.readPulseFromQueue)
+        self._pulseFromQueueReader = \
+            ensure_weakly_binding_future(self.readPulseFromQueue)
 
         return self
 
     async def __aexit__(self, *args):
+        self.dcOut = False
         self.measurement = False
         self.mScanEnable = False
         self.scanEnable = False
-        self.pulseReaderCoro.cancel()
+        self._pulseFromQueueReader.cancel()
         time.sleep(1)
         self._pulseReader.terminate()
         await super().__aexit__(*args)
