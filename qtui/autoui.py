@@ -25,6 +25,7 @@ from itertools import chain
 from common.traits import Quantity, Path as PathTrait
 from pathlib import Path
 import logging
+import numpy as np
 
 
 def run_action(func):
@@ -64,19 +65,21 @@ def create_spinbox_entry(component, name, trait):
         spinbox.setMaximum(2147483647 if trait.max is None else trait.max)
 
     spinbox.setReadOnly(trait.read_only)
+    spinbox.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
 
     if isinstance(trait, Quantity):
         units = (trait.metadata.get('preferred_units', None) or
                  trait.get(component).units)
         spinbox.setSuffix(" {:C~}".format(units))
 
-    apply = QtWidgets.QToolButton()
-    apply.setFocusPolicy(QtCore.Qt.NoFocus)
-    apply.setText('✓')
-    apply.setAutoRaise(True)
-    apply.setEnabled(not trait.read_only)
     layout.addWidget(spinbox)
-    layout.addWidget(apply)
+    if not trait.read_only:
+        apply = QtWidgets.QToolButton()
+        apply.setFocusPolicy(QtCore.Qt.NoFocus)
+        apply.setText('✓')
+        apply.setAutoRaise(True)
+        layout.addWidget(apply)
+
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setStretch(0, 1)
     layout.setStretch(1, 0)
@@ -370,9 +373,14 @@ def generate_component_ui(name, component):
         elif isinstance(trait, Enum) and not trait.read_only:
             layout.addRow(prettyName + ": ",
                           create_combobox(component, name, trait))
-        elif isinstance(trait, Float) and trait.read_only:
-            layout.addRow(prettyName + ": ",
-                          create_progressbar(component, name, trait))
+        elif isinstance(trait, Float):
+            if trait.read_only and not (np.isinf(trait.min) or
+                                        np.isinf(trait.max)):
+                layout.addRow(prettyName + ": ",
+                              create_progressbar(component, name, trait))
+            else:
+                layout.addRow(prettyName + ": ",
+                              create_spinbox_entry(component, name, trait))
         elif isinstance(trait, Bool):
             layout.addRow(None,
                           create_checkbox(component, name, prettyName, trait))
