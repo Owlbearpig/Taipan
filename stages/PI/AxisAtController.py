@@ -5,7 +5,7 @@ Created on Fri Oct 16 14:23:33 2015
 @author: Arno Rehn
 """
 
-from common import Manipulator
+from common import Manipulator, action
 from asyncioext import ensure_weakly_binding_future
 import asyncio
 import re
@@ -51,6 +51,15 @@ class AxisAtController(Manipulator):
 
     async def __aenter__(self):
         await super().__aenter__()
+
+        self._identification = await self.send(b'*IDN?', includeAxis=False)
+        self._hardwareMinimum = await self.send(b'TMN?')
+        self._hardwareMaximum = await self.send(b'TMX?')
+        self.velocity = Q_(await self.send(b'VEL?'), 'mm/s')
+        self._isReferenced = bool(await self.send(b'FRF?'))
+
+        await self.send("RON", 1)
+        await self.send("SVO", 1)
 
         self._updateFuture = ensure_weakly_binding_future(self.updateStatus)
 
@@ -186,17 +195,6 @@ class AxisAtController(Manipulator):
         else:
             return msg
 
-    async def initialize(self):
-        self._identification = await self.send(b'*IDN?', includeAxis=False)
-        self._hardwareMinimum = await self.send(b'TMN?')
-        self._hardwareMaximum = await self.send(b'TMX?')
-        self._position = await self.send(b'POS?')
-        self.velocity = await self.send(b'VEL?')
-        self._isReferenced = bool(await self.send(b'FRF?'))
-
-        await self.send("RON", 1)
-        await self.send("SVO", 1)
-
     async def moveTo(self, val: float, velocity=None):
         if velocity is None:
             velocity = self.velocity
@@ -223,6 +221,7 @@ class AxisAtController(Manipulator):
         self._movementStopped = True
         asyncio.ensure_future(self.send("HLT"))
 
+    @action("Home to ref. switch")
     async def reference(self):
         self._movementStopped = False
         await self.send("FRF")
