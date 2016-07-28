@@ -30,17 +30,18 @@ class Scan(DataSource):
 
     step = Quantity(Q_(0), help="The step width used for the Scan",
                            min=Q_(0)).tag(
-                           name="Step width")
+                           name="Step width", priority=2)
 
     scanVelocity = Quantity(Q_(0), help="The velocity of the Manipulator used "
                                         "during the scan").tag(
-                                   name="Scan velocity")
+                                   name="Scan velocity", priority=3)
 
     positioningVelocity = Quantity(Q_(0), help="The velocity of the "
                                                "Manipulator during positioning"
                                                " movement (not during data "
                                                "acquisiton)").tag(
-                                          name="Positioning velocity")
+                                          name="Positioning velocity",
+                                          priority=4)
 
     retractAtEnd = Bool(False, help="Retract the manipulator to the start "
                                     "position at the end of the scan.").tag(
@@ -231,6 +232,7 @@ class Scan(DataSource):
 
         finally:
             self.dataSource.stop()
+            self.manipulator.stop()
             if self.retractAtEnd:
                 self._loop.create_task(
                     self.manipulator.moveTo(realStart,
