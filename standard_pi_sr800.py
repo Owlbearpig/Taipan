@@ -10,7 +10,7 @@ from common.save import DataSaver
 from pint import Context
 from stages import PI
 from datasources import SR830
-from traitlets import Instance
+from traitlets import Int, Instance
 import visa
 
 # Create and enable a THz-TDS context where we can convert times to lengths
@@ -42,6 +42,8 @@ class AppRoot(Scan):
                                  axes_labels=['Time'],
                                  data_label="Amplitude",
                                  is_power=False)
+
+    nMeasurements = Int(1, min=1).tag(name="No. of measurements", priority=99)
 
     def __init__(self, loop=None):
         super().__init__(objectName="Scan", loop=loop)
@@ -79,7 +81,8 @@ class AppRoot(Scan):
         await self.manipulator.__aexit__(*args)
         await self.pi_conn.__aexit__(*args)
 
-    @action("Take measurement")
-    async def takeMeasurement(self):
-        self.set_trait('currentData', await self.readDataSet())
-        self.dataSaver.process(self.currentData)
+    @action("Take measurements")
+    async def takeMeasurements(self):
+        for x in range(self.nMeasurements):
+            self.set_trait('currentData', await self.readDataSet())
+            self.dataSaver.process(self.currentData)

@@ -8,7 +8,7 @@ Created on Mon Jul  4 16:01:45 2016
 from common import DataSet, action, traits, Scan, ureg, Q_
 from pint import Context
 from dummy import DummyManipulator, DummyContinuousDataSource
-from traitlets import Instance
+from traitlets import Int, Instance
 from common.save import DataSaver
 
 # Create and enable a THz-TDS context where we can convert times to lengths
@@ -39,6 +39,8 @@ class AppRoot(Scan):
 
     dataSaver = Instance(DataSaver)
 
+    nMeasurements = Int(1, min=1).tag(name="No. of measurements", priority=99)
+
     def __init__(self, loop=None):
         super().__init__(objectName="Scan", loop=loop)
         self.title = "Dummy measurement program"
@@ -62,5 +64,5 @@ class AppRoot(Scan):
 
     @action("Take measurement")
     async def takeMeasurement(self):
-        self.set_trait('currentData', await self.readDataSet())
-#        self.dataSaver.process(self.currentData)
+        for x in range(self.nMeasurements):
+            self.set_trait('currentData', await self.readDataSet())
