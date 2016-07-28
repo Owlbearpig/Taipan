@@ -65,7 +65,8 @@ def create_spinbox_entry(component, name, trait):
         spinbox.setMaximum(2147483647 if trait.max is None else trait.max)
 
     spinbox.setReadOnly(trait.read_only)
-    spinbox.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
+    if trait.read_only:
+        spinbox.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
 
     if isinstance(trait, Quantity):
         units = (trait.metadata.get('preferred_units', None) or
