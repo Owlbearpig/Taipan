@@ -1,12 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Jul 15 13:47:37 2016
-
-@author: Arno Rehn
-"""
-
-# -*- coding: utf-8 -*-
-"""
 Created on Fri Oct 16 14:23:33 2015
 
 @author: Arno Rehn
@@ -15,7 +8,7 @@ Created on Fri Oct 16 14:23:33 2015
 from common import Manipulator, action
 from asyncioext import ensure_weakly_binding_future
 import asyncio
-from traitlets import Int, Bool, Unicode, observe
+from traitlets import Bool, Unicode
 from common import ureg, Q_
 import traceback
 import logging
