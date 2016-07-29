@@ -228,6 +228,7 @@ class Scan(DataSource):
             else:
                 dataSet = await self._doSteppedScan(axis)
 
+            self._dataSetReady(dataSet)
             return dataSet
 
         finally:

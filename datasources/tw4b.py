@@ -311,6 +311,7 @@ class TW4B(DataSource):
         if not success:
             raise Exception("Failed to reach the target averages value!")
 
+        self._dataSetReady(self.currentData)
         return self.currentData
 
     discovered_systems = {}

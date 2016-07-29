@@ -102,6 +102,8 @@ class ComponentBase(traitlets.HasTraits):
 
 class DataSource(ComponentBase):
 
+    _dataSetReadyCallbacks = []
+
     def __init__(self, objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
 
@@ -114,6 +116,16 @@ class DataSource(ComponentBase):
     def restart(self):
         self.stop()
         self.start()
+
+    def addDataSetReadyCallback(self, callback):
+        self._dataSetReadyCallbacks.append(callback)
+
+    def removeDataSetReadyCallback(self, callback):
+        self._dataSetReadyCallbacks.remove(callback)
+
+    def _dataSetReady(self, dataSet):
+        for cb in self._dataSetReadyCallbacks:
+            cb(dataSet)
 
     async def readDataSet(self):
         raise NotImplementedError("readDataSet() needs to implemented for "

@@ -265,7 +265,9 @@ class TEMFiberStretcher(DataSource):
 
     async def readDataSet(self):
         await self.newDataReady
-        return await self.newDataReady
+        dataSet = await self.newDataReady
+        self._dataSetReady(dataSet)
+        return dataSet
 
     async def readPulseFromQueue(self):
         while True:

@@ -131,9 +131,11 @@ class SR830(DataSource):
         if (self.samplingMode == SR830.SamplingMode.SingleShot):
             data = np.array(await self.readCurrentOutput())
             dataSet = DataSet(Q_(data), [])
+            self._dataSetReady(dataSet)
             return dataSet
 
         elif (self.samplingMode == SR830.SamplingMode.Buffered):
             data = np.array(await self.readDataBuffer())
             dataSet = DataSet(Q_(data), [Q_(np.arange(0, len(data)))])
+            self._dataSetReady(dataSet)
             return dataSet
