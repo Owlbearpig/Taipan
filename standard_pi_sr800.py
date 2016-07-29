@@ -33,7 +33,7 @@ ureg.enable_contexts('terahertz')
 rm = visa.ResourceManager()
 
 
-class AppRoot(Scan):
+class BaseTHzScan(Scan):
 
     dataSaver = Instance(DataSaver)
 
@@ -47,7 +47,6 @@ class AppRoot(Scan):
 
     def __init__(self, loop=None):
         super().__init__(objectName="Scan", loop=loop)
-        self.title = "Dummy measurement program"
         self.pi_conn = PI.Connection('COM17')
 
         pi_stage = PI.AxisAtController(self.pi_conn)
@@ -68,6 +67,7 @@ class AppRoot(Scan):
         self.scanVelocity = Q_(1, 'ps/s')
 
         self.dataSaver = DataSaver(objectName="Data Saver")
+        self.addDataSetReadyCallback(self.dataSaver.process)
 
     async def __aenter__(self):
         await self.pi_conn.__aenter__()
@@ -85,4 +85,7 @@ class AppRoot(Scan):
     async def takeMeasurements(self):
         for x in range(self.nMeasurements):
             self.set_trait('currentData', await self.readDataSet())
-            self.dataSaver.process(self.currentData)
+
+
+class AppRoot(BaseTHzScan):
+    pass
