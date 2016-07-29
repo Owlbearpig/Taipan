@@ -102,10 +102,9 @@ class ComponentBase(traitlets.HasTraits):
 
 class DataSource(ComponentBase):
 
-    _dataSetReadyCallbacks = []
-
     def __init__(self, objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
+        self._dataSetReadyCallbacks = []
 
     def start(self):
         pass
