@@ -56,11 +56,15 @@ class AppRoot(Scan):
         self.continuousScan = True
         self.set_trait('currentData', DataSet())
 
+        self.dataSaver.registerManipulator(pi_stage, "PI")
+
         self.minimumValue = Q_(200, 'ps')
         self.maximumValue = Q_(240, 'ps')
         self.step = Q_(0.01, 'ps')
         self.positioningVelocity = Q_(100, 'ps/s')
         self.scanVelocity = Q_(100, 'ps/s')
+
+        self.addDataSetReadyCallback(self.dataSaver.process)
 
     @action("Take measurement")
     async def takeMeasurement(self):

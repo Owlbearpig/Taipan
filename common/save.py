@@ -13,6 +13,17 @@ from traitlets import Bool, Enum as EnumTrait, Unicode
 import numpy as np
 from datetime import datetime
 import logging
+from copy import deepcopy
+
+
+def _getManipulatorValueInPreferredUnits(m):
+    val = m.value
+
+    pref_units = m.trait_metadata('value', 'preferred_units')
+    if pref_units:
+        val = val.to(pref_units)
+
+    return val
 
 
 class DataSaver(DataSink):
@@ -37,11 +48,42 @@ class DataSaver(DataSink):
                                name="File name template")
     mainFileName = Unicode('data').tag(name="Main file name")
 
+    enabled = Bool(True, help="Whether data storage is enabled").tag(
+                         name="Enabled")
+
+    _manipulators = {}
+
+    # from https://msdn.microsoft.com/en-us/library/aa365247
+    _forbiddenCharacters = r'"*/:<>?\|'
+    _fileNameTranslationTable = str.maketrans(_forbiddenCharacters,
+                                              '_' * len(_forbiddenCharacters))
+
+    def registerManipulator(self, manipulator, name=None):
+        if name is None:
+            name = manipulator.objectName
+
+        self._manipulators[name] = manipulator
+
+        trait = deepcopy(self.traits()['fileNameTemplate'])
+        additionalHelpString = ('\n{{{}}}: The value of manipulator {}'
+                                .format(name, manipulator.objectName))
+        trait.help += additionalHelpString
+        if 'help' in trait.metadata:
+            trait.metadata['help'] += additionalHelpString
+        self.add_traits(fileNameTemplate=trait)
+
     def _getFileName(self):
         date = datetime.now().isoformat().replace(':', '-')
+
+        manipValues = {k: '{:.3fC~}'
+                       .format(_getManipulatorValueInPreferredUnits(m))
+                       for k, m in self._manipulators.items()}
+
         formattedName = self.fileNameTemplate.format(date=date,
-                                                     name=self.mainFileName)
+                                                     name=self.mainFileName,
+                                                     **manipValues)
         formattedName += self.extension[self.fileFormat]
+        formattedName = formattedName.translate(self._fileNameTranslationTable)
         return str(self.path.joinpath(formattedName))
 
     def _saveTxt(self, data):
@@ -71,6 +113,10 @@ class DataSaver(DataSink):
         return fileName
 
     def process(self, data):
+        if not self.enabled:
+            logging.info("Data storage is disabled, not saving data.")
+            return
+
         filename = None
         if self.fileFormat == self.Formats.Text:
             filename = self._saveTxt(data)
