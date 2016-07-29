@@ -51,10 +51,11 @@ class AxisAtController(Manipulator):
     motorPowerStageError = Bool(read_only=True).tag(
                                 name="Motor power stage error")
 
-    def __init__(self, connection=None, axis=1, pitch=Q_(1)):
+    def __init__(self, connection=None, axis=1, pitch=Q_(1), objectName=None,
+                 loop=None):
         """ Axis `axis` at connection `connection`. Has pitch `pitch` in units
         of 'full step count/length'."""
-        super().__init__()
+        super().__init__(objectName=objectName, loop=loop)
         self.connection = connection
         self.axis = axis
         self._prevStatus = '?'
