@@ -70,10 +70,6 @@ class Scan(DataSource):
                  maximumValue=Q_(0), step=Q_(0), objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
 
-        self.observe(self._setUnits, 'manipulator')
-
-        self.manipulator = manipulator
-        self.dataSource = dataSource
         self.minimumValue = minimumValue
         self.maximumValue = maximumValue
         self.step = step
@@ -81,6 +77,11 @@ class Scan(DataSource):
         self._activeFuture = None
 
         self.__original_class = self.__class__
+
+        self.observe(self._setUnits, 'manipulator')
+
+        self.manipulator = manipulator
+        self.dataSource = dataSource
 
     def _setUnits(self, change):
         """Copy the unit from the Manipulator to the metadata of the traits."""
