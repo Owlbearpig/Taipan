@@ -22,6 +22,14 @@ import logging
 from asyncioext import threaded_async,ensure_weakly_binding_future
 import os
 
+def _getISELLibrarypath():
+    bp = os.path.dirname(__file__)
+    if os.name == 'nt':
+        fp = bp + '\stagedriver.dll'
+    elif os.name == 'posix':
+        fp = bp + '/libstagedriver.so'
+    return fp
+    
 class IselStage(Manipulator):
     class HomingTarget(enum.Enum):
         NegativeEndswitch = 17
@@ -52,13 +60,9 @@ class IselStage(Manipulator):
         HomingMask = HomingComplete | HomingError
 
     StatusWordStateMachineMask = 0x6F
+
+    cdll = ctypes.CDLL(_getISELLibrarypath())
     
-    if os.name == 'nt':
-        cdll = ctypes.CDLL('.\stages\IselStage\stagedriver.dll')
-    elif os.name =='posix':
-        cdll = ctypes.CDLL('/home/thz/src/taipan/stages/IselStage/libstagedriver.so')
-    
-    statusWord = traitlets.Unicode('',read_only=True)
     statusWord.tag(name = 'Status Word', group = 'Status Reporting')
 
     fault = traitlets.Unicode('No Fault',read_only=True)
