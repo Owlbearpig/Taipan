@@ -74,10 +74,10 @@ class IselStage(Manipulator):
     homingError = traitlets.Bool(False, read_only=True)
     homingError.tag(name="Homing Error", group="Home")
     homeTarget = traitlets.Enum(HomingTarget,HomingTarget.NegativeEndswitch)
-    homeTarget.tag(name"Home target", group="Home")
+    homeTarget.tag(name="Home target", group="Home")
 
     endswitchesBridged = traitlets.Bool(False, read_only=False)
-    endswitchesBridget.tag(name = "Endswitches bridged", group = "Switches")
+    endswitchesBridged.tag(name = "Endswitches bridged", group = "Switches")
     negativeEndswitchEnabled = traitlets.Bool(False, read_only=True)
     negativeEndswitchEnabled.tag(name= "Negative endswitch enabled", group = "Switches")
     positiveEndswitchEnabled = traitlets.Bool(False, read_only=True)
@@ -92,7 +92,7 @@ class IselStage(Manipulator):
     polarity.tag(name="Direction")
 
     maxVelocity = Quantity(Q_(0,'mm/s'),read_only=False) 
-    accelaration = Quantity(Q_(0,'mm/s**2', read_only=False)
+    acceleration = Quantity(Q_(0,'mm/s**2'), read_only=False)
 
     def __init__(self,comport ,baudrate = 57600,objectName=None,loop=None):
         super().__init__(objectName, loop)
@@ -148,8 +148,9 @@ class IselStage(Manipulator):
         t=0
         while t<timeout:
             asyncio.sleep(2)
-           if not self.enablingSignalActivated:
+            if not self.enablingSignalActivated:
                 logging.info('Please press the Power Button!')
+            t+=2
         if not self.enablingSignalActivated:
             logging.info('Power on the stage failed')
 
@@ -163,7 +164,7 @@ class IselStage(Manipulator):
 
     def getMaxVelocity(self):
         vel = IselStage.cdll.stagedriver_max_profile_velocity(self.handle)
-        self.set_trait('maxVelocity',Q_(vel,'microm/s'))
+        self.set_trait('maxVelocity',Q_(vel,'microm/s').to('mm/s'))
         return self.maxVelocity
     
     def setMaxVelocity(self,vel):
@@ -175,7 +176,8 @@ class IselStage(Manipulator):
 
     def getAcceleration(self):
         acc = IselStage.cdll.stagedriver_profile_acceleration(self.handle)
-        self.set_trait('acceleration',Q_(acc,'microm/s**2'))
+        acc = Q_(acc,'microm/s**2')
+        self.set_trait('acceleration',acc.to('mm/s**2'))
         return self.acceleration
 
     def setAcceleration(self,val):
@@ -279,6 +281,7 @@ class IselStage(Manipulator):
         self._movementStopped = False
         val = int(val.to('microm').magnitude)
         IselStage.cdll.stagedriver_stop(self.handle)
+        IselStage.cdll.stagedriver_stop_background_actions(self.handle)
         IselStage.cdll.stagedriver_set_target_position(self.handle,ctypes.c_int(val))
         IselStage.cdll.stagedriver_start(self.handle)
         self._isMovingFuture = asyncio.Future()
@@ -325,6 +328,7 @@ class IselStage(Manipulator):
     def stop(self):
         self._movementStopped = True
         IselStage.cdll.stagedriver_stop(self.handle)
+        IselStage.cdll.stagedriver_stop_background_actions(self.handle)
 
 if __name__ == '__main__':
 
