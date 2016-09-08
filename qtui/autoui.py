@@ -21,6 +21,7 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 from PyQt5 import QtWidgets, QtCore
 from .changeindicatorspinbox import ChangeIndicatorSpinBox
 from .changeindicatorlineedit import ChangeIndicatorLineEdit
+from .flowlayout import FlowLayout
 
 try:
     from .pyqtgraphplotter import PyQtGraphPlotter
@@ -416,14 +417,25 @@ def generate_component_ui(name, component):
             btn.setDefaultAction(qaction)
             layout.addRow(None, btn)
 
-    controlBox = QtWidgets.QVBoxLayout(controlWidget)
-    controlBox.setContentsMargins(0, 0, 0, 0)
+    controlLayout = FlowLayout(controlWidget)
     for i, group in enumerate(groups.values()):
-        controlBox.addWidget(group)
-    controlBox.addStretch()
+        controlLayout.addWidget(group)
+
+    scrollArea = QtWidgets.QScrollArea()
+    scrollArea.setFrameStyle(QtWidgets.QFrame.NoFrame)
+    scrollArea.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+    scrollArea.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn)
+    scrollArea.setWidgetResizable(True)
+
+    scrollArea.setWidget(controlWidget)
+
+    scrollArea.setMinimumWidth(scrollArea.sizeHint().width())
+
+    if not groups:
+        scrollArea.hide()
 
     if not hasPlots:
-        return controlWidget
+        return scrollArea
 
     plotWidget = QtWidgets.QWidget()
     plotBox = QtWidgets.QVBoxLayout(plotWidget)
@@ -438,7 +450,7 @@ def generate_component_ui(name, component):
 
     splitter = QtWidgets.QSplitter()
     splitter.addWidget(plotWidget)
-    splitter.addWidget(controlWidget)
+    splitter.addWidget(scrollArea)
     splitter.setStretchFactor(0, 1)
     splitter.setStretchFactor(1, 0)
     splitter.setChildrenCollapsible(False)
