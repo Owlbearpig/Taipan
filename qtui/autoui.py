@@ -397,7 +397,7 @@ def generate_component_ui(name, component):
                 layout.addRow(prettyName + ": ",
                               create_spinbox_entry(component, name, trait))
         elif isinstance(trait, Bool):
-            layout.addRow(None,
+            layout.addRow(" ",
                           create_checkbox(component, name, prettyName, trait))
         elif isinstance(trait, Unicode):
             if trait.read_only:
