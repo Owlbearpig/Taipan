@@ -62,7 +62,8 @@ class IselStage(Manipulator):
     StatusWordStateMachineMask = 0x6F
 
     cdll = ctypes.CDLL(_getISELLibrarypath())
-    
+   
+    statusWord = traitlets.Unicode('', read_only=True)
     statusWord.tag(name = 'Status Word', group = 'Status Reporting')
 
     fault = traitlets.Unicode('No Fault',read_only=True)
