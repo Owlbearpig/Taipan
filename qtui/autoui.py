@@ -473,10 +473,13 @@ def generate_ui(component):
     tree.setHeaderHidden(True)
     make_tree_items(component, "", 0, tree.invisibleRootItem())
 
-    layout = QtWidgets.QVBoxLayout(win)
+    windowLayout = QtWidgets.QHBoxLayout(win)
+    vSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, win)
+    windowLayout.addWidget(vSplitter)
+
     splitter = QtWidgets.QSplitter()
     splitter.setChildrenCollapsible(False)
-    layout.addWidget(splitter)
+    vSplitter.addWidget(splitter)
 
     splitter.addWidget(tree)
     splitter.addWidget(stack)
@@ -488,16 +491,10 @@ def generate_ui(component):
     tree.itemClicked.connect(lambda x: stack.setCurrentIndex(x.widgetId))
 
     messagePane = QtWidgets.QGroupBox("Messages", win)
-    layout.addWidget(messagePane)
-    messagePane.setCheckable(True)
+    vSplitter.addWidget(messagePane)
 
     msgPaneLayout = QtWidgets.QVBoxLayout(messagePane)
     msgBrowser = QtWidgets.QTextBrowser(messagePane)
     msgPaneLayout.addWidget(msgBrowser)
-
-    messagePane.toggled.connect(msgBrowser.setVisible)
-
-    layout.setStretch(0, 1)
-    layout.setStretch(1, 0)
 
     return win, msgBrowser
