@@ -21,6 +21,7 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 from PyQt5 import QtWidgets, QtCore
 from .changeindicatorspinbox import ChangeIndicatorSpinBox
 from .changeindicatorlineedit import ChangeIndicatorLineEdit
+from .flowlayout import FlowLayout
 
 try:
     from .pyqtgraphplotter import PyQtGraphPlotter
@@ -396,7 +397,7 @@ def generate_component_ui(name, component):
                 layout.addRow(prettyName + ": ",
                               create_spinbox_entry(component, name, trait))
         elif isinstance(trait, Bool):
-            layout.addRow(None,
+            layout.addRow(" ",
                           create_checkbox(component, name, prettyName, trait))
         elif isinstance(trait, Unicode):
             if trait.read_only:
@@ -416,14 +417,25 @@ def generate_component_ui(name, component):
             btn.setDefaultAction(qaction)
             layout.addRow(None, btn)
 
-    controlBox = QtWidgets.QVBoxLayout(controlWidget)
-    controlBox.setContentsMargins(0, 0, 0, 0)
+    controlLayout = FlowLayout(controlWidget)
     for i, group in enumerate(groups.values()):
-        controlBox.addWidget(group)
-    controlBox.addStretch()
+        controlLayout.addWidget(group)
+
+    scrollArea = QtWidgets.QScrollArea()
+    scrollArea.setFrameStyle(QtWidgets.QFrame.NoFrame)
+    scrollArea.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+    scrollArea.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn)
+    scrollArea.setWidgetResizable(True)
+
+    scrollArea.setWidget(controlWidget)
+
+    scrollArea.setMinimumWidth(scrollArea.sizeHint().width())
+
+    if not groups:
+        scrollArea.hide()
 
     if not hasPlots:
-        return controlWidget
+        return scrollArea
 
     plotWidget = QtWidgets.QWidget()
     plotBox = QtWidgets.QVBoxLayout(plotWidget)
@@ -438,7 +450,7 @@ def generate_component_ui(name, component):
 
     splitter = QtWidgets.QSplitter()
     splitter.addWidget(plotWidget)
-    splitter.addWidget(controlWidget)
+    splitter.addWidget(scrollArea)
     splitter.setStretchFactor(0, 1)
     splitter.setStretchFactor(1, 0)
     splitter.setChildrenCollapsible(False)
@@ -473,10 +485,13 @@ def generate_ui(component):
     tree.setHeaderHidden(True)
     make_tree_items(component, "", 0, tree.invisibleRootItem())
 
-    layout = QtWidgets.QVBoxLayout(win)
+    windowLayout = QtWidgets.QHBoxLayout(win)
+    vSplitter = QtWidgets.QSplitter(QtCore.Qt.Vertical, win)
+    windowLayout.addWidget(vSplitter)
+
     splitter = QtWidgets.QSplitter()
     splitter.setChildrenCollapsible(False)
-    layout.addWidget(splitter)
+    vSplitter.addWidget(splitter)
 
     splitter.addWidget(tree)
     splitter.addWidget(stack)
@@ -488,16 +503,10 @@ def generate_ui(component):
     tree.itemClicked.connect(lambda x: stack.setCurrentIndex(x.widgetId))
 
     messagePane = QtWidgets.QGroupBox("Messages", win)
-    layout.addWidget(messagePane)
-    messagePane.setCheckable(True)
+    vSplitter.addWidget(messagePane)
 
     msgPaneLayout = QtWidgets.QVBoxLayout(messagePane)
     msgBrowser = QtWidgets.QTextBrowser(messagePane)
     msgPaneLayout.addWidget(msgBrowser)
-
-    messagePane.toggled.connect(msgBrowser.setVisible)
-
-    layout.setStretch(0, 1)
-    layout.setStretch(1, 0)
 
     return win, msgBrowser
