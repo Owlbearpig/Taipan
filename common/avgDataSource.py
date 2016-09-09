@@ -9,7 +9,11 @@ from traitlets import Integer, Instance
 import logging
 
 class AverageDataSource(DataSource):
-    numberofAverages = Integer(1,read_only = False)
+    numberofAverages = Integer(1,read_only = False).tag(
+            name='Number of Averages')
+
+    currentAverages = Integer(0,read_only = True).tag(
+            name='current Averages')
     singleSource = Instance(DataSource, allow_none=True)
 
     def __init__(self, dataSource, objectName=None, loop=None):
@@ -20,6 +24,7 @@ class AverageDataSource(DataSource):
         self.singleSource.start()
 
     def stop(self):
+        self.set_trait('currentAverages',1)
         self.singleSource.stop()
 
     async def readDataSet(self):
@@ -28,11 +33,11 @@ class AverageDataSource(DataSource):
             self.numberofAverages = 1
 
         avDataSet = await self.singleSource.readDataSet()
-        i=1
-        while i<self.numberofAverages:
+        self.set_trait('currentAverages',1)
+        while self.currentAverages<self.numberofAverages:
             singleSet = await self.singleSource.readDataSet()
             avDataSet.data += singleSet.data
-            i+=1
+            self.set_trait('currentAverages',self.currentAverages+1)
         avDataSet.data /= self.numberofAverages
         self._dataSetReady(avDataSet)
         return avDataSet

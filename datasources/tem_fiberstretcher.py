@@ -110,6 +110,10 @@ class TEMFiberStretcher(DataSource):
 
     _blockObserver = False
 
+    neglectFirstDataSet = Bool(False, read_only=False).tag(
+                                    name="Neglect First Dataset",
+                                    group="Data acquisition")
+
     measurementRate = Quantity(Q_(0, 'Hz'), read_only=True).tag(
                                             name="Rate",
                                             group="Data acquisition")
@@ -241,7 +245,7 @@ class TEMFiberStretcher(DataSource):
 
         self.handlers.append(predicate)
         return fut
-
+   
     def setVar(self, var, value):
         value = int(value)
         self.send('{}={}'.format(var, value))
@@ -277,7 +281,8 @@ class TEMFiberStretcher(DataSource):
         fut.set_result(change['new'])
 
     async def readDataSet(self):
-        await self.newDataReady
+        if self.neglectFirstDataSet:
+            await self.newDataReady
         dataSet = await self.newDataReady
         self._dataSetReady(dataSet)
         return dataSet
