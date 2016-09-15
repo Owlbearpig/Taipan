@@ -68,7 +68,7 @@ class DummySimpleDataSource(DataSource):
         self.counter = self.init
 
     async def readDataSet(self):
-        dataSet = DataSet(np.array(self.counter), [])
+        dataSet = DataSet(np.array(self.counter)*ureg.nA, [])
         self.counter += 1
         return dataSet
 
