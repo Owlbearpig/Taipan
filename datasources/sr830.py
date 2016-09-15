@@ -21,7 +21,7 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 from common import DataSource, DataSet, action, Q_
 from common.traits import Quantity
-from asyncioext import threaded_async
+from asyncioext import threaded_async,ensure_weakly_binding_future
 import asyncio
 from pyvisa import constants
 import struct
@@ -303,6 +303,8 @@ class SR830(DataSource):
         super().__init__()
         self.resource = resource
         self.resource.timeout = 1500
+        self._liveViewFuture = asyncio.Future()
+        self._liveViewFuture.set_result(True)
 
     @threaded_async
     def query(self, x):
@@ -346,9 +348,13 @@ class SR830(DataSource):
         self.getSineOutputAmplitude()
         self.observe(self.setSineOutputAmplitude,'sineOutputAmplitude')
 
-        self.statusUpdate()
+        await self.statusUpdate()
         return self
 
+    async def __aexit__(self,*args):
+        await super().__aexit__(*args)
+        self._liveViewFuture.cancel()
+        
     @action("Start")
     def start(self):
         self.resource.write('SRAT %d' % self.sampleRate.value)
@@ -595,7 +601,7 @@ class SR830(DataSource):
         self.resource.write('*CLS')
 
     @action('Update Status')
-    def statusUpdate(self):
+    async def statusUpdate(self):
         status = int(self.resource.query('*STB?'))
 
         self.set_trait('scanInProgress',
@@ -613,7 +619,7 @@ class SR830(DataSource):
         self.set_trait('serviceRequest',
                        bool(status & SR830.StatusBits.ServiceRequest.value))
         
-        self.updateLiveView()
+        await self.updateLiveView()
         
         if self.enabledBitSet:
             lias = int(self.resource.query('LIAS?'))
@@ -685,7 +691,8 @@ class SR830(DataSource):
             if bool(event & SR830.StandardEventBits.PowerOn.value):
                 logging.info('SR830: Lock In Standard Event Report: '+ 
                         'Set by Power on')
-
+    
+    @threaded_async
     def updateLiveView(self):
         
         vals = self.resource.query('SNAP?1,2,3,4,9')
@@ -706,15 +713,22 @@ class SR830(DataSource):
     def resetLiveViewValues(self):
         self.set_trait('liveViewMaxValue',self.liveViewValueX)
         self.set_trait('liveViewMinValue',self.liveViewValueX)
-
+        
+    async def contLiveViewUpdate(self):
+        while True:
+            await asyncio.sleep(0.33)
+            await self.updateLiveView()
+            
     @action('start update',group='Live View')
-    def startLiveViewUpdate(self):
-        logging.info('SR830: Not implemented yet, press update status manually!')
- 
+    async def startLiveViewUpdate(self):
+        self._liveViewFuture = ensure_weakly_binding_future(self.contLiveViewUpdate)
+        logging.info('SR830: Live View Enabled')
+        
     @action('stop update', group='Live View')
     def stopLiveViewUpdate(self):
-        logging.info('SR830: Not implemented yet, press update status manully!')
-
+        self._liveViewFuture.cancel()
+        logging.info('SR830: Live View Disabled')
+        
     @traitlets.observe('saveSettings')
     def saveSettingsToLockin(self,val):
         if isinstance(val,dict):
