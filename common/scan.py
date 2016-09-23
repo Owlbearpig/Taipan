@@ -178,9 +178,12 @@ class Scan(DataSource):
     async def _doSteppedScan(self, axis):
         accumulator = []
         self.dataSource.start()
+        updater = self.updateProgress(axis)
+        self.manipulator.observe(updater, 'value')
         for position in axis:
             await self.manipulator.moveTo(position, self.scanVelocity)
             accumulator.append(await self.dataSource.readDataSet())
+        self.manipulator.unobserve(updater, 'value')
         self.dataSource.stop()
 
         axes = accumulator[0].axes.copy()
