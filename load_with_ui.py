@@ -25,31 +25,37 @@ matplotlib.use("Qt5Agg")
 
 from qtui.autoui import generate_ui
 import quamash
-from PyQt5 import QtWidgets
+from PyQt5 import QtCore, QtWidgets
 import asyncio
 import sys
 from os.path import basename, splitext
 import logging
 
 
-class QTextBrowserLoggingHandler(logging.Handler):
+class QTextBrowserLoggingHandler(QtCore.QObject, logging.Handler):
     terminator = '\n'
 
     def __init__(self, textBrowser):
-        logging.Handler.__init__(self)
+        super().__init__()
         self.textBrowser = textBrowser
 
+        self._logMetaMethod = self.metaObject().method(
+            self.metaObject().indexOfMethod("logFormattedMessage(QString)"))
+
+    @QtCore.pyqtSlot(str)
+    def logFormattedMessage(self, msg):
+        text = self.textBrowser.toPlainText()
+        text += msg + self.terminator
+        self.textBrowser.setPlainText(text)
+        self.textBrowser.verticalScrollBar().setValue(
+            self.textBrowser.verticalScrollBar().maximum()
+        )
+
     def emit(self, record):
-        try:
-            msg = self.format(record)
-            text = self.textBrowser.toPlainText()
-            text += msg + self.terminator
-            self.textBrowser.setPlainText(text)
-            self.textBrowser.verticalScrollBar().setValue(
-                self.textBrowser.verticalScrollBar().maximum()
-            )
-        except Exception:
-            self.handleError(record)
+        msg = self.format(record)
+        self._logMetaMethod.invoke(self, QtCore.Qt.QueuedConnection,
+                                   QtCore.Q_ARG(str, msg))
+
 
 async def run(app, rootClass, loop):
     async with rootClass() as root:
@@ -68,6 +74,8 @@ async def run(app, rootClass, loop):
         lastWindowClosed = asyncio.Future(loop=loop)
         app.lastWindowClosed.connect(lambda: lastWindowClosed.set_result(True))
         await lastWindowClosed
+
+        logging.getLogger().removeHandler(handler)
 
 
 if __name__ == '__main__':
