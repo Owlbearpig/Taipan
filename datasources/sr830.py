@@ -356,18 +356,18 @@ class SR830(DataSource):
         self._liveViewFuture.cancel()
         
     @action("Start")
-    def start(self):
+    async def start(self):
         self.resource.write('SRAT %d' % self.sampleRate.value)
         if (self.samplingMode == SR830.SamplingMode.Buffered):
             self.resource.write('REST')
             self.resource.write('STRT')
 
     @action("Stop")
-    def stop(self):
+    async def stop(self):
         self.resource.write('PAUS')
 
     @action('Reset')
-    def reset(self):
+    async def reset(self):
         self.resource.write('*RST')
     
     def setSampleRate(self,sampleRate):

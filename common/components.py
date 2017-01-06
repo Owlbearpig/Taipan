@@ -119,15 +119,15 @@ class DataSource(ComponentBase):
         super().__init__(objectName=objectName, loop=loop)
         self._dataSetReadyCallbacks = []
 
-    def start(self):
+    async def start(self):
         pass
 
-    def stop(self):
+    async def stop(self):
         pass
 
-    def restart(self):
-        self.stop()
-        self.start()
+    async def restart(self):
+        await self.stop()
+        await self.start()
 
     def addDataSetReadyCallback(self, callback):
         self._dataSetReadyCallbacks.append(callback)
@@ -304,11 +304,11 @@ class PostProcessor(DataSource, DataSink):
         super().__init__(objectName=objectName, loop=loop)
         self.source = source
 
-    def start(self):
-        return self._source.start()
+    async def start(self):
+        return await self.source.start()
 
-    def stop(self):
-        return self._source.stop()
+    async def stop(self):
+        return await self.source.stop()
 
     async def readDataSet(self):
-        return self.process(await self._source.readDataSet())
+        return self.process(await self.source.readDataSet())
