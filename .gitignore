@@ -1,1 +1,6 @@
 __pycache__/
+.directory
+.ipynb_checkpoints/
+.kdev4/
+.spyderproject
+*.kdev4
