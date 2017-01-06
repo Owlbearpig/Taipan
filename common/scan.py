@@ -66,15 +66,9 @@ class Scan(DataSource):
 
     progress = Float(0, min=0, max=1, read_only=True).tag(name="Progress")
 
-    def __init__(self, manipulator=None, dataSource=None, minimumValue=Q_(0),
-                 maximumValue=Q_(0), step=Q_(0), objectName=None, loop=None):
+    def __init__(self, manipulator=None, dataSource=None, minimumValue=None,
+                 maximumValue=None, step=None, objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
-
-        self.minimumValue = minimumValue
-        self.maximumValue = maximumValue
-        self.step = step
-        self.continuousScan = False
-        self._activeFuture = None
 
         self.__original_class = self.__class__
 
@@ -82,6 +76,18 @@ class Scan(DataSource):
 
         self.manipulator = manipulator
         self.dataSource = dataSource
+
+        if minimumValue is not None:
+            self.minimumValue = minimumValue
+
+        if maximumValue is not None:
+            self.maximumValue = maximumValue
+
+        if step is not None:
+            self.step = step
+
+        self.continuousScan = False
+        self._activeFuture = None
 
     def _setUnits(self, change):
         """Copy the unit from the Manipulator to the metadata of the traits."""
