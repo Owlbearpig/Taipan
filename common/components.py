@@ -66,7 +66,7 @@ def is_component_trait(x):
 
 class ComponentBase(traitlets.HasTraits):
 
-    def __init__(self, objectName=None, loop=None):
+    def __init__(self, objectName: str=None, loop: asyncio.BaseEventLoop=None):
         self.objectName = objectName
         if self.objectName is None:
             self.objectName = ""
@@ -115,7 +115,7 @@ class ComponentBase(traitlets.HasTraits):
 
 class DataSource(ComponentBase):
 
-    def __init__(self, objectName=None, loop=None):
+    def __init__(self, objectName: str=None, loop: asyncio.BaseEventLoop=None):
         super().__init__(objectName=objectName, loop=loop)
         self._dataSetReadyCallbacks = []
 
