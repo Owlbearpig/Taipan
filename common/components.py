@@ -22,6 +22,7 @@ import asyncio
 import enum
 import numpy as np
 import traitlets
+from configparser import ConfigParser
 from traitlets import Instance
 from copy import deepcopy
 from .units import ureg, Q_
@@ -104,13 +105,13 @@ class ComponentBase(traitlets.HasTraits):
     def setAttribute(self, name, val):
         setattr(self, name, val)
 
-    def saveConfiguration(self):
+    def saveConfiguration(self, config: ConfigParser):
         for c in self.__components:
-            c.saveConfiguration()
+            c.saveConfiguration(config)
 
-    def loadConfiguration(self):
+    def loadConfiguration(self, config: ConfigParser):
         for c in self.__components:
-            c.loadConfiguration()
+            c.loadConfiguration(config)
 
 
 class DataSource(ComponentBase):
