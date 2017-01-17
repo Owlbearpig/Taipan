@@ -54,6 +54,8 @@ def is_component_trait(x):
 
 def create_spinbox_entry(component, name, trait):
     is_integer = isinstance(trait, Integer)
+    is_float = isinstance(trait, Float)
+    is_quantity = isinstance(trait, Quantity)
 
     def get_value_with_units():
         return trait.get(component).magnitude
@@ -61,7 +63,7 @@ def create_spinbox_entry(component, name, trait):
     def get_value_without_units():
         return trait.get(component)
 
-    get_value = (get_value_with_units if isinstance(trait, Quantity)
+    get_value = (get_value_with_units if is_quantity
                  else get_value_without_units)
 
     layout = QtWidgets.QHBoxLayout()
@@ -69,20 +71,25 @@ def create_spinbox_entry(component, name, trait):
                                      actual_value_getter=get_value)
     spinbox.setToolTip(trait.help)
 
-    if not is_integer:
+    if is_integer:
+        spinbox.setMinimum(-2147483648 if trait.min is None else trait.min)
+        spinbox.setMaximum(2147483647 if trait.max is None else trait.max)
+    elif is_float:
+        spinbox.setMinimum(float('-inf') if trait.min is None
+                           else trait.min)
+        spinbox.setMaximum(float('inf') if trait.max is None
+                           else trait.max)
+    elif is_quantity:
         spinbox.setMinimum(float('-inf') if trait.min is None
                            else trait.min.magnitude)
         spinbox.setMaximum(float('inf') if trait.max is None
                            else trait.max.magnitude)
-    else:
-        spinbox.setMinimum(-2147483648 if trait.min is None else trait.min)
-        spinbox.setMaximum(2147483647 if trait.max is None else trait.max)
 
     spinbox.setReadOnly(trait.read_only)
     if trait.read_only:
         spinbox.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
 
-    if isinstance(trait, Quantity):
+    if is_quantity:
         units = (trait.metadata.get('preferred_units', None) or
                  trait.get(component).units)
         spinbox.setSuffix(" {:C~}".format(units))
@@ -107,7 +114,7 @@ def create_spinbox_entry(component, name, trait):
         setattr(component, name, spinbox.value())
 
     apply_value_to_component = \
-        (apply_value_to_component_with_units if isinstance(trait, Quantity)
+        (apply_value_to_component_with_units if is_quantity
          else apply_value_to_component_without_units)
 
     def apply_value_to_spinbox_with_units(val):
@@ -121,7 +128,7 @@ def create_spinbox_entry(component, name, trait):
         spinbox.blockSignals(False)
 
     apply_value_to_spinbox = \
-        (apply_value_to_spinbox_with_units if isinstance(trait, Quantity)
+        (apply_value_to_spinbox_with_units if is_quantity
          else apply_value_to_spinbox_without_units)
 
     apply_value_to_spinbox(trait.get(component))

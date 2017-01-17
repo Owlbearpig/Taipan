@@ -22,6 +22,7 @@ import asyncio
 import enum
 import numpy as np
 import traitlets
+from configparser import ConfigParser
 from traitlets import Instance
 from copy import deepcopy
 from .units import ureg, Q_
@@ -66,7 +67,7 @@ def is_component_trait(x):
 
 class ComponentBase(traitlets.HasTraits):
 
-    def __init__(self, objectName=None, loop=None):
+    def __init__(self, objectName: str=None, loop: asyncio.BaseEventLoop=None):
         self.objectName = objectName
         if self.objectName is None:
             self.objectName = ""
@@ -104,30 +105,30 @@ class ComponentBase(traitlets.HasTraits):
     def setAttribute(self, name, val):
         setattr(self, name, val)
 
-    def saveConfiguration(self):
+    def saveConfiguration(self, config: ConfigParser):
         for c in self.__components:
-            c.saveConfiguration()
+            c.saveConfiguration(config)
 
-    def loadConfiguration(self):
+    def loadConfiguration(self, config: ConfigParser):
         for c in self.__components:
-            c.loadConfiguration()
+            c.loadConfiguration(config)
 
 
 class DataSource(ComponentBase):
 
-    def __init__(self, objectName=None, loop=None):
+    def __init__(self, objectName: str=None, loop: asyncio.BaseEventLoop=None):
         super().__init__(objectName=objectName, loop=loop)
         self._dataSetReadyCallbacks = []
 
-    def start(self):
+    async def start(self):
         pass
 
-    def stop(self):
+    async def stop(self):
         pass
 
-    def restart(self):
-        self.stop()
-        self.start()
+    async def restart(self):
+        await self.stop()
+        await self.start()
 
     def addDataSetReadyCallback(self, callback):
         self._dataSetReadyCallbacks.append(callback)
@@ -304,11 +305,11 @@ class PostProcessor(DataSource, DataSink):
         super().__init__(objectName=objectName, loop=loop)
         self.source = source
 
-    def start(self):
-        return self._source.start()
+    async def start(self):
+        return await self.source.start()
 
-    def stop(self):
-        return self._source.stop()
+    async def stop(self):
+        return await self.source.stop()
 
     async def readDataSet(self):
-        return self.process(await self._source.readDataSet())
+        return self.process(await self.source.readDataSet())

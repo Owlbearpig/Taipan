@@ -66,15 +66,11 @@ class Scan(DataSource):
 
     progress = Float(0, min=0, max=1, read_only=True).tag(name="Progress")
 
-    def __init__(self, manipulator=None, dataSource=None, minimumValue=Q_(0),
-                 maximumValue=Q_(0), step=Q_(0), objectName=None, loop=None):
+    def __init__(self, manipulator: Manipulator=None,
+                 dataSource: DataSource=None, minimumValue=None,
+                 maximumValue=None, step=None, objectName: str=None,
+                 loop: asyncio.BaseEventLoop=None):
         super().__init__(objectName=objectName, loop=loop)
-
-        self.minimumValue = minimumValue
-        self.maximumValue = maximumValue
-        self.step = step
-        self.continuousScan = False
-        self._activeFuture = None
 
         self.__original_class = self.__class__
 
@@ -82,6 +78,18 @@ class Scan(DataSource):
 
         self.manipulator = manipulator
         self.dataSource = dataSource
+
+        if minimumValue is not None:
+            self.minimumValue = minimumValue
+
+        if maximumValue is not None:
+            self.maximumValue = maximumValue
+
+        if step is not None:
+            self.step = step
+
+        self.continuousScan = False
+        self._activeFuture = None
 
     def _setUnits(self, change):
         """Copy the unit from the Manipulator to the metadata of the traits."""
@@ -141,11 +149,11 @@ class Scan(DataSource):
         try:
             self.manipulator.observe(updater, 'value')
 
-            self.dataSource.start()
+            await self.dataSource.start()
             # move half a step over the final position to ensure a trigger
             await self.manipulator.moveTo(axis[-1] + step / 2.0,
                                           self.scanVelocity)
-            self.dataSource.stop()
+            await self.dataSource.stop()
 
         finally:
             self.manipulator.unobserve(updater, 'value')
@@ -173,14 +181,14 @@ class Scan(DataSource):
 
     async def _doSteppedScan(self, axis):
         accumulator = []
-        self.dataSource.start()
+        await self.dataSource.start()
         updater = self.updateProgress(axis)
         self.manipulator.observe(updater, 'value')
         for position in axis:
             await self.manipulator.moveTo(position, self.scanVelocity)
             accumulator.append(await self.dataSource.readDataSet())
         self.manipulator.unobserve(updater, 'value')
-        self.dataSource.stop()
+        await self.dataSource.stop()
 
         axes = accumulator[0].axes.copy()
         axes.insert(0, axis)
@@ -190,7 +198,7 @@ class Scan(DataSource):
         return DataSet(data, axes)
 
     @action("Stop")
-    def stop(self):
+    async def stop(self):
         if not self._activeFuture:
             return
 
@@ -211,7 +219,7 @@ class Scan(DataSource):
         self.set_trait('progress', 0)
 
         try:
-            self.dataSource.stop()
+            await self.dataSource.stop()
             await self.manipulator.waitForTargetReached()
 
             step = abs(self.step)
@@ -245,7 +253,7 @@ class Scan(DataSource):
             return dataSet
 
         finally:
-            self.dataSource.stop()
+            self._loop.create_task(self.dataSource.stop())
             self.manipulator.stop()
             if self.retractAtEnd:
                 self._loop.create_task(

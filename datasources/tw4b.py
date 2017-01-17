@@ -60,7 +60,7 @@ _magicScale = 5.9605E-10
 
 
 def read_pulse_data(ip, q):
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
 
     data_reader, data_writer = \
         loop.run_until_complete(
