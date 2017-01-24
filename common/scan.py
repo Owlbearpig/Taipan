@@ -26,6 +26,7 @@ from traitlets import Bool, Float, Instance
 from copy import deepcopy
 from common.traits import Quantity
 from common.units import Q_
+import logging
 
 
 class Scan(DataSource):
@@ -269,6 +270,10 @@ class Scan(DataSource):
 
             self._dataSetReady(dataSet)
             return dataSet
+
+        except asyncio.CancelledError:
+            logging.warning('Scan "{}" was cancelled'.format(self.objectName))
+            raise
 
         finally:
             self._loop.create_task(self.dataSource.stop())
