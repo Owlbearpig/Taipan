@@ -168,9 +168,9 @@ class Manipulator(ComponentBase):
         Error = 3
         Stopped = 4
 
-    velocity = Quantity(Q_(1)).tag(prettyName="Velocity")
-    value = Quantity(Q_(0), read_only=True).tag(prettyName="Value")
-    targetValue = Quantity(Q_(0)).tag(prettyName="Target value")
+    velocity = Quantity(Q_(1)).tag(name="Velocity")
+    value = Quantity(Q_(0), read_only=True).tag(name="Value")
+    targetValue = Quantity(Q_(0)).tag(name="Target value")
     status = traitlets.Enum(Status, default_value=Status.Undefined,
                             read_only=True)
 
