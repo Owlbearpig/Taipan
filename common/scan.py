@@ -204,6 +204,24 @@ class Scan(DataSource):
 
         self._activeFuture.cancel()
 
+    def _createManipulatorIdleFuture(self):
+        fut = self._loop.create_future()
+
+        if self.manipulator.status == Manipulator.Status.Idle:
+            fut.set_result(None)
+            return fut
+
+        def statusObserver(change):
+            if change['new'] == Manipulator.Status.Idle:
+                fut.set_result(None)
+
+        self.manipulator.observe(statusObserver, 'status')
+
+        fut.add_done_callback(lambda fut:
+                                  self.manipulator.unobserve(statusObserver))
+
+        return fut
+
     def readDataSet(self):
         self._activeFuture = self._loop.create_task(self._readDataSetImpl())
         return self._activeFuture
@@ -220,7 +238,7 @@ class Scan(DataSource):
 
         try:
             await self.dataSource.stop()
-            await self.manipulator.waitForTargetReached()
+            await self._createManipulatorIdleFuture()
 
             step = abs(self.step)
             stepUnits = step.units
