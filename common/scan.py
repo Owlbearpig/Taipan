@@ -219,7 +219,7 @@ class Scan(DataSource):
         self.manipulator.observe(statusObserver, 'status')
 
         fut.add_done_callback(lambda fut:
-                                  self.manipulator.unobserve(statusObserver))
+            self.manipulator.unobserve(statusObserver, 'status'))
 
         return fut
 
