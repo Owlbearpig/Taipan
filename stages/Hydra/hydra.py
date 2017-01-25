@@ -69,6 +69,8 @@ class Hydra(Manipulator):
 
                 if terminate:
                     cmd += '\r\n'
+                else:
+                    cmd += ' '
 
                 self.parent.transport.write(cmd.encode('ascii'))
 
@@ -242,6 +244,8 @@ class Hydra(Manipulator):
         await self._isMovingFuture
 
     async def configureTrigger(self, step, start=None, stop=None):
+        self._trigParams = step, start, stop
+
         step = step.to('mm').magnitude
         start = start.to('mm').magnitude
         stop = stop.to('mm').magnitude
@@ -251,14 +255,14 @@ class Hydra(Manipulator):
         output = 1
 
         # 1 µs pulse width
-        self._raw.settroutpw(1, output, termiante=False)
+        self._raw.settroutpw(10, output, terminate=False)
         self._raw.settroutdelay(0, output, terminate=False)
         self._raw.settroutpol(1, output, terminate=False)
 
         # Mode 3: Normal operation on output 1,
         #         "direction mode" operation at output 2
         # (but why do we do this? we're using output 1 anyway.)
-        self._raw.settr(3, termiante=False)
+        self._raw.settr(3, terminate=False)
         self._raw.settrpara(start, stop, N)
 
         # ask for the actually set start, stop and step parameters
