@@ -86,6 +86,9 @@ class Hydra(Manipulator):
         self._status = 0x0
         self.setPreferredUnits(ureg.mm, ureg.mm / ureg.s)
 
+        self._isMovingFuture = self._loop.create_future()
+        self._isMovingFuture.set_result(None)
+
         self._raw = Hydra.HydraRaw(self)
 
     def connection_made(self, transport):
@@ -152,21 +155,29 @@ class Hydra(Manipulator):
         self.set_trait('numberParamStack',
                        await self._raw.gsp(includeAxis=False, type=int))
 
+        if (not bool(self._status & self.StatusBits.AxisMoving) and
+            not self._isMovingFuture.done()):
+                self._isMovingFuture.set_result(None)
+
     @action('Calibrate')
     async def calibrationMove(self):
         '''
         Moves stage to lower endswitch and sets lower hardware limit to 0
         '''
         logging.debug('Hydra: Calibration Move Triggered')
-        self._movementStopped = False
         self._raw.ncal()
+        if self._isMovingFuture.done():
+            self._isMovingFuture = self._loop.create_future()
+        await self._isMovingFuture
 
     @action('Auto Detect Range')
     async def rangeMove(self):
         '''Finds upper hardware limit'''
         logging.debug('Hydra: Range Move Triggered')
-        self._movementStopped = False
         self._raw.nrm()
+        if self._isMovingFuture.done():
+            self._isMovingFuture = self._loop.create_future()
+        await self._isMovingFuture
 
     async def reference(self):
         await self.calibrationMove()
@@ -192,17 +203,15 @@ class Hydra(Manipulator):
 
         # 0.75 mm buffer for acceleration and proper trigger position
         if stop > start:
-            await self.moveTo(start - Q_(0.75,'mm'), velocity)
+            await self.moveTo(start - Q_(0.75, 'mm'), velocity)
         else:
-            await self.moveTo(start + Q_(0.75,'mm'), velocity)
-
-        res = await self.configureTrigger(self._trigStep, self._trigStart,
-                                          self._trigStop)
+            await self.moveTo(start + Q_(0.75, 'mm'), velocity)
 
     @action('Stop')
     async def stop(self):
         self._raw.nabort()
         logging.debug('Hydra: Movement aborted')
+        self._isMovingFuture.cancel()
 
     async def moveTo(self, val: float, velocity=None):
         logging.debug('Hydra: Move To {:.3f~}'.format(val.to('mm')))
@@ -211,8 +220,11 @@ class Hydra(Manipulator):
             velocity = self.velocity
 
         self._raw.snv(velocity.to('mm/s').magnitude)
-
         self._raw.nm(val.to('mm').magnitude)
+
+        if self._isMovingFuture.done():
+            self._isMovingFuture = self._loop.create_future()
+        await self._isMovingFuture
 
     async def configureTrigger(self, step, start=None, stop=None):
         step = step.to('mm').magnitude
@@ -221,9 +233,16 @@ class Hydra(Manipulator):
 
         N = int((stop - start) / step) + 1
 
-        self._raw.settroutpw(300, 1, termiante=False)
-        self._raw.settroutdelay(1, 1, terminate=False)
-        self._raw.settroutpol(1, 1, terminate=False)
+        output = 1
+
+        # 1 µs pulse width
+        self._raw.settroutpw(1, output, termiante=False)
+        self._raw.settroutdelay(0, output, terminate=False)
+        self._raw.settroutpol(1, output, terminate=False)
+
+        # Mode 3: Normal operation on output 1,
+        #         "direction mode" operation at output 2
+        # (but why do we do this? we're using output 1 anyway.)
         self._raw.settr(3, termiante=False)
         self._raw.settrpara(start, stop, N)
 
