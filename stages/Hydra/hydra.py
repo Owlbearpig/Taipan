@@ -159,6 +159,12 @@ class Hydra(Manipulator):
             not self._isMovingFuture.done()):
                 self._isMovingFuture.set_result(None)
 
+        self.set_trait('status',
+                       self.Status.Moving
+                       if bool(self._status & self.StatusBits.AxisMoving.value)
+                       else self.Status.Idle)
+
+
     @action('Calibrate')
     async def calibrationMove(self):
         '''
@@ -202,28 +208,37 @@ class Hydra(Manipulator):
         velocity = velocity.to('mm/s')
 
         # 0.75 mm buffer for acceleration and proper trigger position
-        if stop > start:
-            await self.moveTo(start - Q_(0.75, 'mm'), velocity)
-        else:
-            await self.moveTo(start + Q_(0.75, 'mm'), velocity)
+
+        sign = -1 if stop > start else 1
+        pos = start + Q_(sign * 0.75, 'mm')
+
+        await self.moveTo(pos, velocity)
+
+        await self.configureTrigger(*self._trigParams)
 
     @action('Stop')
-    async def stop(self):
+    def stop(self):
         self._raw.nabort()
         logging.debug('Hydra: Movement aborted')
         self._isMovingFuture.cancel()
 
     async def moveTo(self, val: float, velocity=None):
+        if self.status == self.Status.Moving:
+            raise RuntimeError("Move already in progress")
+
         logging.debug('Hydra: Move To {:.3f~}'.format(val.to('mm')))
 
         if velocity is None:
             velocity = self.velocity
 
+        if self._isMovingFuture.done():
+            self._isMovingFuture = asyncio.Future()
+
         self._raw.snv(velocity.to('mm/s').magnitude)
         self._raw.nm(val.to('mm').magnitude)
 
-        if self._isMovingFuture.done():
-            self._isMovingFuture = asyncio.Future()
+        await self.singleUpdate()
+
         await self._isMovingFuture
 
     async def configureTrigger(self, step, start=None, stop=None):
