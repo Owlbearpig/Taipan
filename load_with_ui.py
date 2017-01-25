@@ -82,6 +82,10 @@ if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     loop = quamash.QEventLoop(app)
+
+    if not hasattr(loop, 'create_future'):
+        loop.create_future = asyncio.Future
+
     asyncio.set_event_loop(loop)
 
     filename = sys.argv[1]
