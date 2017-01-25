@@ -68,10 +68,8 @@ class IAIStage(Manipulator):
         self._identification = None
         #self._status = 0x0
 
-        self._movementStopped = True
-        self._targetReached = True
-
         self._isMovingFuture = asyncio.Future()
+        self._isMovingFuture.set_result(None)
         self.setPreferredUnits(ureg.mm, ureg.mm / ureg.s)
         self.axis = axis
         self.velocity = Q_(5.0,'mm/s')
@@ -93,7 +91,6 @@ class IAIStage(Manipulator):
     isReferenced = traitlets.Bool(False, read_only=True)
     isPowerOn = traitlets.Bool(False, read_only = True)
     isAlarmState = traitlets.Bool(False, read_only=True)
-    isOnTarget = traitlets.Bool(True, read_only=True)
     isMoving = traitlets.Bool(True, read_only=False)
     statusMessage = traitlets.Unicode('',read_only=True)
 
@@ -114,20 +111,15 @@ class IAIStage(Manipulator):
                        not bool(self._outs & self.OutBits.moveComplete.value))
         self.set_trait('isAlarmState', bool(self._alarm != 0))
         self.set_trait('statusMessage',IAIStage.Alarm.get(self._alarm))
-        self.set_trait('isOnTarget', self._targetReached)
         self.set_trait('value',self._getValue())
 
-        if self.isOnTarget:
-            self.set_trait('status', self.Status.TargetReached)
-        elif True:
+        if self.isMoving:
             self.set_trait('status', self.Status.Moving)
         else:
-            self.set_trait('status', self.Status.Undefined)
+            self.set_trait('status', self.Status.Idle)
+            if not self._isMovingFuture.done():
+                self._isMovingFuture.set_result(None)
 
-        if not self._isMovingFuture.done() and not self.isMoving:
-            self._isMovingFuture.set_result(self._movementStopped)
-
-#        self.printStatus()
 
     @action('Home Stage')
     def reference(self,motorend=True):
@@ -194,8 +186,8 @@ class IAIStage(Manipulator):
 
     @action('Stop Stage')
     def stop(self):
-        self._movementStopped = True
         self.send(str(self.axis) + 'd0000000000')
+        self._isMovingFuture.cancel()
 
     @action('Reset Stage')
     def resetStage(self):
@@ -208,18 +200,10 @@ class IAIStage(Manipulator):
 
         posstr = self._convertPositionToHex(val)
 
-        self._movementStopped = False
-        self._isMovingFuture = asyncio.Future()
+        if self._isMovingFuture.done():
+            self._isMovingFuture = asyncio.Future()
         self.send(str(self.axis) + 'a' + posstr + '00')
         await self._isMovingFuture
-
-        if abs(self.value.to('mm') - val.to('mm')) > Q_(0.1,'mm'):
-            #maybe print error details
-            self._targetReached = False
-        else:
-            self._targetReached = True
-
-        return self.isOnTarget and not self._movementStopped
 
     def _parseStatusString(self,statusstring):
             #0'U' answer string

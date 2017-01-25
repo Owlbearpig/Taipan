@@ -75,7 +75,7 @@ class TMCL(Manipulator):
 
         self.set_trait('status', self.Status.TargetReached)
         self._isMovingFuture = asyncio.Future()
-        self._isMovingFuture.set_result(True)
+        self._isMovingFuture.set_result(None)
 
     def _angle2steps(self, angle):
         convFactor = 0.9 if self.stepAngle == self.StepAngle.Step_0_9 else 1.8
@@ -121,8 +121,8 @@ class TMCL(Manipulator):
         if not self._isMovingFuture.done():
             # check for target reached
             reached = await self._get_param(8)
-            if reached:
-                self._isMovingFuture.set_result(True)
+            if reached and not self._isMovingFuture.done():
+                self._isMovingFuture.set_result(None)
 
     async def moveTo(self, val, velocity=None):
         if velocity is None:
@@ -139,10 +139,7 @@ class TMCL(Manipulator):
         self._isMovingFuture = asyncio.Future()
 
         def _set_status(future):
-            if future.result():
-                self.set_trait('status', self.Status.TargetReached)
-            else:
-                self.set_trait('status', self.Status.Stopped)
+            self.set_trait('status', self.Status.Idle)
         self._isMovingFuture.add_done_callback(_set_status)
 
         # set microstep resolution (param 140)
@@ -154,17 +151,13 @@ class TMCL(Manipulator):
 
         # move to target
         await self._mvp(val)
-        return await self._isMovingFuture
-
-    async def waitForTargetReached(self, timeout=30):
-        return await self._isMovingFuture
+        await self._isMovingFuture
 
     def stop(self):
         with self.comm_lock:
             self.comm.mst(self.axis)
 
-        if not self._isMovingFuture.done():
-            self._isMovingFuture.set_result(False)
+        self._isMovingFuture.cancel()
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()

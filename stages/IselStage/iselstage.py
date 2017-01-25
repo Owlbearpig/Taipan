@@ -115,8 +115,7 @@ class IselStage(Manipulator):
         self.bridgeEndswitches(False)
         self.getVelocity()
         self._isMovingFuture = asyncio.Future()
-        self._isMovingFuture.set_result(True)
-        self._movementStopped = True
+        self._isMovingFuture.set_result(None)
         self.setPreferredUnits(ureg.mm, ureg.mm / ureg.s) 
 
     async def __aenter__(self):
@@ -136,7 +135,8 @@ class IselStage(Manipulator):
         self._movementStopped = False
         IselStage.cdll.stagedriver_home(self.handle,target.value, homeOffset)
         self.set_trait('homeTarget',target)
-        self._isMovingFuture = asyncio.Future()
+        if self._isMovingFuture.done():
+            self._isMovingFuture = asyncio.Future()
         await self._isMovingFuture
         await self.enableOperation() 
         #better to use them ? 
@@ -192,9 +192,6 @@ class IselStage(Manipulator):
         acc = int(val.to('microm/s**2').magnitude)
         IselStage.cdll.stagedriver_set_profile_acceleration(self.handle,acc)
 
-    async def waitForTargetReached(self, timeout=30):
-        return await self._isMovingFuture
-
     async def updateStatus(self):
         while True:
             if (not self._isOpen):
@@ -217,22 +214,16 @@ class IselStage(Manipulator):
         self.set_trait('isOnTarget', tr)
         self.set_trait('isMoving', mv)
         
-        if self._movementStopped and not self.isMoving:
-            self.set_trait('status', self.Status.Stopped)
-        elif self.isOnTarget:
-            self.set_trait('status', self.Status.TargetReached)
-        elif self.isMoving:
-            self.set_trait('status', self.Status.Moving)
+        if not self.isMoving:
+            self.set_trait('status', self.Status.Idle)
+            if not self._isMovingFuture.done():
+                self._isMovingFuture.set_result(None)
         else:
-            self.set_trait('status',self.Status.Undefined)
+            self.set_trait('status', self.Status.Moving)
 
         self._isOpen = bool(IselStage.cdll.stagedriver_is_open(self.handle))
         if not self._isOpen:
             logging.info('Connection To IselStage at ' + self.comport + ' Lost')
-
-
-        if not self._isMovingFuture.done() and not self.isMoving:
-            self._isMovingFuture.set_result(self._movementStopped)
 
     def _updateDigitalInputFlags(self):
         ds = IselStage.cdll.stagedriver_digital_inputs(self.handle)
@@ -291,7 +282,6 @@ class IselStage(Manipulator):
         IselStage.cdll.stagedriver_start(self.handle)
         self._isMovingFuture = asyncio.Future()
         await self._isMovingFuture
-        return self.isOnTarget and not self._movementStopped
 
     @traitlets.observe('polarity')
     def setPolarity(self,pol):
@@ -331,9 +321,9 @@ class IselStage(Manipulator):
 
     @action("Stop")
     def stop(self):
-        self._movementStopped = True
         IselStage.cdll.stagedriver_stop(self.handle)
         IselStage.cdll.stagedriver_stop_background_actions(self.handle)
+        self._isMovingFuture.cancel()
 
 if __name__ == '__main__':
 
