@@ -117,7 +117,8 @@ class Hydra(Manipulator):
         await super().__aenter__()
 
         if self.transport is None:
-            raise RuntimeError("Can't initialize the Hydra when no connection was made!")
+            raise RuntimeError("Can't initialize the Hydra when no connection "
+                               "was made!")
 
         await self.initialize()
         self._updateFuture = ensure_weakly_binding_future(self.updateStatus)
@@ -148,13 +149,8 @@ class Hydra(Manipulator):
     async def singleUpdate(self):
         self._status = self.StatusBits(await self._raw.nst(type=int))
         self.set_trait('value', Q_(await self._raw.np(type=float), 'mm'))
-        self.set_trait('numberParamStack', await self._raw.gsp(includeAxis=False, type=int))
-
-    def _buildHydraCommand(self,command,*args):
-        if len(args)==0:
-            return str(self.axis) + ' ' + command + ' '
-        else:
-            return ' '.join([str(x) for x in args]) + ' ' + str(self.axis) + ' ' + command + ' '
+        self.set_trait('numberParamStack',
+                       await self._raw.gsp(includeAxis=False, type=int))
 
     @action('Calibrate')
     async def calibrationMove(self):
@@ -184,7 +180,7 @@ class Hydra(Manipulator):
 
     @action('Clear Stack',group='Restart after Failure')
     def clearStack(self):
-        '''in case of some not finished execution, clearing the stack is possible'''
+        '''Clears the controller's internal command and parameter stack'''
         logging.debug('Hydra: Command stack cleared')
         self._raw.clear()
 
@@ -200,7 +196,8 @@ class Hydra(Manipulator):
         else:
             await self.moveTo(start + Q_(0.75,'mm'), velocity)
 
-        res = await self.configureTrigger(self._trigStep, self._trigStart, self._trigStop)
+        res = await self.configureTrigger(self._trigStep, self._trigStart,
+                                          self._trigStop)
 
     @action('Stop')
     async def stop(self):
@@ -245,7 +242,8 @@ if __name__ == '__main__':
     loop = asyncio.get_event_loop()
 
     async def run():
-        transport, hydra = await loop.create_connection(Hydra, 'localhost', 4000)
+        transport, hydra = await loop.create_connection(Hydra, 'localhost',
+                                                        4000)
 
         async with hydra:
             await asyncio.sleep(4)
