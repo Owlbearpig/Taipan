@@ -18,7 +18,7 @@ from queue import Queue
 
 class Hydra(Manipulator):
 
-    class StatusBits(enum.IntFlag):
+    class StatusBits(enum.Enum):
         AxisMoving = 1 << 0
         ManualMove = 1 << 1
         MachineError = 1 << 2
@@ -86,7 +86,7 @@ class Hydra(Manipulator):
         self._status = 0x0
         self.setPreferredUnits(ureg.mm, ureg.mm / ureg.s)
 
-        self._isMovingFuture = self._loop.create_future()
+        self._isMovingFuture = asyncio.Future()
         self._isMovingFuture.set_result(None)
 
         self._raw = Hydra.HydraRaw(self)
@@ -150,12 +150,12 @@ class Hydra(Manipulator):
             await asyncio.sleep(0.1)
 
     async def singleUpdate(self):
-        self._status = self.StatusBits(await self._raw.nst(type=int))
+        self._status = await self._raw.nst(type=int)
         self.set_trait('value', Q_(await self._raw.np(type=float), 'mm'))
         self.set_trait('numberParamStack',
                        await self._raw.gsp(includeAxis=False, type=int))
 
-        if (not bool(self._status & self.StatusBits.AxisMoving) and
+        if (not bool(self._status & self.StatusBits.AxisMoving.value) and
             not self._isMovingFuture.done()):
                 self._isMovingFuture.set_result(None)
 
@@ -167,7 +167,7 @@ class Hydra(Manipulator):
         logging.debug('Hydra: Calibration Move Triggered')
         self._raw.ncal()
         if self._isMovingFuture.done():
-            self._isMovingFuture = self._loop.create_future()
+            self._isMovingFuture = asyncio.Future()
         await self._isMovingFuture
 
     @action('Auto Detect Range')
@@ -176,7 +176,7 @@ class Hydra(Manipulator):
         logging.debug('Hydra: Range Move Triggered')
         self._raw.nrm()
         if self._isMovingFuture.done():
-            self._isMovingFuture = self._loop.create_future()
+            self._isMovingFuture = asyncio.Future()
         await self._isMovingFuture
 
     async def reference(self):
@@ -223,7 +223,7 @@ class Hydra(Manipulator):
         self._raw.nm(val.to('mm').magnitude)
 
         if self._isMovingFuture.done():
-            self._isMovingFuture = self._loop.create_future()
+            self._isMovingFuture = asyncio.Future()
         await self._isMovingFuture
 
     async def configureTrigger(self, step, start=None, stop=None):
