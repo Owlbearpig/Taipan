@@ -65,6 +65,7 @@ class DataSaver(DataSink):
                          name="Enabled")
 
     _manipulators = {}
+    _attributes = {}
 
     # from https://msdn.microsoft.com/en-us/library/aa365247
     _forbiddenCharacters = r'"*/:<>?\|'
@@ -85,6 +86,21 @@ class DataSaver(DataSink):
             trait.metadata['help'] += additionalHelpString
         self.add_traits(fileNameTemplate=trait)
 
+    def registerObjectAttribute(self, inst, attr, name=None):
+        if name is None:
+            name = attr
+
+        self._attributes[name] = (inst, attr)
+
+        trait = deepcopy(self.traits()['fileNameTemplate'])
+        additionalHelpString = ('\n{{{}}}: The value of "{}.{}"'
+                                .format(name, str(inst), attr))
+        trait.help += additionalHelpString
+        if 'help' in trait.metadata:
+            trait.metadata['help'] += additionalHelpString
+        self.add_traits(fileNameTemplate=trait)
+
+
     def _getFileName(self):
         date = datetime.now().isoformat().replace(':', '-')
 
@@ -92,9 +108,13 @@ class DataSaver(DataSink):
                        .format(_getManipulatorValueInPreferredUnits(m))
                        for k, m in self._manipulators.items()}
 
+        attributeValues = {k: str(getattr(inst, name))
+                           for k, (inst, name) in self._attributes.items()}
+
         formattedName = self.fileNameTemplate.format(date=date,
                                                      name=self.mainFileName,
-                                                     **manipValues)
+                                                     **manipValues,
+                                                     **attributeValues)
         formattedName += self.extension[self.fileFormat]
         formattedName = formattedName.translate(self._fileNameTranslationTable)
         return str(self.path.joinpath(formattedName))

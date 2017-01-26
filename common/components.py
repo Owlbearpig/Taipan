@@ -91,6 +91,9 @@ class ComponentBase(traitlets.HasTraits):
             if is_component_trait(trait):
                 await trait.get(self).__aexit__(*args)
 
+    def __str__(self):
+        return self.objectName
+
     @property
     def actions(self):
         return self.__actions
