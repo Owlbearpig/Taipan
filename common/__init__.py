@@ -21,6 +21,7 @@ from .components import (action, ComponentBase, DataSource,
                          DAQDevice, DataSink, Manipulator, PostProcessor)
 from .dataset import DataSet
 from .scan import Scan
+from .table import TabularMeasurements
 from .units import ureg, Q_
 
 class TimeoutException(Exception):
