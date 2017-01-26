@@ -109,6 +109,7 @@ class AxisAtController(Manipulator):
     async def __aenter__(self):
         await super().__aenter__()
 
+        await self.send("absol" + str(self.axis))
         self._microstepResolution = await self.queryAxisVariable('mcstp')
         self._updateFuture = ensure_weakly_binding_future(self.updateStatus)
 
