@@ -71,7 +71,6 @@ class AxisAtController(Manipulator):
         super().__init__(objectName=objectName, loop=loop)
         self.connection = connection
         self.axis = axis
-        self._prevStatus = '?'
         self._status = '?'
         self.set_trait('statusMessage', self._StatusMap[self._status])
         self._isMovingFuture = asyncio.Future()
@@ -137,7 +136,6 @@ class AxisAtController(Manipulator):
                 logging.error(traceback.format_exc())
 
     async def singleUpdate(self):
-        self._prevStatus = self._status
         self._status = (await self.send("?astat"))[self.axis - 1]
         self.set_trait('statusMessage', self._StatusMap[self._status])
 
@@ -147,7 +145,6 @@ class AxisAtController(Manipulator):
         self.set_trait('value', cnt)
 
         if (not self._isMovingFuture.done() and
-                self._status != self._prevStatus and
                 self._status not in self._movingStates):
 
             self._isMovingFuture.set_result(not self._movementStopped)
