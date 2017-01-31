@@ -93,7 +93,6 @@ class Goniometer(Manipulator):
     
     
     isMoving = traitlets.Bool(False, read_only=True).tag(group = 'Status')
-    isOnTarget = traitlets.Bool(False, read_only=True).tag(group = 'Status')
     
     startSpeed = Quantity(Q_(0.25,'deg/s')).tag(group = 'Velocity Settings')
     acceleration = Quantity(Q_(0.0125,'deg/s**2')).tag(group = 'Velocity Settings')
@@ -124,9 +123,7 @@ class Goniometer(Manipulator):
         
         self._statusRefresh = 0.1
         self._isMovingFuture = asyncio.Future()
-        self._isMovingFuture.set_result(True)
-        self._movementStopped = True
-        self._targetReached = True
+        self._isMovingFuture.set_result(None)
         self._updateFuture = ensure_weakly_binding_future(self.updateStatus)
 
     async def updateStatus(self):
@@ -147,24 +144,15 @@ class Goniometer(Manipulator):
         self.set_trait('negativeLimitSwitch',bool(ls & 2))
         
         self.set_trait('isMoving',not bool(self.cdll.GetReadyStatus(self.axis)))
-        self.set_trait('isOnTarget',self._targetReached)
         
-        if self._movementStopped and not self.isMoving:
-            self.set_trait('status', self.Status.Stopped)
-        elif self.isOnTarget:
-            self.set_trait('status', self.Status.TargetReached)
-        elif self.isMoving:
+        if self.isMoving:
             self.set_trait('status', self.Status.Moving)
         else:
-            self.set_trait('status', self.Status.Undefined)
+            self.set_trait('status', self.Status.Idle)
+            if not self._isMovingFuture.done():
+                self._isMovingFuture.set_result(None)
 
-        if not self._isMovingFuture.done() and not self.isMoving:
-            self._isMovingFuture.set_result(self._movementStopped)
             
-            
-    async def __aenter__(self):
-        pass
-    
     async def __aexit__(self,*args):
         await super().__aexit__(*args)
         self.stop()
@@ -172,8 +160,8 @@ class Goniometer(Manipulator):
         
     @action("Stop")
     def stop(self,stopMode = Ramping.Ramping):
-        self._movementStopped = True
         self.cdll.StopMotion(self.axis,stopMode.value)
+        self._isMovingFuture.cancel()
     
     @action("Reference")
     async def reference(self):
@@ -187,13 +175,18 @@ class Goniometer(Manipulator):
         self.cdll.SetRunFreeSteps(self.axis,144000)
         
         self.cdll.SearchLS(self.axis,ord('-'))
-        self._movementStopped = False
         
-        self._isMovingFuture = asyncio.Future()
+        if self._isMovingFuture.done():
+            self._isMovingFuture = asyncio.Future()
+
         await self._isMovingFuture
+
         self.cdll.FindLS(self.axis,ord('-'))
         self.cdll.RunLSFree(self.axis,ord('-'))
-        self._isMovingFuture = asyncio.Future()
+
+        if self._isMovingFuture.done():
+            self._isMovingFuture = asyncio.Future()
+
         await self._isMovingFuture
         self.cdll.SetPosition(self.axis,self._degToStep(self.negativeLimitSwitchPosition))
         
@@ -219,7 +212,8 @@ class Goniometer(Manipulator):
         #The Goniometer ignores new position commands, if the stage is moving
         if self.isMoving:
             self.stop()
-            await self._isMovingFuture
+            while self.status != self.Status.Idle:
+                await asyncio.sleep(0)
         
         error = self.cdll.SetDestination(self.axis,self._degToStep(val),ord('a'))
         if error != 0:
@@ -229,19 +223,14 @@ class Goniometer(Manipulator):
         
         self._setSpeedProfile(velocity)
     
-        self._movementStopped = False
         error = self.cdll.StartMotion(self.axis,Goniometer.Ramping.Ramping.value)
         if error != 0:
             logging.info('{} {}: '.format(self,self.axis) + Goniometer.Errors.get(error))
             logging.info('{} {}: Positioning Command ignored'.format(self,self.axis))
             return False
             
-        self._targetReached = False
         self._isMovingFuture = asyncio.Future()
         await self._isMovingFuture
-        if abs(val - self.value) < Q_(1,'deg'):
-            self._targetReached = True
-        return self.isOnTarget and not self._movementStopped
     
     def _degToStep(self,degs):
         return int(degs.to('deg').magnitude*400)

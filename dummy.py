@@ -30,7 +30,7 @@ class DummyManipulator(Manipulator):
 
     def __init__(self):
         super().__init__()
-        self.set_trait('status', Manipulator.Status.TargetReached)
+        self.set_trait('status', Manipulator.Status.Idle)
 
         self.setPreferredUnits(ureg.mm, ureg.mm / ureg.second)
         self.velocity = Q_(1, 'mm/s')
@@ -46,9 +46,15 @@ class DummyManipulator(Manipulator):
 
         values = np.linspace(curVal, val, 50)
         dt = abs(np.mean(np.diff(values)) / velocity)
-        for target in values:
-            await asyncio.sleep(dt)
-            self.set_trait('value', Q_(target, 'mm'))
+
+        self.set_trait('status', Manipulator.Status.Moving)
+
+        try:
+            for target in values:
+                await asyncio.sleep(dt)
+                self.set_trait('value', Q_(target, 'mm'))
+        finally:
+            self.set_trait('status', Manipulator.Status.Idle)
 
     async def configureTrigger(self, step, start=None, stop=None):
         self._step = step
