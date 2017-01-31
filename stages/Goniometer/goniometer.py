@@ -110,6 +110,8 @@ class Goniometer(Manipulator):
                                          read_only=True).tag(group='Status')
     negativeLimitSwitch = traitlets.Bool(False,
                                          read_only=True).tag(group='Status')
+    calibrateToDegree = Quantity(Q_(0, 'deg'), read_only=False)
+    calibrateToDegree.tag(group='Status')
 
     isMoving = traitlets.Bool(False, read_only=True).tag(group='Status')
     isOnTarget = traitlets.Bool(False, read_only=True).tag(group='Status')
@@ -142,8 +144,6 @@ class Goniometer(Manipulator):
         self.set_trait('value', self._stepToDeg(
                                              self.cdll.GetPosition(self.axis)))
         self.velocity = Q_(5, 'deg/s')
-
-        self.config = configparser()
 
         self._statusRefresh = 0.1
         self._isMovingFuture = asyncio.Future()
@@ -199,8 +199,8 @@ class Goniometer(Manipulator):
             return False
 
         self._setSpeedProfile(Q_(5, 'deg/s'))
-        self.cdll.SetRunFreeFrq(self.axis, 500)
-        self.cdll.SetRunFreeSteps(self.axis, 144000)
+        self.cdll.SetRunFreeFrq(self.axis, 100)
+        self.cdll.SetRunFreeSteps(self.axis, 32000)
 
         self.cdll.SearchLS(self.axis, ord('-'))
         self._movementStopped = False
@@ -264,6 +264,12 @@ class Goniometer(Manipulator):
         if abs(val - self.value) < Q_(1, 'deg'):
             self._targetReached = True
         return self.isOnTarget and not self._movementStopped
+
+    @action('Set Calibration')
+    def calibrate(self, value):
+        if value is None:
+            value = self.calibrateToDegree
+        self.cdll.SetPosition(self.axis, self._degToStep(value))
 
     def _degToStep(self, degs):
         return int(degs.to('deg').magnitude*400)
