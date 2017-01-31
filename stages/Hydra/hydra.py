@@ -138,9 +138,6 @@ class Hydra(Manipulator):
         self.clearStack()
         self.set_trait('identification', await self._raw.nidentify(type=str))
 
-        print("CL window size:", await self._raw.getclwindow(type=float))
-        print("CL window time:", await self._raw.getclwintime(type=float))
-
         limits = await self._raw.getnlimit(type=float)
         self._hardwareMinimum = Q_(limits[0], 'mm')
         self._hardwareMaximum = Q_(limits[1], 'mm')
@@ -284,6 +281,14 @@ if __name__ == '__main__':
                                                         4000)
 
         async with hydra:
-            await asyncio.sleep(4)
+            print("Moving to start...")
+            await hydra.moveTo(Q_(20, 'mm'), Q_(10, 'mm/s'))
+            await hydra.configureTrigger(Q_(0.05, 'mm'), Q_(21, 'mm'), Q_(29, 'mm'))
+            print("Moving to end...")
+            fut = loop.create_task(hydra.moveTo(Q_(30, 'mm'), Q_(5, 'mm/s')))
+            while not fut.done():
+                print("Position:", hydra.value)
+                await asyncio.sleep(0.5)
+            print("Done.")
 
     loop.run_until_complete(run())
