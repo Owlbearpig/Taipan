@@ -26,7 +26,6 @@ import enum
 import traitlets
 import logging
 import os
-import configparser
 from asyncioext import ensure_weakly_binding_future
 
 
@@ -103,9 +102,9 @@ class Goniometer(Manipulator):
         1350: 'speed value too low',
         9000: 'Axis not ready'
     }
+
     isDebug = traitlets.Bool(True, read_only=False)
     connection = None
-
     positiveLimitSwitch = traitlets.Bool(False,
                                          read_only=True).tag(group='Status')
     negativeLimitSwitch = traitlets.Bool(False,
@@ -114,7 +113,6 @@ class Goniometer(Manipulator):
     calibrateToDegree.tag(group='Status')
 
     isMoving = traitlets.Bool(False, read_only=True).tag(group='Status')
-    isOnTarget = traitlets.Bool(False, read_only=True).tag(group='Status')
     startSpeed = Quantity(Q_(0.25, 'deg/s')).tag(group='Velocity Settings')
     acceleration = Quantity(Q_(0.0125, 'deg/s**2'))
     acceleration.tag(group='Velocity Settings')
@@ -147,9 +145,7 @@ class Goniometer(Manipulator):
 
         self._statusRefresh = 0.1
         self._isMovingFuture = asyncio.Future()
-        self._isMovingFuture.set_result(True)
-        self._movementStopped = True
-        self._targetReached = True
+        self._isMovingFuture.set_result(None)
         self._updateFuture = ensure_weakly_binding_future(self.updateStatus)
 
     async def updateStatus(self):
@@ -165,21 +161,15 @@ class Goniometer(Manipulator):
         ls = self.cdll.GetLSStatus(self.axis)
         self.set_trait('positiveLimitSwitch', bool(ls & 1))
         self.set_trait('negativeLimitSwitch', bool(ls & 2))
+
         self.set_trait('isMoving',
                        not bool(self.cdll.GetReadyStatus(self.axis)))
-        self.set_trait('isOnTarget', self._targetReached)
-
-        if self._movementStopped and not self.isMoving:
-            self.set_trait('status', self.Status.Stopped)
-        elif self.isOnTarget:
-            self.set_trait('status', self.Status.TargetReached)
-        elif self.isMoving:
+        if self.isMoving:
             self.set_trait('status', self.Status.Moving)
         else:
-            self.set_trait('status', self.Status.Undefined)
-
-        if not self._isMovingFuture.done() and not self.isMoving:
-            self._isMovingFuture.set_result(self._movementStopped)
+            self.set_trait('status', self.Status.Idle)
+            if not self._isMovingFuture.done():
+                self._isMovingFuture.set_result(None)
 
     async def __aexit__(self, *args):
         await super().__aexit__(*args)
@@ -187,9 +177,9 @@ class Goniometer(Manipulator):
         self._updateFuture.cancel()
 
     @action("Stop")
-    async def stop(self, stopMode=Ramping.Ramping):
-        self._movementStopped = True
+    def stop(self, stopMode=Ramping.Ramping):
         self.cdll.StopMotion(self.axis, stopMode.value)
+        self._isMovingFuture.cancel()
 
     @action("Reference")
     async def reference(self):
@@ -203,14 +193,16 @@ class Goniometer(Manipulator):
         self.cdll.SetRunFreeSteps(self.axis, 32000)
 
         self.cdll.SearchLS(self.axis, ord('-'))
-        self._movementStopped = False
 
         self._isMovingFuture = asyncio.Future()
         await self._isMovingFuture
+
         self.cdll.FindLS(self.axis, ord('-'))
         self.cdll.RunLSFree(self.axis, ord('-'))
+
         self._isMovingFuture = asyncio.Future()
         await self._isMovingFuture
+
         self.cdll.SetPosition(self.axis, 0)
 
     def _setSpeedProfile(self, velocity):
@@ -236,10 +228,12 @@ class Goniometer(Manipulator):
         # The Goniometer ignores new position commands, if the stage is moving
         if self.isMoving:
             self.stop()
-            await self._isMovingFuture
+            while self.status != self.Status.Idle:
+                await asyncio.sleep(0)
 
-        error = self.cdll.SetDestination(self.axis,
-                                         self._degToStep(val), ord('a'))
+        error = self.cdll.SetDestination(self.axis, self._degToStep(val),
+                                         ord('a'))
+
         if error != 0:
             logging.error('{} {}: '.format(self, self.axis) +
                           Goniometer.Errors.get(error))
@@ -248,7 +242,7 @@ class Goniometer(Manipulator):
             return False
 
         self._setSpeedProfile(velocity)
-        self._movementStopped = False
+
         error = self.cdll.StartMotion(self.axis,
                                       Goniometer.Ramping.Ramping.value)
         if error != 0:
@@ -258,12 +252,8 @@ class Goniometer(Manipulator):
                           .format(self, self.axis))
             return False
 
-        self._targetReached = False
         self._isMovingFuture = asyncio.Future()
         await self._isMovingFuture
-        if abs(val - self.value) < Q_(1, 'deg'):
-            self._targetReached = True
-        return self.isOnTarget and not self._movementStopped
 
     @action('Set Calibration')
     def calibrate(self, value):

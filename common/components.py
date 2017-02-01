@@ -91,6 +91,9 @@ class ComponentBase(traitlets.HasTraits):
             if is_component_trait(trait):
                 await trait.get(self).__aexit__(*args)
 
+    def __str__(self):
+        return self.objectName
+
     @property
     def actions(self):
         return self.__actions
@@ -163,14 +166,13 @@ class Manipulator(ComponentBase):
 
     class Status(enum.Enum):
         Undefined = 0
-        TargetReached = 1
+        Idle = 1
         Moving = 2
         Error = 3
-        Stopped = 4
 
-    velocity = Quantity(Q_(1)).tag(prettyName="Velocity")
-    value = Quantity(Q_(0), read_only=True).tag(prettyName="Value")
-    targetValue = Quantity(Q_(0)).tag(prettyName="Target value")
+    velocity = Quantity(Q_(1)).tag(name="Velocity")
+    value = Quantity(Q_(0), read_only=True).tag(name="Value")
+    targetValue = Quantity(Q_(0)).tag(name="Target value")
     status = traitlets.Enum(Status, default_value=Status.Undefined,
                             read_only=True)
 
@@ -204,30 +206,6 @@ class Manipulator(ComponentBase):
     @traitlets.observe("targetValue")
     def _targetValueObserver(self, change):
         self._loop.create_task(self.moveTo(change['new']))
-
-    async def waitForTargetReached(self, timeout=30):
-        """ Wait for the Manipulator's status to become ``TargetReached``.
-        Throws a TimeoutException if the method has been waiting for longer
-        than ``timeout`` seconds.
-
-        The default implementation simply polls the ``status`` property every
-        100 ms. Subclasses can implement a more efficient waiting method.
-
-        Parameters
-        ----------
-        timeout (numeric) : The time in seconds after which the method throws a
-        TimeoutException.
-        """
-        waited = 0
-        while self.status != self.Status.TargetReached and waited < timeout:
-            await asyncio.sleep(0.1)
-            waited += 0.1
-
-        if (self.status != self.Status.TargetReached):
-            raise asyncio.TimeoutError("Timed out after waiting %s seconds for"
-                                       " the manipulator %s to reach the "
-                                       "target value." %
-                                       (str(timeout), str(self)))
 
     async def beginScan(self, start, stop, velocity=None):
         """ Moves the manipulator to the starting value of a following

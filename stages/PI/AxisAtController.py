@@ -58,8 +58,7 @@ class AxisAtController(Manipulator):
         self._status = 0x0
         self._isReferenced = False
         self._isMovingFuture = asyncio.Future()
-        self._isMovingFuture.set_result(True)
-        self._movementStopped = True
+        self._isMovingFuture.set_result(None)
         self.setPreferredUnits(ureg.mm, ureg.mm / ureg.s)
 
     async def __aenter__(self):
@@ -124,20 +123,14 @@ class AxisAtController(Manipulator):
                        bool(self._status & self.StatusBits.Moving.value) or
                        self.isReferencing)
 
-        if self._movementStopped and not self.isMoving:
-            self.set_trait('status', self.Status.Stopped)
-        elif self.isOnTarget:
-            self.set_trait('status', self.Status.TargetReached)
-        elif self.isMoving:
+        if self.isMoving:
             self.set_trait('status', self.Status.Moving)
         else:
-            self.set_trait('status', self.Status.Undefined)
+            self.set_trait('status', self.Status.Idle)
 
         if not self._isMovingFuture.done() and not self.isMoving:
-            self._isMovingFuture.set_result(self._movementStopped)
+            self._isMovingFuture.set_result(None)
 
-    async def waitForTargetReached(self, timeout=30):
-        return await self._isMovingFuture
 
     async def send(self, command, *args, includeAxis=True):
         """ Send a command to the controller. The axis ID will automatically
@@ -214,11 +207,11 @@ class AxisAtController(Manipulator):
 
         await self.send("VEL", velocity.to('mm/s').magnitude)
 
-        self._movementStopped = False
         await self.send("MOV", val.to('mm').magnitude)
         self._isMovingFuture = asyncio.Future()
         await self._isMovingFuture
-        return self.isOnTarget and not self._movementStopped
+
+        return self.isOnTarget
 
     # 0.75 mm buffer for acceleration and proper trigger position
     async def beginScan(self, start, stop, velocity=None):
@@ -231,12 +224,13 @@ class AxisAtController(Manipulator):
             await self.moveTo(start + Q_(0.75, 'mm'), velocity)
 
     def stop(self):
-        self._movementStopped = True
         asyncio.ensure_future(self.send("HLT"))
+
+        if not self._isMovingFuture.done():
+            self._isMovingFuture.cancel()
 
     @action("Home to ref. switch")
     async def reference(self):
-        self._movementStopped = False
         await self.send("FRF")
         self._isMovingFuture = asyncio.Future()
         await self._isMovingFuture

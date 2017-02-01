@@ -71,11 +71,10 @@ class AxisAtController(Manipulator):
         super().__init__(objectName=objectName, loop=loop)
         self.connection = connection
         self.axis = axis
-        self._prevStatus = '?'
         self._status = '?'
         self.set_trait('statusMessage', self._StatusMap[self._status])
         self._isMovingFuture = asyncio.Future()
-        self._isMovingFuture.set_result(True)
+        self._isMovingFuture.set_result(None)
 
         self.prefPosUnit = (ureg.count / pitch).units
         self.prefVelocUnit = (ureg.count / ureg.s / pitch).units
@@ -109,6 +108,7 @@ class AxisAtController(Manipulator):
     async def __aenter__(self):
         await super().__aenter__()
 
+        await self.send("absol" + str(self.axis))
         self._microstepResolution = await self.queryAxisVariable('mcstp')
         self._updateFuture = ensure_weakly_binding_future(self.updateStatus)
 
@@ -136,7 +136,6 @@ class AxisAtController(Manipulator):
                 logging.error(traceback.format_exc())
 
     async def singleUpdate(self):
-        self._prevStatus = self._status
         self._status = (await self.send("?astat"))[self.axis - 1]
         self.set_trait('statusMessage', self._StatusMap[self._status])
 
@@ -145,17 +144,13 @@ class AxisAtController(Manipulator):
             cnt = cnt.to(self.prefPosUnit)
         self.set_trait('value', cnt)
 
-        if (not self._isMovingFuture.done() and
-                self._status != self._prevStatus and
-                self._status not in self._movingStates):
+        if self._status not in self._movingStates:
+            self.set_trait('status', self.Status.Idle)
+        else:
+            self.set_trait('status', self.Status.Moving)
 
-            self._isMovingFuture.set_result(not self._movementStopped)
-            if self._movementStopped:
-                self.set_trait('status', self.Status.Stopped)
-            else:
-                self.set_trait('status', self.Status.TargetReached)
-
-            self._movementStopped = False
+        if not self._isMovingFuture.done():
+            self._isMovingFuture.set_result(None)
 
         errCode = await self.send("?err")
         if (errCode != 0):
@@ -227,12 +222,11 @@ class AxisAtController(Manipulator):
 
         return await self._isMovingFuture
 
-    async def waitForTargetReached(self, timeout=30):
-        return await self._isMovingFuture
-
     @action("Halt", priority=0)
     async def halt(self):
-        self._movementStopped = True
+        if not self._isMovingFuture.done():
+            self._isMovingFuture.cancel()
+
         await self.send('stop' + str(self.axis))
 
     @action("Set Position to zero", priority=1)
