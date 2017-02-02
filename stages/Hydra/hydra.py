@@ -7,6 +7,7 @@ import enum
 import traitlets
 from common import ureg, Q_
 from queue import Queue
+from math import ceil
 
 
 '''
@@ -253,7 +254,11 @@ class Hydra(Manipulator):
         start = start.to('mm').magnitude
         stop = stop.to('mm').magnitude
 
-        N = int((stop - start) / step) + 1
+        # number of trigger events
+        N = int(ceil((stop - start) / step))
+
+        # actual stop position
+        stop = start + (N - 1) * step
 
         output = 1
 
@@ -273,7 +278,7 @@ class Hydra(Manipulator):
         Nreal = paras[2]
         self._trigStart = Q_(paras[0], 'mm')
         self._trigStop = Q_(paras[1], 'mm')
-        self._trigStep = (self._trigStop - self._trigStart) / Nreal
+        self._trigStep = (self._trigStop - self._trigStart) / (Nreal - 1)
 
         return (self._trigStep, self._trigStart, self._trigStop)
 
