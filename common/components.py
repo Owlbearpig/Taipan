@@ -183,6 +183,8 @@ class Manipulator(ComponentBase):
         self._trigStep = Q_(0)
         self.__original_class = self.__class__
 
+        self.__blockTargetValueUpdate = False
+
     def setPreferredUnits(self, units, velocityUnits):
         self.__class__ = self.__original_class
 
@@ -205,7 +207,8 @@ class Manipulator(ComponentBase):
 
     @traitlets.observe("targetValue")
     def _targetValueObserver(self, change):
-        self._loop.create_task(self.moveTo(change['new']))
+        if not self.__blockTargetValueUpdate:
+            self._loop.create_task(self.moveTo(change['new']))
 
     async def beginScan(self, start, stop, velocity=None):
         """ Moves the manipulator to the starting value of a following
@@ -231,7 +234,9 @@ class Manipulator(ComponentBase):
         await self.moveTo(start, velocity)
 
     async def moveTo(self, val: float, velocity=None):
-        pass
+        self.__blockTargetValueUpdate = True
+        self.targetValue = val
+        self.__blockTargetValueUpdate = False
 
     async def configureTrigger(self, step, start=None, stop=None):
         """ Configure the trigger output.

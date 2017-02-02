@@ -7,6 +7,7 @@ import enum
 import traitlets
 from common import ureg, Q_
 from queue import Queue
+from math import ceil
 
 
 '''
@@ -111,7 +112,8 @@ class Hydra(Manipulator):
 
             if not self._pendingReplies.empty():
                 fut = self._pendingReplies.get()
-                fut.set_result(self._buffer[:i+1].strip())
+                if not fut.done():
+                    fut.set_result(self._buffer[:i+1].strip())
 
             self._buffer = self._buffer[i+1:]
 
@@ -143,10 +145,15 @@ class Hydra(Manipulator):
         self._hardwareMaximum = Q_(limits[1], 'mm')
         self.velocity = Q_(await self._raw.gnv(type=float), 'mm/s')
 
+        # 500 mm/s accelleration should be good enough
+        self._raw.sna(500)
+
     async def updateStatus(self):
         while True:
             await self.singleUpdate()
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.01)
+
+    _eps = Q_(0.0001, 'mm')
 
     async def singleUpdate(self):
         self._status = await self._raw.nst(type=int)
@@ -154,14 +161,18 @@ class Hydra(Manipulator):
         self.set_trait('numberParamStack',
                        await self._raw.gsp(includeAxis=False, type=int))
 
-        if (not bool(self._status & self.StatusBits.AxisMoving.value) and
-            not self._isMovingFuture.done()):
-                self._isMovingFuture.set_result(None)
-
         self.set_trait('status',
                        self.Status.Moving
                        if bool(self._status & self.StatusBits.AxisMoving.value)
                        else self.Status.Idle)
+
+        # We need to check the position error as well: if a status update
+        # follows too quickly on a "move" command, the changed state is not yet
+        # reflected in the status bits.
+        if (self.status != self.Status.Moving and
+            abs(self.value.to('mm') - self.targetValue.to('mm')) < self._eps and
+            not self._isMovingFuture.done()):
+                self._isMovingFuture.set_result(None)
 
 
     @action('Calibrate')
@@ -222,21 +233,19 @@ class Hydra(Manipulator):
         self._isMovingFuture.cancel()
 
     async def moveTo(self, val: float, velocity=None):
-        if self.status == self.Status.Moving:
-            raise RuntimeError("Move already in progress")
-
-        logging.debug('Hydra: Move To {:.3f~}'.format(val.to('mm')))
+        await super().moveTo(val, velocity)
 
         if velocity is None:
             velocity = self.velocity
 
-        if self._isMovingFuture.done():
-            self._isMovingFuture = asyncio.Future()
-
         self._raw.snv(velocity.to('mm/s').magnitude)
-        self._raw.nm(val.to('mm').magnitude)
 
-        await self.singleUpdate()
+        if not self._isMovingFuture.done():
+            self._isMovingFuture.cancel()
+
+        self._isMovingFuture = asyncio.Future()
+
+        self._raw.nm(val.to('mm').magnitude)
 
         await self._isMovingFuture
 
@@ -247,7 +256,11 @@ class Hydra(Manipulator):
         start = start.to('mm').magnitude
         stop = stop.to('mm').magnitude
 
-        N = int((stop - start) / step) + 1
+        # number of trigger events
+        N = int(ceil((stop - start) / step))
+
+        # actual stop position
+        stop = start + (N - 1) * step
 
         output = 1
 
@@ -267,7 +280,10 @@ class Hydra(Manipulator):
         Nreal = paras[2]
         self._trigStart = Q_(paras[0], 'mm')
         self._trigStop = Q_(paras[1], 'mm')
-        self._trigStep = (self._trigStop - self._trigStart) / Nreal
+        self._trigStep = (self._trigStop - self._trigStart) / (Nreal - 1)
+
+        logging.debug('Hydra trigger params: N = {}, start = {}, stop = {}'
+                      .format(Nreal, self._trigStart, self._trigStop))
 
         return (self._trigStep, self._trigStart, self._trigStop)
 
