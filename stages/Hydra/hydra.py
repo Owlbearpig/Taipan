@@ -150,6 +150,8 @@ class Hydra(Manipulator):
             await self.singleUpdate()
             await asyncio.sleep(0.01)
 
+    _eps = Q_(0.0001, 'mm')
+
     async def singleUpdate(self):
         self._status = await self._raw.nst(type=int)
         self.set_trait('value', Q_(await self._raw.np(type=float), 'mm'))
@@ -161,7 +163,11 @@ class Hydra(Manipulator):
                        if bool(self._status & self.StatusBits.AxisMoving.value)
                        else self.Status.Idle)
 
-        if (not bool(self._status & self.StatusBits.AxisMoving.value) and
+        # We need to check the position error as well: if a status update
+        # follows too quickly on a "move" command, the changed state is not yet
+        # reflected in the status bits.
+        if (self.status != self.Status.Moving and
+            abs(self.value - self.targetValue) < self._eps and
             not self._isMovingFuture.done()):
                 self._isMovingFuture.set_result(None)
 
@@ -223,27 +229,20 @@ class Hydra(Manipulator):
         logging.debug('Hydra: Movement aborted')
         self._isMovingFuture.cancel()
 
-    async def moveTo(self, val: float, velocity=None,
-                     overrideMoveInProgress=False):
-        if overrideMoveInProgress:
-            self.stop()
-        elif self.status == self.Status.Moving:
-            raise RuntimeError("Hydra: Movement still active!")
-
+    async def moveTo(self, val: float, velocity=None):
         await super().moveTo(val, velocity)
-
-        logging.debug('Hydra: Move To {:.3f~}'.format(val.to('mm')))
 
         if velocity is None:
             velocity = self.velocity
 
-        if self._isMovingFuture.done():
-            self._isMovingFuture = asyncio.Future()
-
         self._raw.snv(velocity.to('mm/s').magnitude)
-        self._raw.nm(val.to('mm').magnitude)
 
-        await self.singleUpdate()
+        if not self._isMovingFuture.done():
+            self._isMovingFuture.cancel()
+
+        self._isMovingFuture = asyncio.Future()
+
+        self._raw.nm(val.to('mm').magnitude)
 
         await self._isMovingFuture
 
