@@ -282,6 +282,9 @@ class Hydra(Manipulator):
         self._trigStop = Q_(paras[1], 'mm')
         self._trigStep = (self._trigStop - self._trigStart) / (Nreal - 1)
 
+        logging.debug('Hydra trigger params: N = {}, start = {}, stop = {}'
+                      .format(Nreal, self._trigStart, self._trigStop))
+
         return (self._trigStep, self._trigStart, self._trigStop)
 
 
