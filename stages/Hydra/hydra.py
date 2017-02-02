@@ -145,6 +145,9 @@ class Hydra(Manipulator):
         self._hardwareMaximum = Q_(limits[1], 'mm')
         self.velocity = Q_(await self._raw.gnv(type=float), 'mm/s')
 
+        # 500 mm/s accelleration should be good enough
+        self._raw.sna(500)
+
     async def updateStatus(self):
         while True:
             await self.singleUpdate()
