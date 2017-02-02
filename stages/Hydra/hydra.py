@@ -170,7 +170,7 @@ class Hydra(Manipulator):
         # follows too quickly on a "move" command, the changed state is not yet
         # reflected in the status bits.
         if (self.status != self.Status.Moving and
-            abs(self.value - self.targetValue) < self._eps and
+            abs(self.value.to('mm') - self.targetValue.to('mm')) < self._eps and
             not self._isMovingFuture.done()):
                 self._isMovingFuture.set_result(None)
 
