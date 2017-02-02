@@ -111,7 +111,8 @@ class Hydra(Manipulator):
 
             if not self._pendingReplies.empty():
                 fut = self._pendingReplies.get()
-                fut.set_result(self._buffer[:i+1].strip())
+                if not fut.done():
+                    fut.set_result(self._buffer[:i+1].strip())
 
             self._buffer = self._buffer[i+1:]
 
@@ -146,7 +147,7 @@ class Hydra(Manipulator):
     async def updateStatus(self):
         while True:
             await self.singleUpdate()
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.01)
 
     async def singleUpdate(self):
         self._status = await self._raw.nst(type=int)
@@ -154,14 +155,14 @@ class Hydra(Manipulator):
         self.set_trait('numberParamStack',
                        await self._raw.gsp(includeAxis=False, type=int))
 
-        if (not bool(self._status & self.StatusBits.AxisMoving.value) and
-            not self._isMovingFuture.done()):
-                self._isMovingFuture.set_result(None)
-
         self.set_trait('status',
                        self.Status.Moving
                        if bool(self._status & self.StatusBits.AxisMoving.value)
                        else self.Status.Idle)
+
+        if (not bool(self._status & self.StatusBits.AxisMoving.value) and
+            not self._isMovingFuture.done()):
+                self._isMovingFuture.set_result(None)
 
 
     @action('Calibrate')
@@ -221,9 +222,14 @@ class Hydra(Manipulator):
         logging.debug('Hydra: Movement aborted')
         self._isMovingFuture.cancel()
 
-    async def moveTo(self, val: float, velocity=None):
-        if self.status == self.Status.Moving:
-            raise RuntimeError("Move already in progress")
+    async def moveTo(self, val: float, velocity=None,
+                     overrideMoveInProgress=False):
+        if overrideMoveInProgress:
+            self.stop()
+        elif self.status == self.Status.Moving:
+            raise RuntimeError("Hydra: Movement still active!")
+
+        await super().moveTo(val, velocity)
 
         logging.debug('Hydra: Move To {:.3f~}'.format(val.to('mm')))
 
