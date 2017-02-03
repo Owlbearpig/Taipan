@@ -31,9 +31,12 @@ class NIDAQ(DataSource):
     chunkSize = 2000
     sampleRate = 1e6
 
+    readEveryN = 100
+
     currentTask = None
 
     _buf = None
+    _cumBuf = np.zeros(0)
 
     __pendingFutures = []
 
@@ -42,7 +45,7 @@ class NIDAQ(DataSource):
 
     def _everyNCallback(self):
         read = mx.int32()
-        self.currentTask.ReadAnalogF64(self.chunkSize, 0,  # timeout
+        self.currentTask.ReadAnalogF64(self.readEveryN, 0,  # timeout
                                        mx.DAQmx_Val_GroupByScanNumber,
                                        self._buf, self._buf.size,
                                        mx.byref(read), None)
@@ -59,24 +62,31 @@ class NIDAQ(DataSource):
         return 0
 
     def _handleNewChunk(self, chunk):
-        axis = np.arange(len(chunk))
-        chunk = Q_(chunk, 'V')
-        axis = Q_(axis)
-        dataSet = DataSet(chunk, [ axis ])
-        self.set_trait('currentDataSet', dataSet)
+        self._cumBuf = np.concatenate((self._cumBuf, chunk))
 
-        for fut in self.__pendingFutures:
-            if not fut.done():
-                fut.set_result(dataSet)
+        while len(self._cumBuf) >= self.chunkSize:
+            properChunk = self._cumBuf[:self.chunkSize]
+            self._cumBuf = self._cumBuf[self.chunkSize:]
 
-        self.__pendingFutures = []
+            axis = np.arange(len(properChunk))
+
+            properChunk = Q_(properChunk, 'V')
+            axis = Q_(axis)
+            dataSet = DataSet(properChunk, [ axis ])
+            self.set_trait('currentDataSet', dataSet)
+
+            for fut in self.__pendingFutures:
+                if not fut.done():
+                    fut.set_result(dataSet)
+
+            self.__pendingFutures = []
 
     @action('Start task')
     def start(self):
         if self.active or self.currentTask is not None:
             raise RuntimeError("Data source is already running")
 
-        self._buf = np.zeros(self.chunkSize)
+        self._buf = np.zeros(self.readEveryN)
         self.currentTask = mx.Task()
         self.currentTask.EveryNCallback = self._everyNCallback
         self.currentTask.DoneCallback = self._taskDone
@@ -88,11 +98,11 @@ class NIDAQ(DataSource):
         self.currentTask.CfgSampClkTiming(
                 self.clockSource, self.sampleRate,
                 mx.DAQmx_Val_Rising, mx.DAQmx_Val_ContSamps,
-                10 * self.chunkSize # buffer size
+                10 * self.chunkSize # suggested buffer size
         )
 
         self.currentTask.AutoRegisterEveryNSamplesEvent(
-                mx.DAQmx_Val_Acquired_Into_Buffer, self.chunkSize, 0)
+                mx.DAQmx_Val_Acquired_Into_Buffer, self.readEveryN, 0)
 
         self.currentTask.AutoRegisterDoneEvent(0)
         self.currentTask.StartTask()
