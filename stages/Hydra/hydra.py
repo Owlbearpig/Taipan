@@ -1,21 +1,13 @@
 from common import Manipulator, action
 import asyncio
-import logging, warnings
-from threading import Lock
-from asyncioext import threaded_async, ensure_weakly_binding_future
+import logging
+from asyncioext import ensure_weakly_binding_future
 import enum
 import traitlets
 from common import ureg, Q_
 from queue import Queue
 from math import ceil
 
-
-'''
-0: Controler
-1: Axis 1
-2: Axis 2 not connected!
-3: Sensor
-'''
 
 class Hydra(Manipulator):
 
@@ -277,10 +269,14 @@ class Hydra(Manipulator):
 
         # ask for the actually set start, stop and step parameters
         paras = await self._raw.gettrpara(type=float)
-        Nreal = paras[2]
+        Nreal = int(paras[2])
         self._trigStart = Q_(paras[0], 'mm')
         self._trigStop = Q_(paras[1], 'mm')
         self._trigStep = (self._trigStop - self._trigStart) / (Nreal - 1)
+
+        Ntest = int(ceil((self._trigStop - self._trigStart) / self._trigStep))
+
+        self._trigStep /= Nreal / Ntest
 
         logging.debug('Hydra trigger params: N = {}, start = {}, stop = {}'
                       .format(Nreal, self._trigStart, self._trigStop))
