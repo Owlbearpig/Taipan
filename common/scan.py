@@ -46,16 +46,19 @@ class Scan(DataSource):
                            min=Q_(0)).tag(
                            name="Step width", priority=2)
 
+    overscan = Quantity(Q_(0), help="The offset from the boundary positions",
+                               min=Q_(0)).tag(name="Overscan", priority=3)
+
     scanVelocity = Quantity(Q_(0), help="The velocity of the Manipulator used "
                                         "during the scan").tag(
-                                   name="Scan velocity", priority=3)
+                                   name="Scan velocity", priority=4)
 
     positioningVelocity = Quantity(Q_(0), help="The velocity of the "
                                                "Manipulator during positioning"
                                                " movement (not during data "
                                                "acquisiton)").tag(
                                           name="Positioning velocity",
-                                          priority=4)
+                                          priority=5)
 
     retractAtEnd = Bool(False, help="Retract the manipulator to the start "
                                     "position at the end of the scan.").tag(
@@ -101,7 +104,8 @@ class Scan(DataSource):
         if manip is None:
             return
 
-        traitsWithBaseUnits = ['minimumValue', 'maximumValue', 'step']
+        traitsWithBaseUnits = ['minimumValue', 'maximumValue', 'step',
+                               'overscan']
         traitsWithVelocityUnits = ['positioningVelocity', 'scanVelocity']
 
         baseUnits = manip.trait_metadata('value', 'preferred_units')
@@ -142,17 +146,42 @@ class Scan(DataSource):
 
         return updateProgress
 
-    async def _doContinuousScan(self, axis, step):
-        await self.manipulator.beginScan(axis[0], axis[-1],
-                                         self.positioningVelocity)
+    async def _confTriggerAndRealAxis(self, min, max, step):
+        stepUnits = step.units
+
+        realStep, realStart, realStop = \
+            await self.manipulator.configureTrigger(step, min, max)
+
+        realStep = realStep.to(stepUnits)
+        realStart = realStart.to(stepUnits)
+        realStop = realStop.to(stepUnits)
+
+        axis = np.arange(realStart.magnitude,
+                         realStop.magnitude,
+                         realStep.magnitude) * stepUnits
+
+        return axis
+
+    async def _doContinuousScan(self, axis):
+        overscan = self.overscan
+
+        # ensure correct overscan sign
+        if axis[1].magnitude - axis[0].magnitude < 0:
+            overscan = -overscan
+
+        await self.manipulator.moveTo(axis[0] - overscan,
+                                      self.positioningVelocity)
 
         updater = self.updateProgress(axis)
         try:
             self.manipulator.observe(updater, 'value')
 
             await self.dataSource.start()
-            # move half a step over the final position to ensure a trigger
-            await self.manipulator.moveTo(axis[-1] + step / 2.0,
+
+            axis = await self._confTriggerAndRealAxis(axis[0], axis[-1],
+                                                      axis[1] - axis[0])
+
+            await self.manipulator.moveTo(axis[-1] + overscan,
                                           self.scanVelocity)
             await self.dataSource.stop()
 
@@ -176,9 +205,10 @@ class Scan(DataSource):
             if (dataSet.data.shape[0] < expectedLength):
                 dataSet.axes[0].resize(dataSet.data.shape[0])
             else:
+                dataSet.data = dataSet.data.copy()
                 dataSet.data.resize((expectedLength,) + dataSet.data.shape[1:])
 
-        return dataSet
+        return dataSet, axis
 
     async def _doSteppedScan(self, axis):
         accumulator = []
@@ -250,21 +280,13 @@ class Scan(DataSource):
             if (max < min):
                 step = -step
 
-            realStep, realStart, realStop = \
-                await self.manipulator.configureTrigger(step, min, max)
-
-            realStep = realStep.to(stepUnits)
-            realStart = realStart.to(stepUnits)
-            realStop = realStop.to(stepUnits)
-
-            axis = np.arange(realStart.magnitude,
-                             realStop.magnitude,
-                             realStep.magnitude) * stepUnits
+            axis = (np.arange(min.magnitude, max.magnitude, step.magnitude)
+                        * stepUnits)
 
             dataSet = None
 
             if self.continuousScan:
-                dataSet = await self._doContinuousScan(axis, realStep)
+                dataSet, axis = await self._doContinuousScan(axis)
             else:
                 dataSet = await self._doSteppedScan(axis)
 
@@ -280,7 +302,7 @@ class Scan(DataSource):
             self.manipulator.stop()
             if self.retractAtEnd:
                 self._loop.create_task(
-                    self.manipulator.moveTo(realStart,
+                    self.manipulator.moveTo(axis[0],
                                             self.positioningVelocity)
                 )
 
