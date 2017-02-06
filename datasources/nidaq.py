@@ -65,8 +65,8 @@ class NIDAQ(DataSource):
         self._cumBuf = np.concatenate((self._cumBuf, chunk))
 
         while len(self._cumBuf) >= self.chunkSize:
-            properChunk = self._cumBuf[:self.chunkSize]
-            self._cumBuf = self._cumBuf[self.chunkSize:]
+            properChunk = self._cumBuf[:self.chunkSize].copy()
+            self._cumBuf = self._cumBuf[self.chunkSize:].copy()
 
             axis = np.arange(len(properChunk))
 
@@ -82,7 +82,7 @@ class NIDAQ(DataSource):
             self.__pendingFutures = []
 
     @action('Start task')
-    def start(self):
+    def startTask(self):
         if self.active or self.currentTask is not None:
             raise RuntimeError("Data source is already running")
 
@@ -109,18 +109,16 @@ class NIDAQ(DataSource):
         self.set_trait("active", True)
 
     @action('Stop task')
-    def stop(self):
+    def stopTask(self):
         if self.currentTask is not None:
             self.currentTask.ClearTask()
             self.currentTask = None
             self.set_trait("active", False)
+            self._cumBuf = np.zeros(0)
 
     async def readDataSet(self):
-        fut = self._loop.create_future()
-        self.__pendingFutures.append(fut)
-        dataSet = await fut
-        self._dataSetReady(dataSet)
-        return dataSet
+        dset = self.currentDataSet
+        return dset
 
 if __name__ == '__main__':
 
