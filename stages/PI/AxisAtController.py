@@ -108,6 +108,8 @@ class AxisAtController(Manipulator):
             await self.singleUpdate()
 
     async def singleUpdate(self):
+        movFut = self._isMovingFuture
+
         self._status = await self.send("SRG?", 1)
 
         self.set_trait('value', Q_(await self.send(b'POS?'), 'mm'))
@@ -128,8 +130,8 @@ class AxisAtController(Manipulator):
         else:
             self.set_trait('status', self.Status.Idle)
 
-        if not self._isMovingFuture.done() and not self.isMoving:
-            self._isMovingFuture.set_result(None)
+        if not movFut.done() and not self.isMoving:
+            movFut.set_result(None)
 
 
     async def send(self, command, *args, includeAxis=True):
