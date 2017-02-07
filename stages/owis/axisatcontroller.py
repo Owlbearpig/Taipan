@@ -136,6 +136,8 @@ class AxisAtController(Manipulator):
                 logging.error(traceback.format_exc())
 
     async def singleUpdate(self):
+        movFut = self._isMovingFuture
+
         self._status = (await self.send("?astat"))[self.axis - 1]
         self.set_trait('statusMessage', self._StatusMap[self._status])
 
@@ -146,11 +148,10 @@ class AxisAtController(Manipulator):
 
         if self._status not in self._movingStates:
             self.set_trait('status', self.Status.Idle)
+            if not movFut.done():
+                movFut.set_result(None)
         else:
             self.set_trait('status', self.Status.Moving)
-
-        if not self._isMovingFuture.done():
-            self._isMovingFuture.set_result(None)
 
         errCode = await self.send("?err")
         if (errCode != 0):
@@ -213,12 +214,12 @@ class AxisAtController(Manipulator):
 
         self.set_trait('status', self.Status.Moving)
 
-        if self._isMovingFuture.done():
-            self._isMovingFuture = asyncio.Future()
-
         await self.setAxisVariable("pvel", int(velocity))
         await self.setAxisVariable("pset", int(val))
         await self.send("pgo" + str(self.axis))
+
+        if self._isMovingFuture.done():
+            self._isMovingFuture = asyncio.Future()
 
         return await self._isMovingFuture
 

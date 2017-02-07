@@ -118,11 +118,13 @@ class TMCL(Manipulator):
         stepPos = await self._get_param(1)
         self.set_trait('value', Q_(self._steps2angle(stepPos), 'deg'))
 
-        if not self._isMovingFuture.done():
+        movFut = self._isMovingFuture
+
+        if not movFut.done():
             # check for target reached
             reached = await self._get_param(8)
-            if reached and not self._isMovingFuture.done():
-                self._isMovingFuture.set_result(None)
+            if reached and not movFut.done():
+                movFut.set_result(None)
 
     async def moveTo(self, val, velocity=None):
         if velocity is None:
@@ -134,9 +136,6 @@ class TMCL(Manipulator):
 
         if not self._isMovingFuture.done():
             self.stop()
-
-        self.set_trait('status', self.Status.Moving)
-        self._isMovingFuture = asyncio.Future()
 
         def _set_status(future):
             self.set_trait('status', self.Status.Idle)
@@ -151,6 +150,10 @@ class TMCL(Manipulator):
 
         # move to target
         await self._mvp(val)
+
+        self.set_trait('status', self.Status.Moving)
+        self._isMovingFuture = asyncio.Future()
+
         await self._isMovingFuture
 
     def stop(self):
