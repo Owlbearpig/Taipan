@@ -11,7 +11,6 @@ import traitlets
 from common import DataSource, DataSet, action, Q_
 from common.traits import DataSet as DataSetTrait, Quantity as QuantityTrait
 import PyDAQmx as mx
-import functools
 
 
 class NIDAQ(DataSource):
@@ -52,8 +51,8 @@ class NIDAQ(DataSource):
 
         # this callback is called from another thread, so we'll post a queued
         # call to the event loop
-        self._loop.call_soon_threadsafe(
-                functools.partial(self._handleNewChunk, self._buf.copy()))
+        chunk = self._buf.copy()
+        self._loop.call_soon_threadsafe(lambda: self._handleNewChunk(chunk))
 
         return 0
 
