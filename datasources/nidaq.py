@@ -11,6 +11,7 @@ import traitlets
 from common import DataSource, DataSet, action, Q_
 from common.traits import DataSet as DataSetTrait, Quantity as QuantityTrait
 import PyDAQmx as mx
+import logging
 
 
 class NIDAQ(DataSource):
@@ -81,7 +82,7 @@ class NIDAQ(DataSource):
             self.__pendingFutures = []
 
     @action('Start task')
-    def startTask(self):
+    async def start(self):
         if self.active or self.currentTask is not None:
             raise RuntimeError("Data source is already running")
 
@@ -108,15 +109,18 @@ class NIDAQ(DataSource):
         self.set_trait("active", True)
 
     @action('Stop task')
-    def stopTask(self):
+    async def stop(self):
         if self.currentTask is not None:
             self.currentTask.ClearTask()
             self.currentTask = None
             self.set_trait("active", False)
             self._cumBuf = np.zeros(0)
+            logging.info("Task stopped.")
 
     async def readDataSet(self):
-        dset = self.currentDataSet
+        fut = self._loop.create_future()
+        self.__pendingFutures.append(fut)
+        dset = await fut
         return dset
 
 if __name__ == '__main__':
