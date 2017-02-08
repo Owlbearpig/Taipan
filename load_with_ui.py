@@ -92,7 +92,10 @@ if __name__ == '__main__':
     theglobals = { '__name__': splitext(basename(filename))[0] }
     exec(compile(open(filename, 'rb').read(), filename, 'exec'), theglobals)
 
-    rootClass = theglobals['AppRoot']
+    if 'AppRoot' not in theglobals:
+        logging.fatal("The script {} does not define an 'AppRoot' callable!".format(filename))
+    else:
+        rootClass = theglobals.get('AppRoot')
 
-    with loop:
-        sys.exit(loop.run_until_complete(run(app, rootClass, loop)))
+        with loop:
+            sys.exit(loop.run_until_complete(run(app, rootClass, loop)))
