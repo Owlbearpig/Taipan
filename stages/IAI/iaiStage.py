@@ -80,6 +80,8 @@ class IAIConnection(ComponentBase):
                                             'ascii'))
 
                 line = self._readline() #read until next '\x03'
+                if len(line) > 16:
+                    line=line[-16:]
 
                 if len(line) < 1 or line[0] != ord('\x02') or \
                 len(line) != 16 or line[-1] != ord('\x03'):
@@ -96,7 +98,7 @@ class IAIConnection(ComponentBase):
                     wrongAnswer = False
 
             return line[:-2].decode('ascii')
-            
+
     def _readline(self):
         eol = b'\x03'
         leneol = len(eol)
