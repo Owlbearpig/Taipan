@@ -147,18 +147,16 @@ class Scan(DataSource):
         return updateProgress
 
     async def _confTriggerAndRealAxis(self, min, max, step):
-        stepUnits = step.units
+        preferredUnits = step.units
 
         realStep, realStart, realStop = \
             await self.manipulator.configureTrigger(step, min, max)
 
-        realStep = realStep.to(stepUnits)
-        realStart = realStart.to(stepUnits)
-        realStop = realStop.to(stepUnits)
-
         axis = np.arange(realStart.magnitude,
                          realStop.magnitude,
-                         realStep.magnitude) * stepUnits
+                         realStep.magnitude) * realStep.units
+
+        axis = axis.to(preferredUnits)
 
         return axis
 
