@@ -270,10 +270,15 @@ class Hydra(Manipulator):
 
         Ntest = int(ceil((self._trigStop - self._trigStart) / self._trigStep))
 
-        self._trigStep /= Nreal / Ntest
+        while Ntest != Nreal:
+            if Ntest < Nreal:
+                self._trigStep *= 0.999
+            else:
+                self._trigStep *= 1.001
+            Ntest = int(ceil((self._trigStop - self._trigStart) / self._trigStep))
 
-        logging.debug('Hydra trigger params: N = {}, start = {}, stop = {}'
-                      .format(Nreal, self._trigStart, self._trigStop))
+        logging.debug('Hydra trigger params: N = {} ({}), start = {}, stop = {}, step = {}'
+                      .format(Nreal, Ntest, self._trigStart, self._trigStop, self._trigStep))
 
         return (self._trigStep, self._trigStart, self._trigStop)
 
