@@ -60,25 +60,20 @@ class IAIConnection(ComponentBase):
             self.serial.close()
 
     def _calculateChecksum(self, command):
-        a = 2**16 - sum(map(ord, command))
-        a = hex(a & 255)
-        BCC = a.split('x')[1]
-
-        BCC = BCC.upper()
-        if len(BCC) == 1:
-            BCC = '0' + BCC
-        return BCC
+        return (2**16 - sum(command)) & 255 
 
     @threaded_async
     def send(self, command):
-        command += self._calculateChecksum(command)
+        if isinstance(command,str):
+            command = bytes(command,'ascii')
+        
+        command += b'%02x'.upper() % self._calculateChecksum(command)
 
         with self._lock:
             wrongAnswer = True
             while wrongAnswer:
                 self.serial.reset_input_buffer()
-                self.serial.write(bytearray('\x02' + command + '\x03',
-                                            'ascii'))
+                self.serial.write(b'\x02' + command + b'\x03')
                 line = self._readline(b'\x02') #read until next \x02
                 if len(line) == 0 or line[-1] != ord('\x02'):
                     logging.warning('{} corrupted Communication, '.format(command) +
@@ -95,10 +90,10 @@ class IAIConnection(ComponentBase):
                     continue
 
                 line = line[:-1] #end of text
-                s = self._calculateChecksum(line[:-2].decode('ascii'))
-                if int(s, 16) != int(line[-2:], 16):
+                s = self._calculateChecksum(line[:-2])
+                if s != int(line[-2:], 16):
                     logging.error('Checksum Error: Expected: {}, got: ' +
-                                  '{}'.format(line[-2:], s))
+                                  '{}'.format(int(line[-2:], 16), s))
                 else:
                     wrongAnswer = False
             print(line)
@@ -172,13 +167,13 @@ class IAIStage(Manipulator):
     isPowerOn = traitlets.Bool(False, read_only=True).tag(group='Status')
     isAlarmState = traitlets.Bool(False, read_only=True).tag(group='Status')
     isMoving = traitlets.Bool(True, read_only=True).tag(group='Status')
-    statusMessage = traitlets.Unicode('', read_only=True).tag(group='Status')
+    statusMessage = traitlets.Unicode('NoError', read_only=True).tag(group='Status')
 
     def __init__(self, connection, axis=0, objectName=None, loop=None):
         super().__init__(objectName, loop)
 
         self.connection = connection
-        self.axis = axis
+        self.axis = b'%x'.upper() & axis
 
         self._identification = None
         self._isMovingFuture = asyncio.Future()
@@ -206,10 +201,10 @@ class IAIStage(Manipulator):
 
     async def singleUpdate(self):
 
-        stat = await self.connection.send(str(self.axis) + 'n0000000000')
+        stat = await self.connection.send(self.axis + b'n0000000000')
         self._parseStatusString(stat)
 
-        pos = await self.connection.send(str(self.axis) + 'R4000074000')
+        pos = await self.connection.send(self.axis + b'R4000074000')
         pos = self._convertPositionTomm(pos[4:])
 
         self.set_trait('isReadyToMove',
@@ -237,58 +232,55 @@ class IAIStage(Manipulator):
 
     @action('Home Stage')
     async def reference(self, motorend=True):
-        command = str(self.axis) + 'o'
+        command = self.axis + b'o'
         if motorend:
-            command += '07'
+            command += b'07'
         else:
-            command += '08'
-        command += '00000000'
+            command += b'08'
+        command += b'00000000'
         await self.connection.send(command)
 
     @action('Enable Servo')
     async def enableServo(self):
         if not self.isServoOn:
-            await self.connection.send(str(self.axis) + 'q1000000000')
+            await self.connection.send(self.axis + b'q1000000000')
         else:
             logging.info('servo was already on')
 
     @action('Disable Servo')
     async def disableServo(self):
         if self.isServoOn:
-            await self.connection.send(str(self.axis) + 'q0000000000')
+            await self.connection.send(self.axis + b'q0000000000')
         else:
             logging.info('Servo was already off')
 
     async def setVelocity(self, velocity=Q_(10, 'mm/s'), acceleration=0.1):
 
         velocity = int(velocity.to('mm/s').magnitude * 300/self._leadpitch)
-        velocity = hex(velocity)[2:].upper()
+        velocity = b'%04x'.upper() % velocity
         if len(velocity) > 4:
             logging.info('IAI {}: velocity too high'.format(self.axis))
-            velocity = '02EE'
-        else:
-            velocity = '0' * (4-len(velocity)) + velocity
-
+            velocity = b'02EE'
+        
         acceleration = int(acceleration * 5883.99/self._leadpitch)
-        acceleration = hex(acceleration)[2:].upper()
+        acceleration = b'%04x'.upper() % acceleration
         if len(acceleration) > 4:
             logging.info('IAI {}: acceleration too high'.format(self.axis))
-            acceleration = '0093'
-        else:
-            acceleration = '0' * (4-len(acceleration)) + acceleration
-        sendstr = str(self.axis) + 'v2' + velocity + acceleration + '0'
+            acceleration = b'0093'
+        
+        sendstr = self.axis + b'v2' + velocity + acceleration + b'0'
         await self.connection.send(sendstr)
 
     async def getVelocity(self):
         #seems not to work ?
         #vel = self.send(str(self.axis) +  'R4000074010')[4:]
-        vel = await self.connection.send(str(self.axis) + 'R4000004040')
+        vel = await self.connection.send(self.axis + b'R4000004040')
         vel = vel[4:]
         vel = Q_(int(vel, 16)/300.0*self._leadpitch, 'mm/s')
         return vel
 
     async def _getLeadPitch(self):
-        res = await self.connection.send(str(self.axis) + 'R4000000170')
+        res = await self.connection.send(self.axis + b'R4000000170')
         sizes = [2.5, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.0, 16.0, 20.0]
         try:
             return sizes[int(res[-1])]
@@ -298,11 +290,11 @@ class IAIStage(Manipulator):
 
     @action('Stop Stage')
     def stop(self):
-        asyncio.ensure_future(self.connection.send(str(self.axis) + 'd0000000000'))
+        asyncio.ensure_future(self.connection.send(self.axis + b'd0000000000'))
 
     @action('Reset Stage')
     async def resetStage(self):
-        await self.connection.send(str(self.axis) + 'r0300000000')
+        await self.connection.send(self.axis + b'r0300000000')
 
     async def moveTo(self, val: float, velocity=None):
         if velocity is not None:
@@ -314,11 +306,11 @@ class IAIStage(Manipulator):
         if self._isMovingFuture.done():
             self._isMovingFuture = asyncio.Future()
 
-        stat = await self.connection.send(str(self.axis) + 'a' + posstr + '00')
+        stat = await self.connection.send(self.axis + b'a' + posstr + b'00')
         self._parseStatusString(stat)
 
         await self._isMovingFuture
-
+    
     def _parseStatusString(self, statusstring):
         ''' 0 'U' answer string
             1 '0' axis number
@@ -343,11 +335,10 @@ class IAIStage(Manipulator):
 
         if position > 0:
             position = int('FFFFFFFF', 16) - position
-        else:
+        else:s
             position = abs(position)
-        position = hex(int(position))[2:].upper()
-        position = '0' * (8-len(position)) + position
-
+        position = b'%08x'.upper() & int(position)
+        
         return position
 
     def printStatus(self):
