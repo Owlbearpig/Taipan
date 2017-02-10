@@ -34,6 +34,7 @@ class IAIConnection(ComponentBase):
         self.serial = Serial()
         self.serial.baudrate = baudRate
         self.serial.port = port
+        self.serial.timeout = 1
         self._lock = Lock()
 
     async def __aenter__(self):
@@ -49,7 +50,7 @@ class IAIConnection(ComponentBase):
         """ Opens the Connection, potentially closing an old Connection
         """
         self.close()
-        self.serial.timeout = 1
+        self.serial.timeout = 0.2
         self.serial.open()
 
     def close(self):
@@ -71,27 +72,50 @@ class IAIConnection(ComponentBase):
     @threaded_async
     def send(self, command):
         command += self._calculateChecksum(command)
+
         with self._lock:
-            corrupted = True
-            while corrupted:
+            wrongAnswer = True
+            while wrongAnswer:
+                self.serial.reset_input_buffer()
                 self.serial.write(bytearray('\x02' + command + '\x03',
                                             'ascii'))
-                result = self.serial.read(16).decode('utf-8')
+                line = self._readline(b'\x02') #read until next \x02
+                if len(line) == 0 or line[-1] != ord('\x02'):
+                    logging.warning('{} corrupted Communication, '.format(command) +
+                                    'Start missing: {}'.format(line))
+                    continue
 
-                if len(result) < 1 or result[0] != '\x02' or \
-                   len(result) != 16 or result[-1] != '\x03':
-                    logging.warning('{} corrupted Communication: {}'.format(
-                                command, result))
+                line = self._readline(b'\x03')
+                if len(line) > 15:
+                    line=line[-15:]
+
+                if len(line) == 0  or len(line) != 15 or line[-1] != ord('\x03'):
+                    logging.warning('{} corrupted Communication, '.format(command) +
+                                    'End missing: {}'.format(line))
+                    continue
+
+                line = line[:-1] #end of text
+                s = self._calculateChecksum(line[:-2].decode('ascii'))
+                if int(s, 16) != int(line[-2:], 16):
+                    logging.error('Checksum Error: Expected: {}, got: ' +
+                                  '{}'.format(line[-2:], s))
                 else:
-                    corrupted = False
+                    wrongAnswer = False
+            print(line)
+            return line[:-2].decode('ascii')
 
-            result = result[1:-1]
-            s = self._calculateChecksum(result[:-2])
-            if int(s, 16) != int(result[-2:], 16):
-                logging.error('Checksum Error: Expected: {}, got: ' +
-                              '{}'.format(result[-2:], s))
-
-            return result[:-2]
+    def _readline(self,eol):
+        leneol = len(eol)
+        line = bytearray()
+        while True:
+            c = self.serial.read(1)
+            if c:
+                line += c
+                if line[-leneol:] == eol:
+                    break
+            else:
+                break
+        return bytes(line)
 
 
 class IAIStage(Manipulator):
@@ -161,15 +185,11 @@ class IAIStage(Manipulator):
 
         self.setPreferredUnits(ureg.mm, ureg.mm / ureg.s)
 
-        self._updateFuture = ensure_weakly_binding_future(self.updateStatus)
-
-        if self.isDebug:
-            print('Name: {} '.format(self.objectName))
-
     async def __aenter__(self):
         await super().__aenter__()
         self._leadpitch = await self._getLeadPitch()
         self.velocity = await self.getVelocity()
+        self._updateFuture = ensure_weakly_binding_future(self.updateStatus)
 
         return self
 
@@ -278,7 +298,7 @@ class IAIStage(Manipulator):
 
     @action('Stop Stage')
     def stop(self):
-        asyncio.ensure_future(self.send(str(self.axis) + 'd0000000000'))
+        asyncio.ensure_future(self.connection.send(str(self.axis) + 'd0000000000'))
 
     @action('Reset Stage')
     async def resetStage(self):
