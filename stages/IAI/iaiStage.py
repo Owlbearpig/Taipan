@@ -26,7 +26,7 @@ from asyncioext import threaded_async, ensure_weakly_binding_future
 import enum
 import logging
 import traitlets
-
+import time
 
 class IAIConnection(ComponentBase):
     def __init__(self, port=None, baudRate=38400):
@@ -67,36 +67,31 @@ class IAIConnection(ComponentBase):
         if isinstance(command,str):
             command = bytes(command,'ascii')
         
-        command += b'%02x'.upper() % self._calculateChecksum(command)
+        command += b'%02X' % self._calculateChecksum(command)
 
         with self._lock:
             wrongAnswer = True
             while wrongAnswer:
+                time.sleep(0.02)
                 self.serial.reset_input_buffer()
                 self.serial.write(b'\x02' + command + b'\x03')
-                line = self._readline(b'\x02') #read until next \x02
-                if len(line) == 0 or line[-1] != ord('\x02'):
-                    logging.warning('{} corrupted Communication, '.format(command) +
-                                    'Start missing: {}'.format(line))
-                    continue
-
+                
                 line = self._readline(b'\x03')
-                if len(line) > 15:
-                    line=line[-15:]
+                if len(line) > 16:
+                    line=line[-16:]
 
-                if len(line) == 0  or len(line) != 15 or line[-1] != ord('\x03'):
-                    logging.warning('{} corrupted Communication, '.format(command) +
+                if len(line) == 0  or len(line) != 16 or line[-1] != 0x03:
+                    logging.debug('{} corrupted Communication, '.format(command) +
                                     'End missing: {}'.format(line))
                     continue
 
-                line = line[:-1] #end of text
+                line = line[1:-1] #end of text
                 s = self._calculateChecksum(line[:-2])
                 if s != int(line[-2:], 16):
-                    logging.error('Checksum Error: Expected: {}, got: ' +
+                    logging.debug('Checksum Error: Expected: {}, got: ' +
                                   '{}'.format(int(line[-2:], 16), s))
                 else:
                     wrongAnswer = False
-            print(line)
             return line[:-2].decode('ascii')
 
     def _readline(self,eol):
@@ -173,7 +168,7 @@ class IAIStage(Manipulator):
         super().__init__(objectName, loop)
 
         self.connection = connection
-        self.axis = b'%x'.upper() & axis
+        self.axis = b'%X' % axis
 
         self._identification = None
         self._isMovingFuture = asyncio.Future()
@@ -257,13 +252,13 @@ class IAIStage(Manipulator):
     async def setVelocity(self, velocity=Q_(10, 'mm/s'), acceleration=0.1):
 
         velocity = int(velocity.to('mm/s').magnitude * 300/self._leadpitch)
-        velocity = b'%04x'.upper() % velocity
+        velocity = b'%04X' % velocity
         if len(velocity) > 4:
             logging.info('IAI {}: velocity too high'.format(self.axis))
             velocity = b'02EE'
         
         acceleration = int(acceleration * 5883.99/self._leadpitch)
-        acceleration = b'%04x'.upper() % acceleration
+        acceleration = b'%04X' % acceleration
         if len(acceleration) > 4:
             logging.info('IAI {}: acceleration too high'.format(self.axis))
             acceleration = b'0093'
@@ -337,7 +332,7 @@ class IAIStage(Manipulator):
             position = int('FFFFFFFF', 16) - position
         else:s
             position = abs(position)
-        position = b'%08x'.upper() & int(position)
+        position = b'%08X' % int(position)
         
         return position
 
