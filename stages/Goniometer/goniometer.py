@@ -103,7 +103,6 @@ class Goniometer(Manipulator):
         9000: 'Axis not ready'
     }
 
-    isDebug = traitlets.Bool(True, read_only=False)
     connection = None
     positiveLimitSwitch = traitlets.Bool(False,
                                          read_only=True).tag(group='Status')
@@ -126,10 +125,6 @@ class Goniometer(Manipulator):
         if Goniometer.connection is None:
             Goniometer.connection = GonioConn()
         self.cdll = Goniometer.connection.dll
-
-        if self.isDebug:
-            logging.info('Number of axes: {}'
-                         .format(Goniometer.connection.noAxes))
 
         self.axis = axis
         self.cdll.InitEncoder(self.axis, encoderMode.value)
@@ -172,16 +167,16 @@ class Goniometer(Manipulator):
                 self._isMovingFuture.set_result(None)
 
     async def __aexit__(self, *args):
-        await super().__aexit__(*args)
         self.stop()
         self._updateFuture.cancel()
+        await super().__aexit__(*args)
 
     @action("Stop")
     def stop(self, stopMode=Ramping.Ramping):
         self.cdll.StopMotion(self.axis, stopMode.value)
         self._isMovingFuture.cancel()
 
-    @action("Reference")
+    #@action("Reference")
     async def reference(self):
         if self.isMoving:
             logging.info('{} {}: Please finish'.format(self, self.axis) +
@@ -256,7 +251,7 @@ class Goniometer(Manipulator):
         await self._isMovingFuture
 
     @action('Set Calibration')
-    def calibrate(self, value):
+    def calibrate(self, value=None):
         if value is None:
             value = self.calibrateToDegree
         self.cdll.SetPosition(self.axis, self._degToStep(value))
