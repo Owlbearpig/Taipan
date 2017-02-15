@@ -157,6 +157,75 @@ class NIDAQ(DataSource):
         self._dataSetReady(dset)
         return dset
 
+
+class NIFiniteSamples(DataSource):
+
+    active = traitlets.Bool(False, read_only=True).tag(name="Active")
+
+    dataSet = DataSetTrait(read_only=True).tag(name="Current chunk",
+                                                      data_label="Amplitude",
+                                                      axes_labels=["Sample number"])
+
+    analogChannel = traitlets.Unicode('Dev1/ai0', read_only=False)
+    clockSource = traitlets.Unicode('', read_only=False)
+
+    voltageMin = QuantityTrait(Q_(-10,'V'))
+    voltageMax = QuantityTrait(Q_(10,'V'))
+
+    dataPoints = 2000
+    sampleRate = 1e6
+
+    currentTask = None
+
+    def __init__(self, objectName=None, loop=None):
+        super().__init__(objectName=objectName, loop=loop)
+
+    @action('Start task')
+    async def start(self):
+        if self.active or self.currentTask is not None:
+            raise RuntimeError("Data source is already running")
+
+        self.currentTask = mx.Task()
+        self.currentTask.CreateAIVoltageChan(self.analogChannel, "",
+                                             mx.DAQmx_Val_RSE, -10.0, 10.0,
+                                             mx.DAQmx_Val_Volts, None)
+
+        self.currentTask.CfgSampClkTiming(
+                self.clockSource, self.sampleRate,
+                mx.DAQmx_Val_Rising, mx.DAQmx_Val_FiniteSamps,
+                self.dataPoints) # suggested buffer size
+
+        self.currentTask.StartTask()
+        self.set_trait("active", True)
+
+    @action('Stop task')
+    async def stop(self):
+        if self.currentTask is not None:
+            read = mx.int32()
+            buf = np.zeros((self.dataPoints,))
+            try:
+                self.currentTask.ReadAnalogF64(mx.DAQmx_Val_Auto, 0,  # timeout
+                                       mx.DAQmx_Val_GroupByScanNumber,
+                                       buf, buf.size,
+                                       mx.byref(read), None)
+            except:
+                pass
+
+        # this callback is called from another thread, so we'll post a queued
+        # call to the event loop
+            axis = np.arange(self.dataPoints)
+
+            self.set_trait('dataSet', DataSet(Q_(buf, 'V'), [ Q_(axis) ]))
+            self.currentTask.ClearTask()
+            logging.info("Task stopped.")
+
+        self.set_trait("active", False)
+        self.currentTask = None
+
+    async def readDataSet(self):
+        return self.dataSet
+
+
 if __name__ == '__main__':
 
     async def main():
