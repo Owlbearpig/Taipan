@@ -398,16 +398,16 @@ class SR830(DataSource):
             return self.resource.write(command)
 
     @action("Start")
-    def start(self):
+    async def start(self):
         if (self.samplingMode == SR830.SamplingMode.Buffered):
-            asyncio.ensure_future(self.write('REST'))
+            await self.write('REST')
 #           Only for triggered STRT ist neccessary
             if self.sampleRate == SR830.SampleRate.Trigger:
-                asyncio.ensure_future(self.write('STRT'))
+                await self.write('STRT')
 
     @action("Stop")
-    def stop(self):
-        asyncio.ensure_future(self.write('PAUS'))
+    async def stop(self):
+        await self.write('PAUS')
 
     def reset(self):
         asyncio.ensure_future(self.write('*RST'))
@@ -416,7 +416,7 @@ class SR830(DataSource):
     async def readAllParameters(self):
         self._traitChangesDueToStatusUpdate = True
         
-        for name, trait in self.traits.items():
+        for name, trait in self.traits().items():
             command = trait.metadata.get('command')
 
             if command is None:
