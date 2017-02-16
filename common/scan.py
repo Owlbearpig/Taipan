@@ -265,6 +265,8 @@ class Scan(DataSource):
         self.set_trait('active', True)
         self.set_trait('progress', 0)
 
+        axis = None
+
         try:
             await self.dataSource.stop()
             await self._createManipulatorIdleFuture()
@@ -298,9 +300,15 @@ class Scan(DataSource):
         finally:
             self._loop.create_task(self.dataSource.stop())
             self.manipulator.stop()
-            if self.retractAtEnd:
+            if self.retractAtEnd and axis is not None:
+                overscan = self.overscan
+
+                # ensure correct overscan sign
+                if axis[1].magnitude - axis[0].magnitude < 0:
+                    overscan = -overscan
+
                 self._loop.create_task(
-                    self.manipulator.moveTo(axis[0],
+                    self.manipulator.moveTo(axis[0] - overscan,
                                             self.positioningVelocity)
                 )
 
