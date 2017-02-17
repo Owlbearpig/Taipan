@@ -107,12 +107,20 @@ class DummyContinuousDataSource(DataSource):
             self.set_trait('currentData', DataSet(data, [taxis]))
             i = i + 1
 
+    TAU = 0.15
+
+    @classmethod
+    def thz_pulse(cls, t):
+        return t * np.exp(-np.power(t/cls.TAU, 2))
+
     async def readDataSet(self):
         taxis = np.arange(self.manip._start.magnitude,
                           self.manip._stop.magnitude,
                           self.manip._step.magnitude) * self.manip._step.units
-        omega = 2 * np.pi * 5 * ureg.THz
-        data = np.sin(omega * taxis)
+
+        omega = 2 * np.pi * 3 * ureg.THz
+
+        data = self.thz_pulse(taxis - 220 * self.manip._step.units)
         data += 5e-3 * (np.random.random(data.shape) - 0.5) * np.max(data)
         data = data * ureg.nA
         dataSet = DataSet(data, [taxis])
