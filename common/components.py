@@ -238,44 +238,18 @@ class Manipulator(ComponentBase):
         self.targetValue = val
         self.__blockTargetValueUpdate = False
 
-    async def configureTrigger(self, step, start=None, stop=None):
+    async def configureTrigger(self, axis):
         """ Configure the trigger output.
 
         Paramters
         ---------
-        step (numeric) : The trigger distance.
-
-        start (numeric, optional) : The trigger start value.
-
-        stop (numeric, optional) : The trigger stop value.
+        axis (ndarray) : The positions at which to send a trigger pulse.
 
         Returns
         -------
-        tuple(triggerStep, triggerStart, triggerStop) : The effectively set
-        trigger parameters
+        ndarray : The effectively set trigger positions
         """
-        self._trigStep = step
-        self._trigStart = start
-        self._trigStop = stop
-        return (self._trigStep, self._trigStart, self._trigStop)
-
-    @property
-    def triggerStart(self):
-        """ The trigger start value.
-        """
-        return self._trigStart
-
-    @property
-    def triggerStop(self):
-        """ The trigger stop value.
-        """
-        return self._trigStop
-
-    @property
-    def triggerStep(self):
-        """ The trigger distance.
-        """
-        return self._trigStep
+        return axis
 
     @action("Stop")
     def stop(self):

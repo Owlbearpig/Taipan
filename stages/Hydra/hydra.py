@@ -7,6 +7,7 @@ import traitlets
 from common import ureg, Q_
 from queue import Queue
 from math import ceil
+import numpy as np
 
 
 class Hydra(Manipulator):
@@ -197,21 +198,6 @@ class Hydra(Manipulator):
         logging.debug('Hydra: Command stack cleared')
         self._raw.clear()
 
-    async def beginScan(self, start, stop, velocity=None):
-        logging.debug('Hydra: begin Scan called')
-        start = start.to('mm')
-        stop = stop.to('mm')
-        velocity = velocity.to('mm/s')
-
-        # 0.75 mm buffer for acceleration and proper trigger position
-
-        sign = -1 if stop > start else 1
-        pos = start + Q_(sign * 0.75, 'mm')
-
-        await self.moveTo(pos, velocity)
-
-        await self.configureTrigger(*self._trigParams)
-
     @action('Stop')
     def stop(self):
         self._raw.nabort()
@@ -235,18 +221,8 @@ class Hydra(Manipulator):
 
         await self._isMovingFuture
 
-    async def configureTrigger(self, step, start=None, stop=None):
-        self._trigParams = step, start, stop
-
-        step = step.to('mm').magnitude
-        start = start.to('mm').magnitude
-        stop = stop.to('mm').magnitude
-
-        # number of trigger events
-        N = int(ceil((stop - start) / step))
-
-        # actual stop position
-        stop = start + (N - 1) * step
+    async def configureTrigger(self, axis):
+        axis = axis.to('mm').magnitude
 
         output = 1
 
@@ -259,28 +235,12 @@ class Hydra(Manipulator):
         #         "direction mode" operation at output 2
         # (but why do we do this? we're using output 1 anyway.)
         self._raw.settr(3, terminate=False)
-        self._raw.settrpara(start, stop, N)
+        self._raw.settrpara(axis[0], axis[-1], len(axis))
 
         # ask for the actually set start, stop and step parameters
         paras = await self._raw.gettrpara(type=float)
-        Nreal = int(paras[2])
-        self._trigStart = Q_(paras[0], 'mm')
-        self._trigStop = Q_(paras[1], 'mm')
-        self._trigStep = (self._trigStop - self._trigStart) / (Nreal - 1)
 
-        Ntest = int(ceil((self._trigStop - self._trigStart) / self._trigStep))
-
-        while Ntest != Nreal:
-            if Ntest < Nreal:
-                self._trigStep *= 0.999
-            else:
-                self._trigStep *= 1.001
-            Ntest = int(ceil((self._trigStop - self._trigStart) / self._trigStep))
-
-        logging.debug('Hydra trigger params: N = {} ({}), start = {}, stop = {}, step = {}'
-                      .format(Nreal, Ntest, self._trigStart, self._trigStop, self._trigStep))
-
-        return (self._trigStep, self._trigStart, self._trigStop)
+        return np.linspace(paras[0], paras[1], int(paras[2])) * ureg.mm
 
 
 if __name__ == '__main__':

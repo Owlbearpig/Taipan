@@ -160,22 +160,28 @@ class Scan(DataSource):
 
         return axis
 
-    async def _doContinuousScan(self, axis):
+    def _getOverscan(self, axis):
         overscan = self.overscan
 
         # ensure correct overscan sign
         if axis[1].magnitude - axis[0].magnitude < 0:
             overscan = -overscan
 
+        return overscan
+
+    async def _doContinuousScan(self, axis):
+        overscan = self._getOverscan(axis)
+
         await self.manipulator.moveTo(axis[0] - overscan,
                                       self.positioningVelocity)
 
+        prefUnits = axis.units
+        axis = (await self.manipulator.configureTrigger(axis)).to(prefUnits)
+
         updater = self.updateProgress(axis)
+
         try:
             self.manipulator.observe(updater, 'value')
-
-            axis = await self._confTriggerAndRealAxis(axis[0], axis[-1],
-                                                      axis[1] - axis[0])
 
             try:
                 await self.dataSource.start(scanAxis=axis)
@@ -304,14 +310,8 @@ class Scan(DataSource):
             self._loop.create_task(self.dataSource.stop())
             self.manipulator.stop()
             if self.retractAtEnd and axis is not None:
-                overscan = self.overscan
-
-                # ensure correct overscan sign
-                if axis[1].magnitude - axis[0].magnitude < 0:
-                    overscan = -overscan
-
                 self._loop.create_task(
-                    self.manipulator.moveTo(axis[0] - overscan,
+                    self.manipulator.moveTo(axis[0] - self._getOverscan(axis),
                                             self.positioningVelocity)
                 )
 

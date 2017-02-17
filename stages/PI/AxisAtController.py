@@ -25,6 +25,7 @@ import re
 import enum
 import traitlets
 from common import ureg, Q_
+import numpy as np
 
 _replyExpression = re.compile(br'([0-9]+) ([0-9]+) (.*)')
 _valueExpression = re.compile(br'([0-9 ]+)=([0-9a-fA-Fx\.\-]+)$')
@@ -215,16 +216,6 @@ class AxisAtController(Manipulator):
 
         return self.isOnTarget
 
-    # 0.75 mm buffer for acceleration and proper trigger position
-    async def beginScan(self, start, stop, velocity=None):
-        start = start.to('mm')
-        stop = stop.to('mm')
-        velocity = velocity.to('mm/s')
-        if stop > start:
-            await self.moveTo(start - Q_(0.75, 'mm'), velocity)
-        else:
-            await self.moveTo(start + Q_(0.75, 'mm'), velocity)
-
     def stop(self):
         asyncio.ensure_future(self.send("HLT"))
 
@@ -238,13 +229,15 @@ class AxisAtController(Manipulator):
         await self._isMovingFuture
         return self.isReferenced
 
-    async def configureTrigger(self, step, start=None, stop=None, triggerId=1):
-        if start is None or stop is None:
-            raise Exception("The start and stop parameters are mandatory!")
+    async def configureTrigger(self, axis, triggerId=1):
+        axis = axis.to('mm').magnitude
 
-        step = step.to('mm').magnitude
-        start = start.to('mm').magnitude
-        stop = stop.to('mm').magnitude
+        step = np.mean(np.diff(axis))
+        start = axis[0]
+
+        N = len(axis)
+        # let the trigger output end half a step after the last position
+        stop = start + (N - 1) * step + step / 2
 
         # enable trig output on axis
         await self.send(b"CTO", triggerId, 2, self.axis, includeAxis=False)
@@ -272,4 +265,5 @@ class AxisAtController(Manipulator):
         self._trigStop = Q_(await self.send(b"CTO?", triggerId, 9,
                                             includeAxis=False), 'mm')
 
-        return self._trigStep, self._trigStart, self._trigStop
+        return np.arange(self._trigStart.magnitude, self._trigStop.magnitude,
+                         self._trigStep.magnitude) * ureg.mm

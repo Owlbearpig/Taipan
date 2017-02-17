@@ -56,13 +56,6 @@ class DummyManipulator(Manipulator):
         finally:
             self.set_trait('status', Manipulator.Status.Idle)
 
-    async def configureTrigger(self, step, start=None, stop=None):
-        self._step = step
-        self._start = start
-        self._stop = stop
-        return step, start, stop
-
-
 class DummySimpleDataSource(DataSource):
 
     def __init__(self, init=0):
