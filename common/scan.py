@@ -174,10 +174,13 @@ class Scan(DataSource):
         try:
             self.manipulator.observe(updater, 'value')
 
-            await self.dataSource.start()
-
             axis = await self._confTriggerAndRealAxis(axis[0], axis[-1],
                                                       axis[1] - axis[0])
+
+            try:
+                await self.dataSource.start(scanAxis=axis)
+            except TypeError:
+                await self.dataSource.start()
 
             await self.manipulator.moveTo(axis[-1] + overscan,
                                           self.scanVelocity)

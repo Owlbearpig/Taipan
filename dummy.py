@@ -81,31 +81,8 @@ class DummySimpleDataSource(DataSource):
 
 class DummyContinuousDataSource(DataSource):
 
-    currentData = DataSetTrait(read_only=True, axes_labels=['foo'],
-                               data_label='bar')
-
-    def __init__(self, manip):
+    def __init__(self):
         super().__init__()
-        self.manip = manip
-        self._updater = ensure_weakly_binding_future(self.update_live_data)
-
-    async def __aexit__(self, *args):
-        super().__aexit__(*args)
-        self._updater.cancel()
-
-    async def update_live_data(self):
-        i = 0
-        while True:
-            await asyncio.sleep(0.005)
-            taxis = Q_(np.arange(0, 10, 0.02))
-            omega = 2 * np.pi * 1
-            data = np.sin(omega * (taxis + i * 0.1))
-            data += 5e-3 * (np.random.random(data.shape) - 0.5) * np.max(data)
-            data = data
-            if i > 100:
-                data = Q_(data, 'nA')
-            self.set_trait('currentData', DataSet(data, [taxis]))
-            i = i + 1
 
     TAU = 0.15
 
@@ -113,14 +90,14 @@ class DummyContinuousDataSource(DataSource):
     def thz_pulse(cls, t):
         return t * np.exp(-np.power(t/cls.TAU, 2))
 
+    async def start(self, scanAxis=None):
+        self._nextAxis = scanAxis
+
     async def readDataSet(self):
-        taxis = np.arange(self.manip._start.magnitude,
-                          self.manip._stop.magnitude,
-                          self.manip._step.magnitude) * self.manip._step.units
+        taxis = self._nextAxis
+        omega = 2 * np.pi * 3 / taxis.units
 
-        omega = 2 * np.pi * 3 * ureg.THz
-
-        data = self.thz_pulse(taxis - 220 * self.manip._step.units)
+        data = self.thz_pulse(taxis - 220 * taxis.units)
         data += 5e-3 * (np.random.random(data.shape) - 0.5) * np.max(data)
         data = data * ureg.nA
         dataSet = DataSet(data, [taxis])
