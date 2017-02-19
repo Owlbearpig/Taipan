@@ -12,9 +12,12 @@ from common import DataSource, DataSet, action, Q_
 from common.traits import DataSet as DataSetTrait, Quantity as QuantityTrait
 import PyDAQmx as mx
 import logging
+import time
 
 
 class NIDAQ(DataSource):
+
+    dataRate = QuantityTrait(Q_(0, 'Hz'), read_only=True).tag(name="Data rate")
 
     active = traitlets.Bool(False, read_only=True).tag(name="Active")
 
@@ -38,7 +41,11 @@ class NIDAQ(DataSource):
     _buf = None
     _cumBuf = np.zeros(0)
 
+    _axis = None
+
     __pendingFutures = []
+
+    _lastTime = 0
 
     def __init__(self, objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
@@ -68,12 +75,19 @@ class NIDAQ(DataSource):
             properChunk = self._cumBuf[:self.chunkSize].copy()
             self._cumBuf = self._cumBuf[self.chunkSize:].copy()
 
-            axis = np.arange(len(properChunk))
+            if self._axis is None:
+                axis = Q_(np.arange(len(properChunk)))
+            else:
+                axis = self._axis.copy()
 
             properChunk = Q_(properChunk, 'V')
-            axis = Q_(axis)
             dataSet = DataSet(properChunk, [ axis ])
             self.set_trait('currentDataSet', dataSet)
+
+            cur = time.perf_counter()
+            rate = 1.0 / (cur - self._lastTime)
+            self.set_trait('dataRate', Q_(rate, 'Hz'))
+            self._lastTime = cur
 
             for fut in self.__pendingFutures:
                 if not fut.done():
@@ -82,9 +96,13 @@ class NIDAQ(DataSource):
             self.__pendingFutures = []
 
     @action('Start task')
-    async def start(self):
+    async def start(self, scanAxis=None):
         if self.active or self.currentTask is not None:
             raise RuntimeError("Data source is already running")
+
+        if scanAxis is not None:
+            self.chunkSize = len(scanAxis)
+            self._axis = scanAxis
 
         self._buf = np.zeros(self.readEveryN)
         self.currentTask = mx.Task()
@@ -115,6 +133,7 @@ class NIDAQ(DataSource):
             self.currentTask = None
             self.set_trait("active", False)
             self._cumBuf = np.zeros(0)
+            self._axis = None
             logging.info("Task stopped.")
 
     async def readDataSet(self):
