@@ -48,6 +48,8 @@ class NIDAQ(DataSource):
 
         self.__pendingFutures = []
 
+        self._chunkReadyCallbacks = []
+
         self._lastTime = 0
 
     def _everyNCallback(self):
@@ -88,6 +90,8 @@ class NIDAQ(DataSource):
             rate = 1.0 / (cur - self._lastTime)
             self.set_trait('dataRate', Q_(rate, 'Hz'))
             self._lastTime = cur
+
+            self._chunkReady(dataSet)
 
             for fut in self.__pendingFutures:
                 if not fut.done():
@@ -136,10 +140,21 @@ class NIDAQ(DataSource):
             self._axis = None
             logging.info("Task stopped.")
 
+    def addChunkReadyCallback(self, callback):
+        self._chunkReadyCallbacks.append(callback)
+
+    def removeChunkReadyCallback(self, callback):
+        self._chunkReadyCallbacks.remove(callback)
+
+    def _chunkReady(self, dataSet):
+        for cb in self._chunkReadyCallbacks:
+            cb(dataSet)
+
     async def readDataSet(self):
         fut = self._loop.create_future()
         self.__pendingFutures.append(fut)
         dset = await fut
+        self._dataSetReady(dset)
         return dset
 
 if __name__ == '__main__':
