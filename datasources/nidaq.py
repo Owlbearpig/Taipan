@@ -31,24 +31,24 @@ class NIDAQ(DataSource):
     voltageMin = QuantityTrait(Q_(-10,'V'))
     voltageMax = QuantityTrait(Q_(10,'V'))
 
-    chunkSize = 2000
-    sampleRate = 1e6
-
-    readEveryN = 100
-
-    currentTask = None
-
-    _buf = None
-    _cumBuf = np.zeros(0)
-
-    _axis = None
-
-    __pendingFutures = []
-
-    _lastTime = 0
-
     def __init__(self, objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
+
+        self.chunkSize = 2000
+        self.sampleRate = 1e6
+
+        self.readEveryN = 100
+
+        self.currentTask = None
+
+        self._buf = None
+        self._cumBuf = np.zeros(0)
+
+        self._axis = None
+
+        self.__pendingFutures = []
+
+        self._lastTime = 0
 
     def _everyNCallback(self):
         read = mx.int32()
