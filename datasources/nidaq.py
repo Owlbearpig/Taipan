@@ -159,7 +159,7 @@ class NIDAQ(DataSource):
 
 
 class NIFiniteSamples(DataSource):
-    
+
     dataRate = QuantityTrait(Q_(0, 'Hz'), read_only=True).tag(name="Data rate")
     active = traitlets.Bool(False, read_only=True).tag(name="Active")
 
@@ -218,11 +218,12 @@ class NIFiniteSamples(DataSource):
                                        mx.byref(read), None)
             except:
                 pass
+            self.currentTask.ClearTask()
             cur = time.perf_counter()
             rate = 1.0 / (cur - self._lastTime)
+            self._lastTime = cur
             self.set_trait('dataRate', Q_(rate, 'Hz'))
             self.set_trait('dataSet', DataSet(Q_(buf, 'V'), [ self._axis.copy()]))
-            self.currentTask.ClearTask()
 
         self.set_trait("active", False)
         self.currentTask = None
