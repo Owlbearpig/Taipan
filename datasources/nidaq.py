@@ -159,7 +159,8 @@ class NIDAQ(DataSource):
 
 
 class NIFiniteSamples(DataSource):
-
+    
+    dataRate = QuantityTrait(Q_(0, 'Hz'), read_only=True).tag(name="Data rate")
     active = traitlets.Bool(False, read_only=True).tag(name="Active")
 
     dataSet = DataSetTrait(read_only=True).tag(name="Current chunk",
@@ -169,21 +170,28 @@ class NIFiniteSamples(DataSource):
     analogChannel = traitlets.Unicode('Dev1/ai0', read_only=False)
     clockSource = traitlets.Unicode('', read_only=False)
 
-    voltageMin = QuantityTrait(Q_(-10,'V'))
-    voltageMax = QuantityTrait(Q_(10,'V'))
+    voltageMin = QuantityTrait(Q_(-10, 'V'))
+    voltageMax = QuantityTrait(Q_(10, 'V'))
 
-    dataPoints = 2000
     sampleRate = 1e6
-
     currentTask = None
 
     def __init__(self, objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
+        self._axis = None
+        self.dataPoints = None
+        self._lastTime = 0
 
     @action('Start task')
-    async def start(self):
+    async def start(self, scanAxis=None):
         if self.active or self.currentTask is not None:
             raise RuntimeError("Data source is already running")
+
+        if scanAxis is not None:
+            self.dataPoints = len(scanAxis)
+            self._axis = scanAxis
+        else:
+            raise RuntimeError('Provide scan axis to NiFiniteSamples Start method')
 
         self.currentTask = mx.Task()
         self.currentTask.CreateAIVoltageChan(self.analogChannel, "",
@@ -193,7 +201,7 @@ class NIFiniteSamples(DataSource):
         self.currentTask.CfgSampClkTiming(
                 self.clockSource, self.sampleRate,
                 mx.DAQmx_Val_Rising, mx.DAQmx_Val_FiniteSamps,
-                self.dataPoints) # suggested buffer size
+                self.dataPoints)
 
         self.currentTask.StartTask()
         self.set_trait("active", True)
@@ -210,14 +218,11 @@ class NIFiniteSamples(DataSource):
                                        mx.byref(read), None)
             except:
                 pass
-
-        # this callback is called from another thread, so we'll post a queued
-        # call to the event loop
-            axis = np.arange(self.dataPoints)
-
-            self.set_trait('dataSet', DataSet(Q_(buf, 'V'), [ Q_(axis) ]))
+            cur = time.perf_counter()
+            rate = 1.0 / (cur - self._lastTime)
+            self.set_trait('dataRate', Q_(rate, 'Hz'))
+            self.set_trait('dataSet', DataSet(Q_(buf, 'V'), [ self._axis.copy()]))
             self.currentTask.ClearTask()
-            logging.info("Task stopped.")
 
         self.set_trait("active", False)
         self.currentTask = None
