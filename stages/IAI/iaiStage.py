@@ -60,13 +60,13 @@ class IAIConnection(ComponentBase):
             self.serial.close()
 
     def _calculateChecksum(self, command):
-        return (2**16 - sum(command)) & 255 
+        return (2**16 - sum(command)) & 255
 
     @threaded_async
     def send(self, command):
         if isinstance(command,str):
             command = bytes(command,'ascii')
-        
+
         command += b'%02X' % self._calculateChecksum(command)
 
         with self._lock:
@@ -75,7 +75,7 @@ class IAIConnection(ComponentBase):
                 time.sleep(0.02)
                 self.serial.reset_input_buffer()
                 self.serial.write(b'\x02' + command + b'\x03')
-                
+
                 line = self._readline(b'\x03')
                 if len(line) > 16:
                     line=line[-16:]
@@ -256,13 +256,13 @@ class IAIStage(Manipulator):
         if len(velocity) > 4:
             logging.info('IAI {}: velocity too high'.format(self.axis))
             velocity = b'02EE'
-        
+
         acceleration = int(acceleration * 5883.99/self._leadpitch)
         acceleration = b'%04X' % acceleration
         if len(acceleration) > 4:
             logging.info('IAI {}: acceleration too high'.format(self.axis))
             acceleration = b'0093'
-        
+
         sendstr = self.axis + b'v2' + velocity + acceleration + b'0'
         await self.connection.send(sendstr)
 
@@ -305,7 +305,7 @@ class IAIStage(Manipulator):
         self._parseStatusString(stat)
 
         await self._isMovingFuture
-    
+
     def _parseStatusString(self, statusstring):
         ''' 0 'U' answer string
             1 '0' axis number
@@ -330,10 +330,10 @@ class IAIStage(Manipulator):
 
         if position > 0:
             position = int('FFFFFFFF', 16) - position
-        else:s
+        else:
             position = abs(position)
         position = b'%08X' % int(position)
-        
+
         return position
 
     def printStatus(self):
