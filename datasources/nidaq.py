@@ -164,8 +164,8 @@ class NIFiniteSamples(DataSource):
     active = traitlets.Bool(False, read_only=True).tag(name="Active")
 
     dataSet = DataSetTrait(read_only=True).tag(name="Current chunk",
-                                                      data_label="Amplitude",
-                                                      axes_labels=["Sample number"])
+                                               data_label="Amplitude",
+                                               axes_labels=["Sample number"])
 
     analogChannel = traitlets.Unicode('Dev1/ai0', read_only=False)
     clockSource = traitlets.Unicode('', read_only=False)
@@ -181,6 +181,7 @@ class NIFiniteSamples(DataSource):
         self._axis = None
         self.dataPoints = None
         self._lastTime = 0
+        self._currentFuture = None
 
     @action('Start task')
     async def start(self, scanAxis=None):
@@ -191,7 +192,8 @@ class NIFiniteSamples(DataSource):
             self.dataPoints = len(scanAxis)
             self._axis = scanAxis
         else:
-            raise RuntimeError('Provide scan axis to NiFiniteSamples Start method')
+            raise RuntimeError('Provide scan axis to NiFiniteSamples Start '
+                               'method')
 
         self.currentTask = mx.Task()
         self.currentTask.CreateAIVoltageChan(self.analogChannel, "",
@@ -203,33 +205,45 @@ class NIFiniteSamples(DataSource):
                 mx.DAQmx_Val_Rising, mx.DAQmx_Val_FiniteSamps,
                 self.dataPoints)
 
+        self.currentTask.DoneCallback = self._taskDone
         self.currentTask.StartTask()
+        self._currentFuture = self._loop.create_future()
         self.set_trait("active", True)
+
+    def _taskDone(self):
+        self._loop.call_soon_threadsafe(self._handleNewDataSet)
+        return 0
+
+    def _handleNewDataSet(self):
+        read = mx.int32()
+        buf = np.zeros((self.dataPoints,))
+        self.currentTask.ReadAnalogF64(mx.DAQmx_Val_Auto, 0,  # timeout
+                                       mx.DAQmx_Val_GroupByScanNumber,
+                                       buf, buf.size,
+                                       mx.byref(read), None)
+
+        dset = DataSet(Q_(buf, 'V'), [self._axis.copy()])
+        self._currentFuture.set_result(dset)
+        self.set_trait('dataSet', dset)
+        cur = time.perf_counter()
+        rate = 1.0 / (cur - self._lastTime)
+        self.set_trait('dataRate', Q_(rate, 'Hz'))
+        self._loop.create_task(self.stop())
+        return 0
 
     @action('Stop task')
     async def stop(self):
         if self.currentTask is not None:
-            read = mx.int32()
-            buf = np.zeros((self.dataPoints,))
-            try:
-                self.currentTask.ReadAnalogF64(mx.DAQmx_Val_Auto, 0,  # timeout
-                                       mx.DAQmx_Val_GroupByScanNumber,
-                                       buf, buf.size,
-                                       mx.byref(read), None)
-            except:
-                pass
             self.currentTask.ClearTask()
-            cur = time.perf_counter()
-            rate = 1.0 / (cur - self._lastTime)
-            self._lastTime = cur
-            self.set_trait('dataRate', Q_(rate, 'Hz'))
-            self.set_trait('dataSet', DataSet(Q_(buf, 'V'), [ self._axis.copy()]))
 
         self.set_trait("active", False)
         self.currentTask = None
 
     async def readDataSet(self):
-        return self.dataSet
+        if self._currentFuture is None:
+            raise RuntimeError("Start datasource before reading")
+
+        return await self._currentFuture
 
 
 if __name__ == '__main__':
