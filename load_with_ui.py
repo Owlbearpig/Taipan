@@ -89,7 +89,7 @@ if __name__ == '__main__':
     asyncio.set_event_loop(loop)
 
     filename = sys.argv[1]
-    theglobals = { '__name__': splitext(basename(filename))[0] }
+    theglobals = { '__name__': '__guimain__' }
     exec(compile(open(filename, 'rb').read(), filename, 'exec'), theglobals)
 
     if 'AppRoot' not in theglobals:
