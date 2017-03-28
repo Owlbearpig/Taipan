@@ -136,11 +136,23 @@ class NuveClimateCabinet(DataSource):
         self.humidityDataSource._dataSetReady(
             DataSet(np.array(self.humidity)))
 
+_debugNuvePort = '/tmp/climate_cabinet'
+
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
 
     async def run():
-        async with NuveClimateCabinet('/tmp/climate_cabinet') as ncc:
+        async with NuveClimateCabinet(_debugNuvePort) as ncc:
             await asyncio.sleep(5)
 
     loop.run_until_complete(run())
+
+elif __name__ == '__guimain__':
+    class AppRoot(NuveClimateCabinet):
+        def __init__(self, *args):
+            super().__init__(*args)
+            self.objectName = "Nuve Climate Cabinet"
+
+        async def __aenter__(self):
+            self.port = _debugNuvePort
+            return await super().__aenter__()
