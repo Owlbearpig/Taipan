@@ -1,8 +1,22 @@
 # -*- coding: utf-8 -*-
 """
-Created on Sun Jan 15 13:51:35 2017
+This file is part of Taipan.
 
-@author: Terahertz
+Copyright (C) 2017 Arno Rehn <arno@arnorehn.de>
+Copyright (C) 2017 David Jahn <david.jahn@physik.uni-marburg.de>
+
+Taipan is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Taipan is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import asyncio
