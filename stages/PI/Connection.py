@@ -75,7 +75,10 @@ class Connection(ComponentBase):
             isRequest = command[-1] == ord(b'?')
 
             for arg in args:
-                command += b' %a' % arg
+                if isinstance(arg, float):
+                    command += b' %.6f' % arg
+                else:
+                    command += b' %a' % arg
 
             command += b'\n'
 
