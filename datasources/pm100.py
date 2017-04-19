@@ -55,9 +55,9 @@ class ThorlabsPM100(DataSource):
             return float(self.resource.ask('READ?'))
 
     async def readDataSet(self):
-        val = await self._guardedRead()
-        dset = DataSet(Q_(np.array(val), 'W'))
-        self.set_trait('power', Q_(val, 'W'))
+        val = await self._guardedRead() * 1000
+        dset = DataSet(Q_(np.array(val), 'mW'))
+        self.set_trait('power', Q_(val, 'mW'))
         self._dataSetReady(dset)
 
 
