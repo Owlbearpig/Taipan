@@ -73,7 +73,7 @@ class TMCL(Manipulator):
         self.velocity = Q_(20)
         self.set_trait('value', Q_(0, 'deg'))
 
-        self.set_trait('status', self.Status.TargetReached)
+        self.set_trait('status', self.Status.Idle)
         self._isMovingFuture = asyncio.Future()
         self._isMovingFuture.set_result(None)
 
@@ -137,10 +137,6 @@ class TMCL(Manipulator):
         if not self._isMovingFuture.done():
             self.stop()
 
-        def _set_status(future):
-            self.set_trait('status', self.Status.Idle)
-        self._isMovingFuture.add_done_callback(_set_status)
-
         # set microstep resolution (param 140)
         await self._set_param(140, self.microSteps.value)
 
@@ -153,6 +149,11 @@ class TMCL(Manipulator):
 
         self.set_trait('status', self.Status.Moving)
         self._isMovingFuture = asyncio.Future()
+
+        def _set_status(future):
+            self.set_trait('status', self.Status.Idle)
+
+        self._isMovingFuture.add_done_callback(_set_status)
 
         await self._isMovingFuture
 
