@@ -24,12 +24,12 @@ class AverageDataSource(DataSource):
         super().__init__(objectName, loop)
         self.singleSource = dataSource
     
-    def start(self):
-        self.singleSource.start()
+    async def start(self):
+        await self.singleSource.start()
 
-    def stop(self):
+    async def stop(self):
         self.set_trait('currentAverages',1)
-        self.singleSource.stop()
+        await self.singleSource.stop()
 
     @action("expected length")
     async def readDataLength(self):
