@@ -115,7 +115,7 @@ class NuveClimateCabinet(DataSource):
             return array
 
         def get_temp_humidity_time(values):
-            temperature = values[0] * 256 + values[1] / 10
+            temperature = (values[0] * 256 + values[1]) / 10
             humidity = values[2]
             time = values[3] * 256 + values[4]
 
