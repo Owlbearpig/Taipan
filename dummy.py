@@ -63,7 +63,7 @@ class DummySimpleDataSource(DataSource):
         self.init = init
         self.stop()
 
-    def stop(self):
+    async def stop(self):
         self.counter = self.init
 
     async def readDataSet(self):
