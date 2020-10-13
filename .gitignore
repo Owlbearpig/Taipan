@@ -4,3 +4,8 @@ __pycache__/
 .kdev4/
 .spyderproject
 *.kdev4
+/venv/
+.idea/inspectionProfiles/
+.idea/misc.xml
+.idea/modules.xml
+.idea/vcs.xml

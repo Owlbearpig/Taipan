@@ -1,0 +1,10 @@
+jsonrpclib-pelix
+pyserial
+pyvisa
+pyvisa-py
+Pint
+Traitlets
+PyQt5
+matplotlib
+scipy
+numpy

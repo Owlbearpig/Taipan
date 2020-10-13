@@ -174,7 +174,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
         delta = np.mean(np.diff(data.axes[0]))
         winFn = self.windowFunctionMap[self.windowComboBox.currentData()]
         refUnit = 1 * data.data.units
-        Y = np.fft.rfft(data.data / refUnit * winFn(len(data.data)), axis=0)
+        Y = np.fft.rfft(np.array(data.data / refUnit) * winFn(len(data.data)), axis=0)
         freqs = np.fft.rfftfreq(len(data.axes[0]), delta)
         dBdata = 10 * np.log10(np.abs(Y))
         if not self.dataIsPower:
