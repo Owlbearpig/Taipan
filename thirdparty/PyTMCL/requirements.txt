@@ -1,2 +1,12 @@
 pyserial==3.0.1
 wheel==0.24.0
+numpy==1.19.2
+matplotlib==3.0.3
+jsonrpclib-pelix
+pyvisa
+pyvisa-py
+Pint==0.16.1
+Traitlets==4.3.2
+PyQt5==5.15.1
+scipy==1.2.1
+Quamash==0.6.1
