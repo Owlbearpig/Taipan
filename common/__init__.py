@@ -22,6 +22,7 @@ from .components import (action, ComponentBase, DataSource,
 from .dataset import DataSet
 from .scan import Scan
 from .table import TabularMeasurements
+from .table_2m import TabularMeasurements2M
 from .units import ureg, Q_
 
 class TimeoutException(Exception):
