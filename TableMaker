@@ -1,0 +1,15 @@
+m2_positions = list(range(0, 181, 1))
+m1_positions = [110]*len(m2_positions)
+
+m2_ref = m2_positions[0]
+m1_ref = 25
+
+f = open("table1.txt", "a")
+
+f.write(f"# name, position_m1, position_m2\n")
+f.write(f"reference, {m1_ref}, {m2_ref}\n")
+for m1_position, m2_position in zip(m1_positions, m2_positions):
+	f.write(f"sample, {m1_position}, {m2_position}\n")
+f.write(f"reference, {m1_ref}, {m2_positions[-1]}\n")
+
+f.close()
