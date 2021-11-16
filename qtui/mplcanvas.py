@@ -179,7 +179,8 @@ class MPLCanvas(QtWidgets.QGroupBox):
         dBdata = 10 * np.log10(np.abs(Y))
         if not self.dataIsPower:
             dBdata *= 2
-        return (freqs, dBdata)
+        data_slice = np.array(freqs) < 2.1
+        return (freqs[data_slice], dBdata[data_slice])
 
     def _dataSetToLines(self, data, line, ftline):
         if data is None:

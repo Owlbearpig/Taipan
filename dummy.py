@@ -89,14 +89,14 @@ class DummyContinuousDataSource(DataSource):
     async def update_live_data(self):
         i = 0
         while True:
-            await asyncio.sleep(0.005)
+            await asyncio.sleep(0.1)
             taxis = Q_(np.arange(0, 10, 0.02))
             omega = 2 * np.pi * 1
             data = np.sin(omega * (taxis + i * 0.1))
             data += 5e-3 * (np.random.random(data.shape) - 0.5) * np.max(data)
             data = data
-            if i > 100:
-                data = Q_(data, 'nA')
+            #if i > 100:
+                #data = Q_(data, 'nA')
             self.set_trait('currentData', DataSet(data, [taxis]))
             i = i + 1
 

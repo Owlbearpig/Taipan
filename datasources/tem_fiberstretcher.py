@@ -257,7 +257,6 @@ class TEMFiberStretcher(DataSource):
 
     def handle_line(self, line):
         logging.info("TEMFS:HANDLING {}".format(line))
-
         for x in self.handlers:
             x(line)
 
@@ -291,7 +290,6 @@ class TEMFiberStretcher(DataSource):
         while True:
             # yield control to the event loop once
             await asyncio.sleep(0)
-
             while not self._pulseQueue.empty():
                 pulse = self._pulseQueue.get()
                 pulse = Q_(pulse)
@@ -310,7 +308,6 @@ class TEMFiberStretcher(DataSource):
 
     async def __aenter__(self):
         await super().__aenter__()
-
         self._controlTransport, self._lineReader = \
             await aioserial.create_serial_connection(self._loop, LineReader,
                                                      self.controlPort,
@@ -330,6 +327,7 @@ class TEMFiberStretcher(DataSource):
         self._pulseReader = Process(target=read_pulse_data,
                                     args=(self.dataPort, self._pulseQueue))
         self._pulseReader.start()
+
         self._pulseFromQueueReader = \
             ensure_weakly_binding_future(self.readPulseFromQueue)
 
