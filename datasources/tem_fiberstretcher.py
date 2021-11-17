@@ -23,7 +23,9 @@ from common import DataSet, DataSource, Q_, action
 from asyncioext import ensure_weakly_binding_future
 from threading import Lock
 import re
-from serial import aio as aioserial
+from aioserial import aioserial as aios
+from serial import aio as aio_serial
+from serial.aio import SerialTransport
 from serial.threaded import Packetizer, LineReader
 import logging
 from traitlets import Bool, Enum, Int, observe
@@ -61,7 +63,34 @@ class PulseReader(Packetizer):
         pulse = np.array(pulse, dtype=float)
         self.q.put(pulse)
 
+@asyncio.coroutine
+def create_serial_connection(loop, protocol_factory, ser):
+    protocol = protocol_factory()
+    data = await ser.read_async()
+    transport = SerialTransport(loop, protocol, ser)
 
+    return (transport, protocol)
+
+async def read_and_print(aioserial_instance: aios.AioSerial, ):
+    while True:
+        data = await aioserial_instance.read_async()
+        print(data.decode(errors='ignore'), end='', flush=True)
+        if b'\n' in data:
+            aioserial_instance.close()
+            break
+
+
+
+def read_pulse_data(port, q):
+    loop = asyncio.new_event_loop()
+    aio_ser = aios.AioSerial(port=port, baudrate=115200)
+    coro = create_serial_connection(loop, lambda: PulseReader(q), aio_ser)
+
+    loop.run_until_complete(coro)
+    loop.run_forever()
+
+
+"""
 def read_pulse_data(port, q):
     loop = asyncio.new_event_loop()
 
@@ -70,7 +99,7 @@ def read_pulse_data(port, q):
 
     loop.run_until_complete(coro)
     loop.run_forever()
-
+"""
 
 _dt = 4.36968965E-15 * 1e12
 
@@ -309,9 +338,9 @@ class TEMFiberStretcher(DataSource):
     async def __aenter__(self):
         await super().__aenter__()
         self._controlTransport, self._lineReader = \
-            await aioserial.create_serial_connection(self._loop, LineReader,
-                                                     self.controlPort,
-                                                     baudrate=57600)
+            await aio_serial.create_serial_connection(self._loop, LineReader,
+                                                      self.controlPort,
+                                                      baudrate=57600)
         self._lineReader.handle_line = self.handle_line
         await asyncio.sleep(0)
 
