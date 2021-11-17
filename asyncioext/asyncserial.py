@@ -40,7 +40,7 @@ class Serial(serial.Serial):
         asyncio.get_event_loop().remove_reader(self.fileno())
 
     def _readyRead(self):
-        if self._waiter != None:
+        if self._waiter is not None:
             self._waiter.set_result(True)
             return
 
@@ -53,7 +53,7 @@ class Serial(serial.Serial):
 
         self._waiter = futures.Future(loop=self._loop)
         try:
-            yield from self._waiter
+            await self._waiter
         finally:
             self._waiter = None
 
