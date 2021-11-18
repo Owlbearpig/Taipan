@@ -22,7 +22,7 @@ class AioSerialTransport(asyncio.Transport):
         self._paused = False
         # XXX how to support url handlers too
         self.serial.timeout = 0
-        #loop.call_soon(protocol.connection_made, self)
+        loop.call_soon(protocol.connection_made, self)
         # only start reading when connection_made() has been called
         #loop.call_soon(loop.add_reader, self.serial.fd, self._read_ready)
         asyncio.ensure_future(self.read_ready())
@@ -202,9 +202,8 @@ class AioSerial(serial.Serial):
 
 @asyncio.coroutine
 def create_serial_connection(loop, protocol_factory, *args, **kwargs):
-    ser = AioSerial(*args, **kwargs)
+    ser = AioSerial(loop=loop, *args, **kwargs)
     protocol = protocol_factory()
-
     transport = AioSerialTransport(loop, protocol, ser)
-    print(transport)
+
     return (transport, protocol)

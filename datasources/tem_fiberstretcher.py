@@ -24,7 +24,7 @@ from asyncioext import ensure_weakly_binding_future
 from asyncioext.aioserial import create_serial_connection
 from threading import Lock
 import re
-from serial import aio as aioserial
+#from serial import aio as aioserial
 from serial.threaded import Packetizer, LineReader
 import logging
 from traitlets import Bool, Enum, Int, observe
@@ -310,7 +310,7 @@ class TEMFiberStretcher(DataSource):
         await super().__aenter__()
 
         self._controlTransport, self._lineReader = \
-            await aioserial.create_serial_connection(self._loop, LineReader,
+            await create_serial_connection(self._loop, LineReader,
                                                      self.controlPort,
                                                      baudrate=57600)
         self._lineReader.handle_line = self.handle_line
