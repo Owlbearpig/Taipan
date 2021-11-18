@@ -53,7 +53,7 @@ class Serial(serial.Serial):
 
         self._waiter = futures.Future(loop=self._loop)
         try:
-            await self._waiter
+            yield from self._waiter
         finally:
             self._waiter = None
 

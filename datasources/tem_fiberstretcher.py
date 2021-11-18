@@ -24,7 +24,8 @@ from asyncioext import ensure_weakly_binding_future, aioserial as aios
 from threading import Lock
 import re
 from serial import aio as aio_serial
-from asyncioext.aioserial import create_serial_connection
+from serial.aio import SerialTransport
+from serial import Serial
 from serial.threaded import Packetizer, LineReader
 import logging
 from traitlets import Bool, Enum, Int, observe
@@ -61,6 +62,14 @@ class PulseReader(Packetizer):
         pulse = struct.unpack('>{}h'.format(int(len(rawPulse) / 2)), rawPulse)
         pulse = np.array(pulse, dtype=float)
         self.q.put(pulse)
+
+@asyncio.coroutine
+def create_serial_connection(loop, protocol_factory, *args, **kwargs):
+    Serial.nonblocking = lambda x: None
+    ser = Serial(*args, **kwargs)
+    protocol = protocol_factory()
+    transport = SerialTransport(loop, protocol, ser)
+    return (transport, protocol)
 
 
 def read_pulse_data(port, q):
