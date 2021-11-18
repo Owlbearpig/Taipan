@@ -1,7 +1,12 @@
 from pint import Context
 from common.units import Q_, ureg
-from common import Scan
+from common import Scan, action
+from traitlets import Instance
+from common.components import ComponentBase
+from common.traits import DataSet as DataSetTrait
 from dummy import DummyManipulator, DummyContinuousDataSource
+import traitlets
+
 
 # Create and enable a THz-TDS context where we can convert times to lengths
 # and vice-versa
@@ -21,7 +26,14 @@ ureg.add_context(thz_context)
 ureg.enable_contexts('terahertz')
 
 
-class AppRoot(Scan):
+class AppRoot(ComponentBase):
+    currentMeasurement = DataSetTrait().tag(name="Current measurement",
+                                            data_label="Amplitude",
+                                            axes_labels=["Time"])
+
+    manipulator = Instance(DummyManipulator)
+    dataSource = Instance(DummyContinuousDataSource)
+
     def __init__(self, loop=None):
         super().__init__(objectName=": )", loop=loop)
         self.manipulator = DummyManipulator()
@@ -31,3 +43,7 @@ class AppRoot(Scan):
     async def __aenter__(self):
         await super().__aenter__()
         return self
+
+    @action("Start continuous datasource")
+    async def takeMeasurements(self):
+        await self.dataSource.update_live_data()

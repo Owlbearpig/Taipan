@@ -25,7 +25,7 @@ from common.units import Q_, ureg
 from common.traits import DataSet as DataSetTrait, Quantity
 from traitlets import Integer, Instance
 from asyncioext import ensure_weakly_binding_future
-from dummy import DummyManipulator, DummySimpleDataSource
+from dummy import DummyManipulator, DummySimpleDataSource, DummyContinuousDataSource
 
 import time
 
@@ -44,7 +44,7 @@ class AppRoot(ComponentBase):
         self.scan = Scan()
 
         self.scan.manipulator = DummyManipulator()
-        self.scan.dataSource = DummySimpleDataSource()
+        self.scan.dataSource = DummyContinuousDataSource(self.scan.manipulator)
 
         self.scan.minimumValue = Q_(0, 'mm')
         self.scan.maximumValue = Q_(10, 'mm')

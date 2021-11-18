@@ -17,6 +17,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
+import logging
 
 from common import DataSource, Manipulator, DataSet
 import asyncio
@@ -35,6 +36,9 @@ class DummyManipulator(Manipulator):
         self.setPreferredUnits(ureg.mm, ureg.mm / ureg.second)
         self.velocity = Q_(1, 'mm/s')
         self.set_trait('value', Q_(0, 'mm'))
+        self._start = Q_(1, 'ps')
+        self._stop = Q_(100, 'ps')
+        self._step = Q_(0.005, 'ps')
 
     async def moveTo(self, val, velocity=None):
         if velocity is None:
@@ -51,17 +55,16 @@ class DummyManipulator(Manipulator):
 
         try:
             for target in values:
-                await asyncio.sleep(dt)
                 self.set_trait('value', Q_(target, 'mm'))
         finally:
             self.set_trait('status', Manipulator.Status.Idle)
+
 
 class DummySimpleDataSource(DataSource):
 
     def __init__(self, init=0):
         super().__init__()
         self.init = init
-        self.stop()
 
     async def stop(self):
         self.counter = self.init
@@ -80,24 +83,23 @@ class DummyContinuousDataSource(DataSource):
     def __init__(self, manip):
         super().__init__()
         self.manip = manip
-        self._updater = ensure_weakly_binding_future(self.update_live_data)
 
     async def __aexit__(self, *args):
         await super().__aexit__(*args)
-        self._updater.cancel()
 
     async def update_live_data(self):
         i = 0
         while True:
-            await asyncio.sleep(0.1)
             taxis = Q_(np.arange(0, 10, 0.02))
-            omega = 2 * np.pi * 1
+            omega = 2 * np.pi
             data = np.sin(omega * (taxis + i * 0.1))
             data += 5e-3 * (np.random.random(data.shape) - 0.5) * np.max(data)
-            data = data
+            data += 10
             #if i > 100:
                 #data = Q_(data, 'nA')
             self.set_trait('currentData', DataSet(data, [taxis]))
+            #self.set_trait('currentData', DataSet(Q_(data, 'nA'), [taxis]))
+            await asyncio.sleep(0.05, loop=self._loop)
             i = i + 1
 
     async def readDataSet(self):
