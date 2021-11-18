@@ -23,8 +23,8 @@ from common import DataSet, DataSource, Q_, action
 from asyncioext import ensure_weakly_binding_future, aioserial as aios
 from threading import Lock
 import re
+from asyncioext.aioserial import AioSerialTransport
 from serial import aio as aio_serial
-from serial.aio import SerialTransport
 from serial import Serial
 from serial.threaded import Packetizer, LineReader
 import logging
@@ -65,10 +65,9 @@ class PulseReader(Packetizer):
 
 @asyncio.coroutine
 def create_serial_connection(loop, protocol_factory, *args, **kwargs):
-    Serial.nonblocking = lambda x: None
     ser = Serial(*args, **kwargs)
     protocol = protocol_factory()
-    transport = SerialTransport(loop, protocol, ser)
+    transport = AioSerialTransport(loop, protocol, ser)
     return (transport, protocol)
 
 

@@ -38,7 +38,7 @@ class AioSerialTransport(asyncio.Transport):
         self._loop.call_soon(self._protocol.connection_lost, None)
 
     def _read_ready(self):
-        data = self.serial.read_async(1024)
+        data = self.serial.read(1024)
         if data:
             self._protocol.data_received(data)
 
