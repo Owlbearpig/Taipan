@@ -22,9 +22,10 @@ class AioSerialTransport(asyncio.Transport):
         self._paused = False
         # XXX how to support url handlers too
         self.serial.timeout = 0
-        loop.call_soon(protocol.connection_made, self)
+        #loop.call_soon(protocol.connection_made, self)
         # only start reading when connection_made() has been called
-        loop.call_soon(loop.add_reader, self.serial.fd, self._read_ready)
+        #loop.call_soon(loop.add_reader, self.serial.fd, self._read_ready)
+        asyncio.ensure_future(self.read_ready())
 
     def __repr__(self):
         return '{self.__class__.__name__}({self._loop}, {self._protocol}, {self.serial})'.format(self=self)
@@ -33,40 +34,20 @@ class AioSerialTransport(asyncio.Transport):
         if self._closing:
             return
         self._closing = True
-        self._loop.remove_reader(self.serial.fd)
         self.serial.close()
         self._loop.call_soon(self._protocol.connection_lost, None)
 
-    def _read_ready(self):
-        data = self.serial.read(1024)
-        if data:
-            self._protocol.data_received(data)
+    async def read_ready(self):
+        while True:
+            data = await self.serial.read_async(1024)
+            if data:
+                self._protocol.data_received(data)
 
     def write(self, data):
         self.serial.write(data)
 
     def can_write_eof(self):
         return False
-
-    def pause_reading(self):
-        if self._closing:
-            raise RuntimeError('Cannot pause_reading() when closing')
-        if self._paused:
-            raise RuntimeError('Already paused')
-        self._paused = True
-        self._loop.remove_reader(self._sock_fd)
-        if self._loop.get_debug():
-            logging.debug("%r pauses reading", self)
-
-    def resume_reading(self):
-        if not self._paused:
-            raise RuntimeError('Not paused')
-        self._paused = False
-        if self._closing:
-            return
-        self._loop.add_reader(self._sock_fd, self._read_ready)
-        if self._loop.get_debug():
-            logging.debug("%r resumes reading", self)
 
     #~ def set_write_buffer_limits(self, high=None, low=None):
     #~ def get_write_buffer_size(self):
@@ -223,6 +204,7 @@ class AioSerial(serial.Serial):
 def create_serial_connection(loop, protocol_factory, *args, **kwargs):
     ser = AioSerial(*args, **kwargs)
     protocol = protocol_factory()
-    transport = AioSerialTransport(loop, protocol, ser)
 
+    transport = AioSerialTransport(loop, protocol, ser)
+    print(transport)
     return (transport, protocol)

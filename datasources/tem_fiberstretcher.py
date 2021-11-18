@@ -20,12 +20,11 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
 from common import DataSet, DataSource, Q_, action
-from asyncioext import ensure_weakly_binding_future, aioserial as aios
+from asyncioext import ensure_weakly_binding_future
+from asyncioext.aioserial import create_serial_connection
 from threading import Lock
 import re
-from asyncioext.aioserial import AioSerialTransport
-from serial import aio as aio_serial
-from serial import Serial
+from serial import aio as aioserial
 from serial.threaded import Packetizer, LineReader
 import logging
 from traitlets import Bool, Enum, Int, observe
@@ -37,12 +36,10 @@ import numpy as np
 from common.traits import DataSet as DataSetTrait, Quantity
 import time
 
-
 _replyExpression = re.compile(r'([a-zA-Z0-9]+)=\s*(-?[0-9]+)')
 
 
 class PulseReader(Packetizer):
-
     TERMINATOR = b'\r'
 
     pulse = b''
@@ -63,17 +60,12 @@ class PulseReader(Packetizer):
         pulse = np.array(pulse, dtype=float)
         self.q.put(pulse)
 
-@asyncio.coroutine
-def create_serial_connection(loop, protocol_factory, *args, **kwargs):
-    ser = Serial(*args, **kwargs)
-    protocol = protocol_factory()
-    transport = AioSerialTransport(loop, protocol, ser)
-    return (transport, protocol)
-
 
 def read_pulse_data(port, q):
     loop = asyncio.new_event_loop()
-    coro = create_serial_connection(loop, lambda: PulseReader(q), port, baudrate=115200)
+
+    coro = create_serial_connection(loop, lambda: PulseReader(q),
+                                              port, baudrate=115200)
 
     loop.run_until_complete(coro)
     loop.run_forever()
@@ -99,7 +91,6 @@ def _volts2millivolts(x):
 
 
 class TEMFiberStretcher(DataSource):
-
     @enum.unique
     class Averages(enum.Enum):
         Avg_1 = 0
@@ -118,12 +109,12 @@ class TEMFiberStretcher(DataSource):
     _blockObserver = False
 
     neglectFirstDataSet = Bool(False, read_only=False).tag(
-                                    name="Neglect First Dataset",
-                                    group="Data acquisition")
+        name="Neglect First Dataset",
+        group="Data acquisition")
 
     measurementRate = Quantity(Q_(0, 'Hz'), read_only=True).tag(
-                                            name="Rate",
-                                            group="Data acquisition")
+        name="Rate",
+        group="Data acquisition")
     recStart = Quantity(Q_(0, 'ps')).tag(name="Start",
                                          i2q=_counts2ps, q2i=_ps2counts,
                                          priority=0, group="Data acquisition")
@@ -147,9 +138,9 @@ class TEMFiberStretcher(DataSource):
 
     scanRecStart = Int(0).tag(name="Start", group="Piezo scan")
     scanOffset = Quantity(Q_(0, 'V'), min=Q_(-5, 'V'), max=Q_(5, 'V')).tag(
-                                      name="Offset", group="Piezo scan",
-                                      i2q=_millivolts2volts,
-                                      q2i=_volts2millivolts)
+        name="Offset", group="Piezo scan",
+        i2q=_millivolts2volts,
+        q2i=_volts2millivolts)
     scanFrequency = Int(0).tag(name="Frequency", group="Piezo scan")
     scanAmpl = Int(0).tag(name="Amplitude", group="Piezo scan")
     scanEnable = Bool(False).tag(name="Piezo scan active", group="Piezo scan")
@@ -179,7 +170,7 @@ class TEMFiberStretcher(DataSource):
 
     _traitVars = ['recStart', 'recStop', 'average', 'mScanEnable', 'mTarget',
                   'mSpeedMax', 'mSpeedMin', 'scanEnable', 'measurement',
-                  'risingOnly', 'recInterval',  'dcOut', 'dcValue',
+                  'risingOnly', 'recInterval', 'dcOut', 'dcValue',
                   'scanRecStart', 'scanOffset', 'scanAmpl', 'scanFrequency']
 
     @observe(*_traitVars)
@@ -252,7 +243,7 @@ class TEMFiberStretcher(DataSource):
 
         self.handlers.append(predicate)
         return fut
-   
+
     def setVar(self, var, value):
         value = int(value)
         self.send('{}={}'.format(var, value))
@@ -264,6 +255,7 @@ class TEMFiberStretcher(DataSource):
 
     def handle_line(self, line):
         logging.info("TEMFS:HANDLING {}".format(line))
+
         for x in self.handlers:
             x(line)
 
@@ -273,7 +265,7 @@ class TEMFiberStretcher(DataSource):
     @observe("currentData")
     def currentDataChanged(self, change):
         assert (not self.newDataReady.done()), \
-               "newDataReady Future should never be done at this stage!"
+            "newDataReady Future should never be done at this stage!"
 
         t = time.perf_counter()
         rate = 1.0 / (t - self._lastDataTime)
@@ -297,6 +289,7 @@ class TEMFiberStretcher(DataSource):
         while True:
             # yield control to the event loop once
             await asyncio.sleep(0)
+
             while not self._pulseQueue.empty():
                 pulse = self._pulseQueue.get()
                 pulse = Q_(pulse)
@@ -315,10 +308,11 @@ class TEMFiberStretcher(DataSource):
 
     async def __aenter__(self):
         await super().__aenter__()
+
         self._controlTransport, self._lineReader = \
-            await aio_serial.create_serial_connection(self._loop, LineReader,
-                                                      self.controlPort,
-                                                      baudrate=57600)
+            await aioserial.create_serial_connection(self._loop, LineReader,
+                                                     self.controlPort,
+                                                     baudrate=57600)
         self._lineReader.handle_line = self.handle_line
         await asyncio.sleep(0)
 
@@ -334,7 +328,6 @@ class TEMFiberStretcher(DataSource):
         self._pulseReader = Process(target=read_pulse_data,
                                     args=(self.dataPort, self._pulseQueue))
         self._pulseReader.start()
-
         self._pulseFromQueueReader = \
             ensure_weakly_binding_future(self.readPulseFromQueue)
 
@@ -350,11 +343,13 @@ class TEMFiberStretcher(DataSource):
         self._pulseReader.terminate()
         await super().__aexit__(*args)
 
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
 
     loop = asyncio.get_event_loop()
     print(id(loop))
+
 
     async def run():
         async with TEMFiberStretcher('/tmp/fiberstretcher0', '/tmp/fiberstretcher1', loop=loop) as fs:
@@ -370,8 +365,8 @@ if __name__ == '__main__':
             fs.measurement = False
             await asyncio.sleep(2)
 
-    loop.run_until_complete(run())
 
+    loop.run_until_complete(run())
 
 #    print(fs.send('hello'))
 #    print(fs.query('RecInterval'))
