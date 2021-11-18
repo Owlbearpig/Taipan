@@ -63,10 +63,8 @@ class PulseReader(Packetizer):
 
 def read_pulse_data(port, q):
     loop = asyncio.new_event_loop()
-
     coro = create_serial_connection(loop, lambda: PulseReader(q),
                                               port, baudrate=115200)
-
     loop.run_until_complete(coro)
     loop.run_forever()
 
@@ -341,6 +339,7 @@ class TEMFiberStretcher(DataSource):
         self._pulseFromQueueReader.cancel()
         await asyncio.sleep(1)
         self._pulseReader.terminate()
+        self._controlTransport.close()
         await super().__aexit__(*args)
 
 

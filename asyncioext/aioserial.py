@@ -23,8 +23,6 @@ class AioSerialTransport(asyncio.Transport):
         # XXX how to support url handlers too
         self.serial.timeout = 0
         loop.call_soon(protocol.connection_made, self)
-        # only start reading when connection_made() has been called
-        #loop.call_soon(loop.add_reader, self.serial.fd, self._read_ready)
         asyncio.ensure_future(self.read_ready())
 
     def __repr__(self):
@@ -38,7 +36,8 @@ class AioSerialTransport(asyncio.Transport):
         self._loop.call_soon(self._protocol.connection_lost, None)
 
     async def read_ready(self):
-        while True:
+        while not self._closing:
+            await asyncio.sleep(0)
             data = await self.serial.read_async(1024)
             if data:
                 self._protocol.data_received(data)
