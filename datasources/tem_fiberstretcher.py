@@ -336,10 +336,10 @@ class TEMFiberStretcher(DataSource):
         self.measurement = False
         self.mScanEnable = False
         self.scanEnable = False
+        self._controlTransport.close()
         self._pulseFromQueueReader.cancel()
         await asyncio.sleep(1)
         self._pulseReader.terminate()
-        self._controlTransport.close()
         await super().__aexit__(*args)
 
 
