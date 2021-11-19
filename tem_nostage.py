@@ -1,4 +1,4 @@
-    # -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 Created on Tue Jul 26 15:05:52 2016
 
@@ -16,7 +16,8 @@ from datasources.tem_fiberstretcher import TEMFiberStretcher
 
 tem_port1 = '/dev/serial/by-id/usb-TEM_USB__-__Serial_cable-if00-port0' # '/dev/ttyUSB1'
 tem_port2 = '/dev/serial/by-id/usb-TEM_USB__-__Serial_cable-if01-port0' # '/dev/ttyUSB1'
-
+tem_port1 = 'COM7'
+tem_port2 = 'COM8'
 
 class AppRoot(ComponentBase):
 
