@@ -131,8 +131,8 @@ class TEMFiberStretcher(DataSource):
     mTarget = Int(0).tag(name="Motor target position", group="Stepper motor")
     mScanEnable = Bool(False).tag(name="Motor scan active",
                                   group="Stepper motor")
-    mSpeedMax = Int(0).tag(name="Maximum speed", group="Stepper motor")
-    mSpeedMin = Int(0).tag(name="Minimum speed", group="Stepper motor")
+    mSpeedMax = Int(30).tag(name="Maximum speed", group="Stepper motor")
+    mSpeedMin = Int(10).tag(name="Minimum speed", group="Stepper motor")
 
     scanRecStart = Int(0).tag(name="Start", group="Piezo scan")
     scanOffset = Quantity(Q_(0, 'V'), min=Q_(-5, 'V'), max=Q_(5, 'V')).tag(
@@ -336,10 +336,10 @@ class TEMFiberStretcher(DataSource):
         self.measurement = False
         self.mScanEnable = False
         self.scanEnable = False
+        self._controlTransport.close()
         self._pulseFromQueueReader.cancel()
         await asyncio.sleep(1)
         self._pulseReader.terminate()
-        self._controlTransport.close()
         await super().__aexit__(*args)
 
 
