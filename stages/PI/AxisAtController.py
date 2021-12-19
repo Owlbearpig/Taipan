@@ -158,7 +158,7 @@ class AxisAtController(Manipulator):
         if isinstance(command, str):
             command = bytearray(command, 'ascii')
 
-        isRequest = command[-1] == ord(b'?')
+        isRequest = (command[-1] == ord(b'?'))
 
         command = b'%d %s' % (self.address, command)
 

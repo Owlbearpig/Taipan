@@ -17,19 +17,20 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
-
+import logging
 from common import ComponentBase
 from asyncioext import threaded_async
 from serial import Serial
 from threading import Lock
 
 class Connection(ComponentBase):
-    def __init__(self, port=None, baudRate=9600):
+    def __init__(self, port=None, baudRate=9600, enableDebug=False):
         super().__init__()
         self.port = port
         self.baudRate = baudRate
         self.serial = Serial()
         self._lock = Lock()
+        self.enableDebug = enableDebug  # does logging.info(str(command)) before serial.write(command)
 
     async def __aenter__(self):
         await super().__aenter__()
@@ -45,6 +46,7 @@ class Connection(ComponentBase):
         """
         self.close()
         self.serial.port = self.port
+        self.serial.baudrate = self.baudRate
         self.serial.open()
 
     def close(self):
@@ -81,6 +83,9 @@ class Connection(ComponentBase):
                     command += b' %a' % arg
 
             command += b'\n'
+
+            if self.enableDebug:
+                logging.info(str(command))
 
             self.serial.write(command)
 
