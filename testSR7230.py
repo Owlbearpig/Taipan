@@ -28,15 +28,15 @@ from traitlets import Integer, Instance
 from asyncioext import ensure_weakly_binding_future
 from datasources.sr7230 import SR7230
 from dummy import DummyManipulator, DummySimpleDataSource
-import pyvisa as visa
+import pyvisa
 import os
 
 import time
 
 if os.name == 'posix':
-    rm = visa.ResourceManager('@py')
+    rm = pyvisa.ResourceManager('@py')
 elif os.name == 'nt':
-    rm = visa.ResourceManager()
+    rm = pyvisa.ResourceManager()
 
 SR7230_USB_Port = 'USB0::0x0A2D::0x0027::14043751::RAW'
 SR7230_LAN_Port = "TCPIP::169.254.150.230::50000::SOCKET"

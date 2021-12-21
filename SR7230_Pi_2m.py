@@ -10,7 +10,7 @@ from common.save import DataSaver
 from stages import PI
 from stages.tmcl_JanO import TMCL
 from datasources.sr7230 import SR7230
-import visa
+import pyvisa
 import thz_context
 import os
 import traitlets
@@ -18,14 +18,16 @@ from pathlib import Path
 from dummy import DummyManipulator
 
 if os.name == 'posix':
-    rm = visa.ResourceManager('@py')
+    rm = pyvisa.ResourceManager('@py')
+    PI_port = '/dev/ttyUSB0'
 elif os.name == 'nt':
-    rm = visa.ResourceManager()
+    rm = pyvisa.ResourceManager()
+    PI_port = 'COM13'
+
 
 SR7230_USB_Port = 'USB0::0x0A2D::0x0027::14043751::RAW'
 SR7230_LAN_Port = "TCPIP::169.254.150.230::50000::SOCKET"
 
-PI_comport = 'COM13'
 Manip1_comport = 'COM3'
 Manip2_comport = 'COM5'
 
@@ -47,7 +49,7 @@ class AppRoot(TabularMeasurements2M):
 
         self.dataSaver = DataSaver(objectName="Data Saver")
 
-        self.pi_conn = PI.Connection(PI_comport)
+        self.pi_conn = PI.Connection(PI_port)
         #self.mani_conn1 = PI.Connection(Manip1_comport)
         #self.mani_conn2 = PI.Connection(Manip2_comport)
 
@@ -57,7 +59,8 @@ class AppRoot(TabularMeasurements2M):
 
         self.TimeDomainScan = Scan(objectName='TimeDomainScan')
         self.TimeDomainScan.manipulator = pi_stage
-        self.TimeDomainScan.dataSource = SR7230(rm.open_resource(SR7230_LAN_Port), ethernet=True)
+        resource = rm.open_resource(SR7230_LAN_Port)
+        self.TimeDomainScan.dataSource = SR7230(resource, ethernet=True)
         self.TimeDomainScan.dataSource.objectName = "SR7230"
 
         self.TimeDomainScan.continuousScan = True

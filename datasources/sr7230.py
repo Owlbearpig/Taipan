@@ -20,8 +20,8 @@ from common import DataSource, DataSet, action, Q_
 from common.traits import Quantity
 from asyncioext import threaded_async, ensure_weakly_binding_future
 from threading import Lock
+from pyvisa import constants as pyvisa_consts
 import asyncio
-from pyvisa import constants
 import struct
 import enum
 import traitlets
@@ -294,7 +294,7 @@ class SR7230(DataSource):
     acGain = traitlets.Enum(ACGain, default_value=ACGain.Gain_0dB).tag(group="Signal Channel", command="ACGAIN")
     acAutomaticGainControl = traitlets.Bool(default_value=False, group="Signal Channel", command="AUTOMATIC")
     notchFilter = traitlets.Enum(NotchFilter, default_value=NotchFilter.Off, group="Signal Channel",
-                                 command="LF {}, {}")
+                                 command="LF {} {}")
 
     # Reference Channel Traitlets
 
@@ -315,6 +315,8 @@ class SR7230(DataSource):
 
     noiseMode = traitlets.Bool(default_value=False, read_only=True, group="Signal Channel Output Filters",
                                command="NOISEMODE")
+    fastMode = traitlets.Bool(default_value=True, read_only=False, group="Signal Channel Output Filters",
+                              command="FASTMODE")
     filterTimeConstant = traitlets.Enum(FilterTimeConstant, group="Signal Channel Output Filters", command="TC")
     synchronousTimeConstantControl = traitlets.Bool(default_value=True, group="Signal Channel Output Filters",
                                                     command="SYNC")
@@ -381,6 +383,7 @@ class SR7230(DataSource):
         self.resource = resource
         self.ethernet = ethernet
         self.resource.timeout = 1000
+        self.resource.set_visa_attribute(pyvisa_consts.VI_ATTR_SUPPRESS_END_EN, pyvisa_consts.VI_FALSE)
 
         if ethernet:
             self.resource.read_termination = chr(0)
@@ -395,6 +398,8 @@ class SR7230(DataSource):
 
         self._statusUpdateFuture = ensure_weakly_binding_future(self.contStatusUpdate)
 
+
+
     async def __aenter__(self):
         await super().__aenter__()
         self.set_trait("identification", (await self.query("ID"))[0])
@@ -406,6 +411,7 @@ class SR7230(DataSource):
 
     async def __aexit__(self, *args):
         await super().__aexit__(*args)
+        self._statusUpdateFuture.cancel()
 
     @threaded_async
     def query(self, command):
@@ -433,11 +439,13 @@ class SR7230(DataSource):
             logging.info('{}: {}'.format(self, command))
 
             answer = self.resource.query(command)
+
             if self.ethernet:
                 self.resource.read_raw()
             else:
                 end = answer.find(chr(0))
                 answer = answer[:end]
+
             print('SR7230: answer: ' + answer)
 
             result = []
@@ -608,7 +616,10 @@ class SR7230(DataSource):
         if isinstance(value, enum.Enum):
             value = value.value
         elif isinstance(value, Q_):
-            value = value.magnitude
+            if 'REFP' in command:
+                value = int(value.magnitude)
+            else:
+                value = value.magnitude
         elif isinstance(value, bool):
             value = 1 if value else 0
 
@@ -616,7 +627,7 @@ class SR7230(DataSource):
         paramIndex = command.find(" {}")
         if paramIndex == -1:
             commandString = command + ' {}'.format(value)
-        elif command.find("{}, {}") != -1:
+        elif command.find("{} {}") != -1:
             commandString = command.format(value[0], value[1])
         elif paramIndex != -1:
             commandString = command.format(value)
@@ -624,6 +635,9 @@ class SR7230(DataSource):
         asyncio.ensure_future(self.write(commandString))
 
     # Auto Functions
+    @action('Readout Settings', group='Auto Functions')
+    def readSettings(self):
+        asyncio.ensure_future(self.readAllParameters())
 
     @action('Auto Sensitivity', group='Auto Functions')
     def autoSensitivity(self):
@@ -727,7 +741,6 @@ class SR7230(DataSource):
         data = await self.query('DC 0')
         data = data[0]
 
-        print(data)
         result = []
         for s in str.split(data, '\n'):
             try:
@@ -735,8 +748,6 @@ class SR7230(DataSource):
                 result.append(dataPoint)
             except ValueError:
                 pass
-
-        print(len(result))
 
         return result
 
@@ -747,7 +758,6 @@ class SR7230(DataSource):
             self._dataSetReady(dataSet)
             return dataSet
         elif self.samplingMode == SR7230.SamplingMode.Buffered:
-            print('Hee')
             data = await self.readDataBuffer()
             data = np.array(data)
             dataSet = DataSet(Q_(data), [Q_(np.arange(0, len(data)))])
