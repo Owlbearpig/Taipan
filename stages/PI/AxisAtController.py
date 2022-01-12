@@ -17,6 +17,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
+import logging
 
 from common import Manipulator, action
 from asyncioext import ensure_weakly_binding_future
@@ -102,7 +103,6 @@ class AxisAtController(Manipulator):
     async def updateStatus(self):
         while True:
             await asyncio.sleep(0.5)
-
             if (self.connection is None):
                 continue
 

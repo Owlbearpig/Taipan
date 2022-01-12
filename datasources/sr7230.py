@@ -117,7 +117,7 @@ class SR7230(DataSource):
         Automatic = 1
 
     class NotchFilter(enum.Enum):
-        Off = [0, 1]
+        Off = [0, 0]
         NotchFilter_50Hz = [1, 0]
         NotchFilter_60Hz = [1, 1]
         NotchFilter_100Hz = [2, 0]
@@ -383,12 +383,13 @@ class SR7230(DataSource):
         self.resource = resource
         self.ethernet = ethernet
         self.resource.timeout = 1000
-        self.resource.set_visa_attribute(pyvisa_consts.VI_ATTR_SUPPRESS_END_EN, pyvisa_consts.VI_FALSE)
+        #self.resource.set_visa_attribute(pyvisa_consts.VI_ATTR_SUPPRESS_END_EN, pyvisa_consts.VI_FALSE)
 
         if ethernet:
             self.resource.read_termination = chr(0)
         else:
             self.resource.read_termination = ''
+
         self.resource.write_termination = chr(0)
 
         self.observe(self.setParameter, traitlets.All)
@@ -566,7 +567,11 @@ class SR7230(DataSource):
                     for i in answer:
                         ival = int(i)
                         res.append(ival)
-                    val = [item for item in trait.values if item.value == res][0]
+                    # if first element is 0, (like [0, 1]) then LF is off
+                    if res[0] != 0:
+                        val = [item for item in trait.values if item.value == res][0]
+                    else:
+                        val = list(trait.values)[0]
             elif isinstance(trait, Quantity):
                 val = Q_(float(result), trait.default_value.units)
             elif isinstance(trait, traitlets.Int):
