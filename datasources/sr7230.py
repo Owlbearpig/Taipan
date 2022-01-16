@@ -520,7 +520,7 @@ class SR7230(DataSource):
         elif self.takeDataMode == self.TakeDataMode.TakeDataContinuously:
             await self.write('TDC 0')
         elif self.takeDataMode == self.TakeDataMode.TakeDataTriggered:
-            await self.write("TDT {}".format(self.takeDataTriggeredTriggerMode))
+            await self.write("TDT {}".format(self.takeDataTriggeredTriggerMode.value))
 
         await self.statusUpdate()
 
