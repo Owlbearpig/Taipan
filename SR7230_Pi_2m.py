@@ -17,19 +17,20 @@ import traitlets
 from pathlib import Path
 from dummy import DummyManipulator
 
+rm = pyvisa.ResourceManager()
+
 if os.name == 'posix':
-    rm = pyvisa.ResourceManager('@py')
     PI_port = '/dev/ttyUSB0'
+    Manip1_comport = '/dev/ttyUSB1'
+    Manip2_comport = '/dev/ttyUSB2'
 elif os.name == 'nt':
-    rm = pyvisa.ResourceManager()
-    PI_port = 'COM13'
+    PI_port = 'COM4'
+    Manip1_comport = 'COM3'
+    Manip2_comport = 'COM5'
 
 
 SR7230_USB_Port = 'USB0::0x0A2D::0x0027::14043751::RAW'
 SR7230_LAN_Port = "TCPIP::169.254.150.230::50000::SOCKET"
-
-Manip1_comport = 'COM3'
-Manip2_comport = 'COM5'
 
 
 class AppRoot(TabularMeasurements2M):
@@ -50,11 +51,10 @@ class AppRoot(TabularMeasurements2M):
         self.dataSaver = DataSaver(objectName="Data Saver")
 
         self.pi_conn = PI.Connection(PI_port)
-        #self.mani_conn1 = PI.Connection(Manip1_comport)
         #self.mani_conn2 = PI.Connection(Manip2_comport)
 
         pi_stage = PI.AxisAtController(self.pi_conn)
-        pi_stage.objectName = "PI C-863 DLine"
+        pi_stage.objectName = "PI C-867 DLine"
         pi_stage.setPreferredUnits(ureg.ps, ureg.ps / ureg.s)
 
         self.TimeDomainScan = Scan(objectName='TimeDomainScan')
@@ -64,24 +64,25 @@ class AppRoot(TabularMeasurements2M):
         self.TimeDomainScan.dataSource.objectName = "SR7230"
 
         self.TimeDomainScan.continuousScan = True
-        self.TimeDomainScan.minimumValue = Q_(1250, 'ps')
-        self.TimeDomainScan.maximumValue = Q_(1315, 'ps')
-        self.TimeDomainScan.overscan = Q_(3, 'ps')
+        self.TimeDomainScan.minimumValue = Q_(840, 'ps')
+        self.TimeDomainScan.maximumValue = Q_(910, 'ps')
+        self.TimeDomainScan.overscan = Q_(1, 'ps')
         self.TimeDomainScan.step = Q_(0.05, 'ps')
-        self.TimeDomainScan.positioningVelocity = Q_(30, 'ps/s')
-        self.TimeDomainScan.scanVelocity = Q_(1.6, 'ps/s')
+        self.TimeDomainScan.positioningVelocity = Q_(40, 'ps/s')
+        self.TimeDomainScan.scanVelocity = Q_(1, 'ps/s')
         self.TimeDomainScan.retractAtEnd = True
 
         self.dataSource = self.TimeDomainScan
 
-        manipulator1 = DummyManipulator()#PI.AxisAtController(self.mani_conn1)
+        self.mani_conn1 = PI.Connection(Manip1_comport)
+        manipulator1 = PI.AxisAtController(self.mani_conn1)
         manipulator1.setPreferredUnits(ureg.mm, ureg.mm / ureg.s)
-        manipulator1.objectName = 'DummyManipulator 1'
+        manipulator1.objectName = "PI C-863 Manip"
         self.manipulator1 = manipulator1
         self.positioningVelocityM1 = Q_(4, 'mm/s')
         self.scanVelocity = Q_(4, 'mm/s')
 
-        manipulator2 = DummyManipulator()#PI.AxisAtController(self.mani_conn2)
+        manipulator2 = DummyManipulator()  # PI.AxisAtController(self.mani_conn2)
         manipulator2.setPreferredUnits(ureg.mm, ureg.mm / ureg.s)
         manipulator2.objectName = 'DummyManipulator 2'
         self.manipulator2 = manipulator2
@@ -92,7 +93,7 @@ class AppRoot(TabularMeasurements2M):
         self.dataSaver.registerManipulator(self.manipulator2, 'Position2')
         self.dataSaver.registerObjectAttribute(self, 'currentMeasurementName', 'currentTableEntry')
         self.dataSaver.fileNameTemplate = '{date}-{name}-{currentTableEntry}-{Position1}-{Position2}'
-        self.dataSaver.set_trait('path', Path(r'D:\MeasurementTest'))
+        self.dataSaver.set_trait('path', Path(r''))
         self.TimeDomainScan.addDataSetReadyCallback(self.dataSaver.process)
         self.TimeDomainScan.addDataSetReadyCallback(self.setCurrentData)
         self._backAndForth = True
@@ -101,14 +102,15 @@ class AppRoot(TabularMeasurements2M):
         self.set_trait('currentData', dataSet)
 
     async def __aenter__(self):
-        # await super().__aenter__()
+        #await super().__aenter__()
         await self.pi_conn.__aenter__()
-        #await self.mani_conn1.__aenter__()
+        await self.mani_conn1.__aenter__()
         #await self.mani_conn2.__aenter__()
         await self.manipulator1.__aenter__()
         await self.manipulator2.__aenter__()
         await self.TimeDomainScan.manipulator.__aenter__()  # pi
         await self.TimeDomainScan.dataSource.__aenter__()  # lockin
+
 
         return self
 
@@ -132,7 +134,7 @@ class AppRoot(TabularMeasurements2M):
 
     async def __aexit__(self, *args):
         await self.pi_conn.__aexit__(*args)
-        #await self.mani_conn1.__aexit__(*args)
+        await self.mani_conn1.__aexit__(*args)
         #await self.mani_conn2.__aexit__(*args)
         await self.manipulator1.__aexit__(*args)
         await self.manipulator2.__aexit__(*args)

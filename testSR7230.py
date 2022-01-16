@@ -34,7 +34,8 @@ import os
 import time
 
 if os.name == 'posix':
-    rm = pyvisa.ResourceManager('@py')
+    #rm = pyvisa.ResourceManager('@py')
+    rm = pyvisa.ResourceManager()
 elif os.name == 'nt':
     rm = pyvisa.ResourceManager()
 
