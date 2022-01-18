@@ -85,7 +85,7 @@ class AppRoot(TabularMeasurements2M):
         self.dataSaver.registerManipulator(self.manipulator2, 'Rotation')
         self.dataSaver.registerObjectAttribute(self, 'currentMeasurementName', 'currentTableEntry')
         self.dataSaver.fileNameTemplate = '{date}-{name}-{currentTableEntry}-{Position}-{Rotation}'
-        self.dataSaver.set_trait('path',Path('E:/Messdaten/test/')) #added by Cornelius as standard savepath
+        self.dataSaver.set_trait('path', Path('E:/Messdaten/test/')) #added by Cornelius as standard savepath
         self.TimeDomainScan.addDataSetReadyCallback(self.dataSaver.process)
         self.TimeDomainScan.addDataSetReadyCallback(self.setCurrentData)
         self._backAndForth = True
