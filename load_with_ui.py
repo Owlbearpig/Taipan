@@ -24,7 +24,7 @@ import matplotlib
 matplotlib.use("Qt5Agg")
 
 from qtui.autoui import generate_ui
-import quamash
+import qasync
 from PyQt5 import QtCore, QtWidgets
 import asyncio
 import sys
@@ -45,7 +45,10 @@ class QTextBrowserLoggingHandler(QtCore.QObject, logging.Handler):
     @QtCore.pyqtSlot(str)
     def logFormattedMessage(self, msg):
         text = self.textBrowser.toPlainText()
-        text += msg + self.terminator
+        lines = text.split(self.terminator)
+        lines = lines[-100:]  # restrict to 100 lines of backlog
+        lines.append(msg)
+        text = self.terminator.join(lines)
         self.textBrowser.setPlainText(text)
         self.textBrowser.verticalScrollBar().setValue(
             self.textBrowser.verticalScrollBar().maximum()
@@ -81,21 +84,14 @@ async def run(app, rootClass, loop):
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
-    loop = quamash.QEventLoop(app)
-
-    if not hasattr(loop, 'create_future'):
-        loop.create_future = asyncio.Future
-
+    loop = qasync.QEventLoop(app)
     asyncio.set_event_loop(loop)
 
     filename = sys.argv[1]
-    theglobals = { '__name__': '__guimain__' }
+    theglobals = { '__name__': splitext(basename(filename))[0] }
     exec(compile(open(filename, 'rb').read(), filename, 'exec'), theglobals)
 
-    if 'AppRoot' not in theglobals:
-        logging.fatal("The script {} does not define an 'AppRoot' callable!".format(filename))
-    else:
-        rootClass = theglobals.get('AppRoot')
+    rootClass = theglobals['AppRoot']
 
-        with loop:
-            sys.exit(loop.run_until_complete(run(app, rootClass, loop)))
+    with loop:
+        sys.exit(loop.run_until_complete(run(app, rootClass, loop)))
