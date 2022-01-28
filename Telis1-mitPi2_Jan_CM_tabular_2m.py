@@ -105,7 +105,7 @@ class AppRoot(TabularMeasurements2M):
         return self
             
     @action("Take Tabular measurements")
-    async def takeangleScan(self):
+    async def takeTabularScan(self):
         self.set_trait('progress2',0)#progress trait changes added by Cornelius for additional progress Information
         for x in range(self.nMeasurements):
             dataset = await self.readDataSet()

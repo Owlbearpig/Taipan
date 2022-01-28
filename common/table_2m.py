@@ -119,8 +119,6 @@ class TabularMeasurements2M(DataSource):
 
         for i, (name, position1, position2) in enumerate(zip(names, axis1, axis2)):
             self.set_trait('currentMeasurementName', name)
-            print(position1, type(position1))
-            print(self.positioningVelocityM1, type(self.positioningVelocityM1))
             await self.manipulator1.moveTo(position1, self.positioningVelocityM1)
             await self.manipulator2.moveTo(position2, self.positioningVelocityM2)
             accumulator.append(await self.dataSource.readDataSet())

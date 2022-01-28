@@ -144,6 +144,7 @@ class TMCL(Manipulator):
         velocity = velocity.magnitude
         accel = self.angularAcceleration.magnitude
 
+        # stop if still moving
         if not self._isMovingFuture.done():
             self.stop()
 

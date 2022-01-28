@@ -334,10 +334,10 @@ class SR7230(DataSource):
                                                               group="Data Curve Buffer")
     bufferLength = traitlets.Int(default_value=100000).tag(name="Buffer Length", command="LEN",
                                                            group="Data Curve Buffer")
-    takeDataMode = traitlets.Enum(TakeDataMode, TakeDataMode.TakeData).tag(name="Take Data Mode",
+    takeDataMode = traitlets.Enum(TakeDataMode, TakeDataMode.TakeDataTriggered).tag(name="Take Data Mode",
                                                                            group="Data Curve Buffer")
     takeDataTriggeredTriggerMode = traitlets.Enum(
-        TakeDataTriggeredTriggerMode, default_value=TakeDataTriggeredTriggerMode.Start_ExtRising_Sample_NA_Stop_LEN,
+        TakeDataTriggeredTriggerMode, default_value=TakeDataTriggeredTriggerMode.Start_Cmd_Sample_ExtRising_Stop_Cmd,
         group="Data Curve Buffer")
     curveAcquisitionInProgressTD = traitlets.Bool(default_value=False, read_only=True).tag(
         name="Acquisition in Progress by TD",
@@ -583,7 +583,7 @@ class SR7230(DataSource):
                 except ValueError:
                     print('Failed to read answer from ' + command + " answer was " + str(result))
                     logging.info('Failed to read answer from ' + command + " answer was " + str(result))
-                    
+
                 val = True if result_int == 1 else False
             else:
                 val = result
@@ -684,7 +684,11 @@ class SR7230(DataSource):
         """
 
         curveAcquisitionStatusMonitor = await self.getCurveAcquisitionStatusMonitor()
-        curveAcquisitionStatus = int(curveAcquisitionStatusMonitor[0])
+        try:
+                curveAcquisitionStatus = int(curveAcquisitionStatusMonitor[0])
+        except Exception as e:
+                logging.info(e)
+                await self.statusUpdate()
         status = int(curveAcquisitionStatusMonitor[2])
 
         self.set_trait("curveAcquisitionInProgressTD",

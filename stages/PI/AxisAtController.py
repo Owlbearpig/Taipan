@@ -211,6 +211,7 @@ class AxisAtController(Manipulator):
         await self.send("VEL", velocity.to('mm/s').magnitude)
 
         await self.send("MOV", val.to('mm').magnitude)
+
         self._isMovingFuture = asyncio.Future()
         await self._isMovingFuture
 
@@ -267,3 +268,6 @@ class AxisAtController(Manipulator):
 
         return np.arange(self._trigStart.magnitude, self._trigStop.magnitude,
                          self._trigStep.magnitude) * ureg.mm
+
+    async def waitForTargetReached(self):
+        return await self._isMovingFuture

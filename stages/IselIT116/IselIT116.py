@@ -18,12 +18,11 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 import asyncio
 import os
 import pyvisa as visa
-from pyvisa import constants as pyvisa_consts
 from threading import Lock
 import traitlets
 import enum
 from common.traits import Quantity
-
+import time
 from asyncioext import threaded_async, ensure_weakly_binding_future
 from common import Manipulator, Q_, ureg, action
 import logging
@@ -107,18 +106,17 @@ class IselIT116(Manipulator):
         self._lock = Lock()
 
         self.comport = comport
-        self.stepsPerRev = stepsPerRev
+        self.stepsPerRev = 2*stepsPerRev # not sure if correct (@0P gives correct distance)
 
         if os.name == 'posix':
             rm = visa.ResourceManager('@py')
         elif os.name == 'nt':
             rm = visa.ResourceManager()
-	
+
         try:
             self.resource = rm.open_resource(comport)
         except visa.errors.VisaIOError:
             raise Exception('Failed to open Isel IT116 stage at comport: ' + comport)
-        self.resource.set_visa_attribute(pyvisa_consts.VI_ATTR_SUPPRESS_END_EN, pyvisa_consts.VI_FALSE)
         self.resource.read_termination = ''
         self.resource.write_termination = chr(13)  # CR
         self.resource.baud_rate = baudRate
@@ -127,6 +125,10 @@ class IselIT116(Manipulator):
         self.setPreferredUnits(ureg.mm, ureg.mm / ureg.s)
 
         self.observe(self.setParameterOnDevice, self.parameterTraits)
+
+        self.set_trait('status', self.Status.Idle)
+        self._isMovingFuture = asyncio.Future()
+        self._isMovingFuture.set_result(None)
 
     async def __aenter__(self):
         await super().__aenter__()
@@ -154,6 +156,9 @@ class IselIT116(Manipulator):
         result = result[0:-2]
         if result == "STOP":
             self.set_trait("stopped", False)
+
+        if not self._isMovingFuture.done():
+            self._isMovingFuture.cancel()
 
     @action("Start")
     async def start(self):
@@ -314,7 +319,7 @@ class IselIT116(Manipulator):
         allBytes : list
             All bytes read from the receive buffer.
         """
-
+        time.sleep(0.05) # self.resource.bytes_in_buffer gives wrong result if called right after write
         allBytes = []
         try:
             allBytes.append(self.resource.read_bytes(1))
@@ -323,6 +328,11 @@ class IselIT116(Manipulator):
 
         while self.resource.bytes_in_buffer > 0:
             allBytes.append(self.resource.read_bytes(1))
+
+        # some commands return "0" "handshake" before actual value
+        # this is probably the wrong way to handle it
+        if (allBytes[0] == b'0' and len(allBytes) != 1):
+                allBytes = allBytes[1:]
 
         return allBytes
 
@@ -384,7 +394,10 @@ class IselIT116(Manipulator):
             currentPosition = (await self.query("@0P"))[0]
             # print("pos answer: " + str(currentPosition))
             currentPosition = int(currentPosition, 16)
+
             self.set_trait('value', Q_(currentPosition/self.stepsPerRev, 'cm'))
+
+            self._isMovingFuture.set_result(None)
 
     async def initializeControlUnit(self):
         """
@@ -444,6 +457,7 @@ class IselIT116(Manipulator):
 
         self.set_trait("status", self.Status.Moving)
         result = (await self.query(command, self.MOVEMENT_TIMEOUT))[0]
+        self._isMovingFuture = asyncio.Future()
         print("movement result: " + result)
         if result == "0":
             self.set_trait("status", self.Status.Idle)
@@ -455,6 +469,7 @@ class IselIT116(Manipulator):
         else:
             self.set_trait("status", self.Status.Error)
 
-
+    async def waitForTargetReached(self):
+        return await self._isMovingFuture
 
 
