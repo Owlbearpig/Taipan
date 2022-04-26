@@ -87,7 +87,7 @@ class AverageDataSource(DataSource):
     @action("expected length")
     async def readDataLength(self):
         """
-        Calls singleSource.readDataSet() and sets its len in dataLen trait.
+        Calls singleSource.readDataSet() and sets its len in 'dataLen' trait.
         Implemented as @action.
         """
         cd = await self.singleSource.readDataSet()
@@ -126,4 +126,5 @@ class AverageDataSource(DataSource):
             self.set_trait('currentAverages', self.currentAverages + 1)
         avDataSet.data /= self.numberofAverages
         self._dataSetReady(avDataSet)
+
         return avDataSet

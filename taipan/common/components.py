@@ -30,6 +30,30 @@ from .traits import Quantity
 
 
 def action(name=None, help=None, **kwargs):
+    """
+    Should be used as a decorator.
+    When the decorated method is called this method is called first,
+    then 'action_impl' is called with the decorated method as argument,
+    finally the decorated method itself is called.
+
+    The return value of a decorator has to be callable.
+
+    Parameters
+    ----------
+    name : `str`, optional
+        Adds name to kwargs dict (key 'name').
+    help : `str`, optional
+        Adds help string to kwargs dict (key 'help').
+    **kwargs
+        Arbitrary keyword arguments. Added to decorated method
+        as a metadata field (method.metadata)
+
+    Returns
+    -------
+    `function`
+        Returns decorated method 'action_impl'. Which is called
+        when the decorated method is called.
+    """
     if name is None:
         name = ''
     if help is None:
@@ -48,9 +72,29 @@ def action(name=None, help=None, **kwargs):
 
 
 def _dumb_list_of_actions(inst):
+    """
+    Generator function which can be iterated over.
+    Returns generator which yields every attribute of 'inst'
+    as name, attr tuple if attribute is an action ('_isAction').
+
+    Private member (_d..) therefore not strictly included in sphinx output.
+    Docstring isn't actually required.
+
+    Parameters
+    ----------
+    inst : `object`
+        Instance of object.
+
+    Yields
+    -------
+    name : `str`
+        Name of the attribute.
+    attr : `object`
+        The attribute itself.
+    """
     for name in dir(inst):
         try:
-            attr = getattr(inst, name, None)
+            attr = getattr(inst, name, None)  # same as inst.name
             if not attr._isAction:
                 continue
 
@@ -62,6 +106,19 @@ def _dumb_list_of_actions(inst):
 
 
 def is_component_trait(x):
+    """
+    Helper function to check if 'x' is trait.
+
+    Parameters
+    ----------
+    x : `object`
+        cls to be checked if trait.
+
+    Returns
+    -------
+    `bool`
+        True if x is trait, False if x is not trait.
+    """
     return (isinstance(x, Instance) and issubclass(x.klass, ComponentBase))
 
 
