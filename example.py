@@ -18,16 +18,11 @@ You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from common import ComponentBase, DataSource, Manipulator, DataSet, Scan, action
-import asyncio
-import numpy as np
-from common.units import Q_, ureg
-from common.traits import DataSet as DataSetTrait, Quantity
-from traitlets import Integer, Instance
-from asyncioext import ensure_weakly_binding_future
-from dummy import DummyManipulator, DummySimpleDataSource, DummyContinuousDataSource
-
-import time
+from taipan.common import ComponentBase, Scan, action
+from taipan.common.units import Q_
+from taipan.common.traits import DataSet as DataSetTrait
+from traitlets import Instance
+from taipan.dummy import DummyManipulator, DummyContinuousDataSource
 
 
 class AppRoot(ComponentBase):
