@@ -23,6 +23,7 @@ from asyncioext import threaded_async
 from serial import Serial
 from threading import Lock
 
+
 class Connection(ComponentBase):
     def __init__(self, port=None, baudRate=9600, enableDebug=False):
         super().__init__()

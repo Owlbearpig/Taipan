@@ -30,41 +30,39 @@ import csv
 
 
 class TabularMeasurements2M(DataSource):
-
     manipulator1 = Instance(Manipulator, allow_none=True)
     manipulator2 = Instance(Manipulator, allow_none=True)
-    
+
     dataSource = Instance(DataSource, allow_none=True)
 
     positioningVelocityM1 = Quantity(Q_(1), help="The velocity of "
-                                               "Manipulator1 during positioning"
-                                               " movement").tag(
-                                          name="Positioning velocity M1",
-                                          priority=4)
+                                                 "Manipulator1 during positioning"
+                                                 " movement").tag(
+        name="Positioning velocity M1",
+        priority=4)
     positioningVelocityM2 = Quantity(Q_(1), help="The velocity of "
-                                           "Manipulator2 during positioning"
-                                           " movement").tag(
-                                           name="Positioning velocity M2",
-                                           priority=4)
+                                                 "Manipulator2 during positioning"
+                                                 " movement").tag(
+        name="Positioning velocity M2",
+        priority=4)
 
     active = Bool(False, read_only=True, help="Whether the tabular measurement"
                                               "is currently running").tag(
-                                         name="Active")
+        name="Active")
 
     progress = Float(0, min=0, max=1, read_only=True).tag(name="Progress")
-    progress2 = Float(0, min=0, max=1, read_only=True).tag(name="Total Progress") #added by Cornelius for additional Table information
-
+    progress2 = Float(0, min=0, max=1, read_only=True).tag(
+        name="Total Progress")  # added by Cornelius for additional Table information
 
     tableFile = Path(None, is_file=True, is_dir=False, must_exist=True, allow_none=True).tag(
-                     name="Table file")
+        name="Table file")
 
     currentMeasurementName = Unicode(read_only=True).tag(name="Current")
 
-
-    def __init__(self, manipulator1: Manipulator=None,
-                 manipulator2: Manipulator=None,
-                 dataSource: DataSource=None, objectName: str=None,
-                 loop: asyncio.BaseEventLoop=None):
+    def __init__(self, manipulator1: Manipulator = None,
+                 manipulator2: Manipulator = None,
+                 dataSource: DataSource = None, objectName: str = None,
+                 loop: asyncio.BaseEventLoop = None):
         super().__init__(objectName=objectName, loop=loop)
 
         self.__original_class = self.__class__
@@ -74,7 +72,7 @@ class TabularMeasurements2M(DataSource):
 
         self.manipulator1 = manipulator1
         self.manipulator2 = manipulator2
-        
+
         self.dataSource = dataSource
 
         self._activeFuture = None
@@ -88,9 +86,10 @@ class TabularMeasurements2M(DataSource):
 
         if manip is None:
             return
-        
-        positioningVelocityTraitMap = {'manipulator1': ['positioningVelocityM1'], 'manipulator2': ['positioningVelocityM2']}
-        
+
+        positioningVelocityTraitMap = {'manipulator1': ['positioningVelocityM1'],
+                                       'manipulator2': ['positioningVelocityM2']}
+
         traitsWithVelocityUnits = positioningVelocityTraitMap[change['name']]
         traitsWithBaseUnits = []
 
@@ -175,12 +174,12 @@ class TabularMeasurements2M(DataSource):
                     raise RuntimeError(f"Row has wrong amount of elements: '{row}'")
 
                 names.append(row[0])
-                
+
                 try:
                     axis1.append(Q_(float(row[1]), units_manip1))
                 except ValueError:
                     raise RuntimeError(f"Failed to convert {row[1]} to a float!")
-                  
+
                 try:
                     axis2.append(Q_(float(row[2]), units_manip2))
                 except ValueError:
