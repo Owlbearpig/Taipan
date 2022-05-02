@@ -109,6 +109,10 @@ def is_component_trait(x):
     """
     Helper function to check if 'x' is trait.
 
+    Check if x is instance of `Instance` and
+    x.klass is subclass of `ComponentBase`.
+    x.klass is the class that forms the basis for the trait.
+
     Parameters
     ----------
     x : `object`
@@ -117,9 +121,9 @@ def is_component_trait(x):
     Returns
     -------
     `bool`
-        True if x is trait, False if x is not trait.
+        True if x is trait, False if not.
     """
-    return (isinstance(x, Instance) and issubclass(x.klass, ComponentBase))
+    return isinstance(x, Instance) and issubclass(x.klass, ComponentBase)
 
 
 class ComponentBase(traitlets.HasTraits):
