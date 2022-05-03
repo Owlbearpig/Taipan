@@ -76,6 +76,8 @@ def _dumb_list_of_actions(inst):
     Generator function which can be iterated over.
     Returns generator which yields every attribute of 'inst'
     as name, attr tuple if attribute is an action ('_isAction').
+    Basically looks for attributes 'inst' and returns them if they
+    are an action.
 
     Private member (_d..) therefore not strictly included in sphinx output.
     Docstring isn't actually required.
@@ -107,7 +109,7 @@ def _dumb_list_of_actions(inst):
 
 def is_component_trait(x):
     """
-    Helper function to check if 'x' is trait.
+    Helper function to check if 'x' is component trait.
 
     Check if x is instance of `Instance` and
     x.klass is subclass of `ComponentBase`.
@@ -116,7 +118,8 @@ def is_component_trait(x):
     Parameters
     ----------
     x : `object`
-        cls to be checked if trait.
+        cls to be checked if component trait, trait originating
+        from `ComponentBase`.
 
     Returns
     -------
@@ -127,8 +130,50 @@ def is_component_trait(x):
 
 
 class ComponentBase(traitlets.HasTraits):
+    """
+    Implements base functionalities of all components in Taipan.
+
+    Attributes
+    ----------
+    objectName: `str`, optional
+        UI element name.
+    _loop: `asyncio.BaseEventLoop`, optional
+        Async loop from qasync.QEventLoop initialized in load_with_ui.py
+    __actions: `list`
+        Contains _dumb_list_of_actions(self), so all actions
+
+    Methods
+    -------
+    async __aenter__()
+        Calls __aenter__() of traits if component trait.
+    async __aexit__(*args)
+        Calls __aexit__(*args) of traits if component trait.
+    actions()
+        Returns list of action attribute.
+    attributes()
+        Returns `dict` of all traits.
+    getAttribute(name)
+        Returns getattr(self, name), equivalent to self.name
+    setAttribute(name, val)
+        Equivalent to self.name = val
+    saveConfiguration(config: ConfigParser)
+        Calls saveConfiguration(config) on all self.__components.
+        Not implemented? self.__components is not an attribute self.
+    loadConfiguration(config: ConfigParser)
+        Calls loadConfiguration(config) on all self.__components.
+        Not implemented? self.__components is not an attribute of self.
+    """
 
     def __init__(self, objectName: str=None, loop: asyncio.BaseEventLoop=None):
+        """
+        Parameters
+        ----------
+        objectName: `str`, optional
+            UI element name.
+        loop: `asyncio.BaseEventLoop`, optional
+            Async loop from asyncio.BaseEventLoop initialized in load_with_ui.py
+        """
+
         self.objectName = objectName
         if self.objectName is None:
             self.objectName = ""
@@ -142,38 +187,54 @@ class ComponentBase(traitlets.HasTraits):
             self.__actions.append((name, memb))
 
     async def __aenter__(self):
+        """
+        Calls __aenter__() of component traits
+
+        Returns
+        -------
+        `self`
+            Instance of `ComponentBase`
+        """
         for name, trait in self.traits().items():
             if is_component_trait(trait):
                 await trait.get(self).__aenter__()
         return self
 
     async def __aexit__(self, *args):
+        """Calls __aexit__(*args) of component traits"""
         for name, trait in self.traits().items():
             if is_component_trait(trait):
                 await trait.get(self).__aexit__(*args)
 
     def __str__(self):
+        """print(self) same as print(self.objectName)"""
         return self.objectName
 
     @property
     def actions(self):
+        """Get list of all actions"""
         return self.__actions
 
     @property
     def attributes(self):
+        """Get all traits"""
         return self.traits()
 
     def getAttribute(self, name):
+        """Return self.name"""
         return getattr(self, name)
 
     def setAttribute(self, name, val):
+        """Same as self.name = val"""
         setattr(self, name, val)
 
     def saveConfiguration(self, config: ConfigParser):
+        """Does not seem to be used"""
         for c in self.__components:
             c.saveConfiguration(config)
 
     def loadConfiguration(self, config: ConfigParser):
+        """Does not seem to be used"""
         for c in self.__components:
             c.loadConfiguration(config)
 
