@@ -8,8 +8,8 @@ import asyncio
 
 import traitlets
 
-import taipan.common.components
-from taipan.common import DataSource, action
+import common.components
+from common import DataSource, action
 from traitlets import Integer, Instance
 import logging
 

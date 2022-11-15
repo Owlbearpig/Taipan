@@ -18,11 +18,11 @@ You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from taipan.common import Manipulator, action
-from taipan.asyncioext import ensure_weakly_binding_future
+from common import Manipulator, action
+from asyncioext import ensure_weakly_binding_future
 import asyncio
 from traitlets import Bool, Unicode
-from taipan.common import ureg, Q_
+from common import ureg, Q_
 import traceback
 import logging
 from pint.context import Context

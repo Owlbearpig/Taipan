@@ -18,14 +18,14 @@ You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from taipan.common import DataSet, DataSource, Q_, action
+from common import DataSet, DataSource, Q_, action
 import asyncio
-from taipan.asyncioext import ensure_weakly_binding_future
+from asyncioext import ensure_weakly_binding_future
 import logging
 import socket
 import struct
 import io
-from taipan.common.traits import Quantity, DataSet as DataSetTrait
+from common.traits import Quantity, DataSet as DataSetTrait
 from traitlets import Bool, Float, Unicode, observe, Integer
 import numpy as np
 from threading import Thread

@@ -16,9 +16,9 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import numpy as np
-from taipan.common import DataSource, DataSet, action, Q_
-from taipan.common.traits import Quantity
-from taipan.asyncioext import threaded_async, ensure_weakly_binding_future
+from common import DataSource, DataSet, action, Q_
+from common.traits import Quantity
+from asyncioext import threaded_async, ensure_weakly_binding_future
 from threading import Lock
 import asyncio
 import enum

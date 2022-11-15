@@ -27,6 +27,7 @@ SR800_Port = 'GPIB0::10::INSTR'
 
 class TimeDomainScan(Scan):
 
+
     currentData = traits.DataSet(read_only=True).tag(
                                  name="Time domain",
                                  axes_labels=['Time'],

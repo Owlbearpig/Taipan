@@ -18,10 +18,10 @@ You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from taipan.common import ComponentBase
+from common import ComponentBase
 from serial import Serial
 from threading import Lock
-from taipan.asyncioext import threaded_async
+from asyncioext import threaded_async
 
 
 class Connection(ComponentBase):

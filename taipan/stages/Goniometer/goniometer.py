@@ -18,8 +18,8 @@ You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from taipan.common import Manipulator, action, Q_, ureg
-from taipan.common.traits import Quantity
+from common import Manipulator, action, Q_, ureg
+from common.traits import Quantity
 import asyncio
 import ctypes
 import enum

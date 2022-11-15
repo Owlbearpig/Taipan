@@ -22,8 +22,8 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 import asyncio
 import numpy as np
 import traitlets
-from taipan.common import DataSource, DataSet, action, Q_
-from taipan.common.traits import DataSet as DataSetTrait, Quantity as QuantityTrait
+from common import DataSource, DataSet, action, Q_
+from common.traits import DataSet as DataSetTrait, Quantity as QuantityTrait
 import PyDAQmx as mx
 import logging
 import time

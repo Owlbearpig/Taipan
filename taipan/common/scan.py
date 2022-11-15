@@ -19,13 +19,13 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import asyncio
-from taipan.common import Manipulator, DataSource, DataSet, action
+from common import Manipulator, DataSource, DataSet, action
 import numpy as np
 import warnings
 from traitlets import Bool, Float, Instance
 from copy import deepcopy
-from taipan.common.traits import Quantity
-from taipan.common.units import Q_
+from common.traits import Quantity
+from common.units import Q_
 import logging
 
 

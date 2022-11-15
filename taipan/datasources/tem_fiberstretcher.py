@@ -19,9 +19,9 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import asyncio
-from taipan.common import DataSet, DataSource, Q_, action
-from taipan.asyncioext import ensure_weakly_binding_future
-from taipan.thirdparty.aioserial.aioserial import create_serial_connection
+from common import DataSet, DataSource, Q_, action
+from asyncioext import ensure_weakly_binding_future
+from thirdparty.aioserial.aioserial import create_serial_connection
 from threading import Lock
 import re
 #from serial import aio as aioserial
@@ -33,7 +33,7 @@ from multiprocessing import Process, Queue
 import struct
 import binascii
 import numpy as np
-from taipan.common.traits import DataSet as DataSetTrait, Quantity
+from common.traits import DataSet as DataSetTrait, Quantity
 import time
 
 _replyExpression = re.compile(r'([a-zA-Z0-9]+)=\s*(-?[0-9]+)')

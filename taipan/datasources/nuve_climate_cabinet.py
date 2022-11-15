@@ -18,13 +18,13 @@ You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from taipan.common import DataSet, DataSource, Q_
+from common import DataSet, DataSource, Q_
 from serial import Serial
-from taipan.asyncioext import ensure_weakly_binding_future, threaded_async
+from asyncioext import ensure_weakly_binding_future, threaded_async
 import asyncio
 import numpy as np
 import logging
-from taipan.common.traits import Quantity
+from common.traits import Quantity
 
 
 class NuveClimateCabinet(DataSource):

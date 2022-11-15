@@ -19,8 +19,8 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-from taipan.common import DataSink
-from taipan.common.traits import Path as PathTrait
+from common import DataSink
+from common.traits import Path as PathTrait
 from enum import Enum, unique
 from traitlets import Bool, Enum as EnumTrait, Unicode
 import numpy as np

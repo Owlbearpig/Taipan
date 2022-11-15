@@ -18,11 +18,11 @@ You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from taipan.common import Q_, DataSource, DataSet
-from taipan.asyncioext import ensure_weakly_binding_future, threaded_async
+from common import Q_, DataSource, DataSet
+from asyncioext import ensure_weakly_binding_future, threaded_async
 import asyncio
 import numpy as np
-from taipan.common.traits import Quantity
+from common.traits import Quantity
 from threading import Lock
 
 class ThorlabsPM100(DataSource):

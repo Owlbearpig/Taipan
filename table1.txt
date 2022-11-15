@@ -1,0 +1,5 @@
+# name, position_m1, position_m2
+reference, 25, 10
+sample, 110, 0
+sample, 110, 180
+reference, 25, 180

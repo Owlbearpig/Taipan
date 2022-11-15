@@ -18,8 +18,8 @@ You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 import logging
-from taipan.common import ComponentBase
-from taipan.asyncioext import threaded_async
+from common import ComponentBase
+from asyncioext import threaded_async
 from serial import Serial
 from threading import Lock
 

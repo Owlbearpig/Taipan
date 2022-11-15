@@ -31,12 +31,12 @@ except:
     usePyQtGraph = False
 
 import asyncio
-from taipan.common import ComponentBase
-from taipan.common.traits import DataSet as DataSetTrait
+from common import ComponentBase
+from common.traits import DataSet as DataSetTrait
 from traitlets import Instance, Float, Bool, Integer, Enum, Unicode
 from collections import OrderedDict
 from itertools import chain
-from taipan.common.traits import Quantity, Path as PathTrait
+from common.traits import Quantity, Path as PathTrait
 from pathlib import Path
 import logging
 import numpy as np

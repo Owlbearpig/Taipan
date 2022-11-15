@@ -12,8 +12,8 @@ Created on Sun May 29 21:15:46 2016
 @author: Terahertz
 """
 
-from taipan.common import Manipulator, action, Q_, ureg
-from taipan.common.traits import Quantity
+from common import Manipulator, action, Q_, ureg
+from common.traits import Quantity
 import asyncio
 import ctypes
 import enum

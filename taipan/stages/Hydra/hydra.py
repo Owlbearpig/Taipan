@@ -1,10 +1,10 @@
-from taipan.common import Manipulator, action
+from common import Manipulator, action
 import asyncio
 import logging
-from taipan.asyncioext import ensure_weakly_binding_future
+from asyncioext import ensure_weakly_binding_future
 import enum
 import traitlets
-from taipan.common import ureg, Q_
+from common import ureg, Q_
 from queue import Queue
 import numpy as np
 

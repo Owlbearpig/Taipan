@@ -23,7 +23,7 @@ import numpy as np
 import pyqtgraph as pg
 import enum
 from scipy.signal import windows
-from taipan.common import ureg
+from common import ureg
 import time
 
 

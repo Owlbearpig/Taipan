@@ -18,11 +18,11 @@ You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from taipan.common import Manipulator, ComponentBase, action, ureg, Q_
+from common import Manipulator, ComponentBase, action, ureg, Q_
 import asyncio
 from threading import Lock
 from serial import Serial
-from taipan.asyncioext import threaded_async, ensure_weakly_binding_future
+from asyncioext import threaded_async, ensure_weakly_binding_future
 import enum
 import logging
 import traitlets

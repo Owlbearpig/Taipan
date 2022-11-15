@@ -1,10 +1,10 @@
 from pint import Context
-from taipan.common.units import ureg
-from taipan.common import action
+from common.units import ureg
+from common import action
 from traitlets import Instance
-from taipan.common.components import ComponentBase
-from taipan.common.traits import DataSet as DataSetTrait
-from taipan.dummy import DummyManipulator, DummyContinuousDataSource
+from common.components import ComponentBase
+from common.traits import DataSet as DataSetTrait
+from dummy import DummyManipulator, DummyContinuousDataSource
 
 # Create and enable a THz-TDS context where we can convert times to lengths
 # and vice-versa

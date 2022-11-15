@@ -21,10 +21,10 @@ import pyvisa as visa
 from threading import Lock
 import traitlets
 import enum
-from taipan.common.traits import Quantity
+from common.traits import Quantity
 import time
-from taipan.asyncioext import threaded_async, ensure_weakly_binding_future
-from taipan.common import Manipulator, Q_, ureg, action
+from asyncioext import threaded_async, ensure_weakly_binding_future
+from common import Manipulator, Q_, ureg, action
 import logging
 
 

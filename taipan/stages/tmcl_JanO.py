@@ -25,12 +25,12 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
 from threading import Lock
-from taipan.thirdparty.PyTMCL.TMCL.communication import TMCLCommunicator
-from taipan.common import Manipulator, Q_, ureg
+from thirdparty.PyTMCL.TMCL.communication import TMCLCommunicator
+from common import Manipulator, Q_, ureg
 from traitlets import Enum as EnumTrait
 from enum import Enum
-from taipan.common.traits import Quantity
-from taipan.asyncioext import threaded_async, ensure_weakly_binding_future
+from common.traits import Quantity
+from asyncioext import threaded_async, ensure_weakly_binding_future
 
 
 class TMCL(Manipulator):
