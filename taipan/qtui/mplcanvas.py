@@ -171,17 +171,14 @@ class MPLCanvas(QtWidgets.QGroupBox):
         self._redrawTimer.start()
 
     def get_ft_data(self, data):
-        delta = np.mean(np.diff(data.axes[0]))
+        delta = np.mean(np.diff(data.axes[0].magnitude))
         winFn = self.windowFunctionMap[self.windowComboBox.currentData()]
-        refUnit = 1 * data.data.units
-
-        Y = np.fft.rfft(np.array(data.data / refUnit) * winFn(len(data.data)), axis=0)
+        Y = np.fft.rfft(data.data.magnitude * winFn(len(data.data)), axis=0)
         freqs = np.fft.rfftfreq(len(data.axes[0]), delta)
         dBdata = 10 * np.log10(np.abs(Y))
         if not self.dataIsPower:
             dBdata *= 2
-        data_slice = np.array(freqs) < 2.1
-        return (freqs[data_slice], dBdata[data_slice])
+        return freqs, dBdata
 
     def _dataSetToLines(self, data, line, ftline):
         if data is None:
@@ -190,7 +187,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
             return
 
         #data.data -= np.mean(data.data)
-        line.set_data(data.axes[0], data.data)
+        line.set_data(data.axes[0].magnitude, data.data.magnitude)
         freqs, dBdata = self.get_ft_data(data)
         ftline.set_data(freqs, dBdata)
 

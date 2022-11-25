@@ -18,10 +18,27 @@ You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from traitlets import TraitError, class_of, Undefined, TraitType
+import traitlets
+
+if float(traitlets.__version__[0]) <= 4:
+    from traitlets import TraitError, Undefined, TraitType, class_of
+else:
+    from traitlets import TraitError, Undefined, TraitType
+    from traitlets.utils.descriptions import class_of
+
 from .dataset import DataSet as DataSetClass
 from .units import ureg, Q_
 import pathlib
+
+
+def instance_init(self, obj):
+    with obj.cross_validation_lock:
+        v = self._validate(obj, self.default_value)
+        if self.name is not None:
+            self.set(obj, v)
+
+
+TraitType = type(TraitType.__name__, (TraitType,), {"instance_init": instance_init})
 
 
 class DataSet(TraitType):
@@ -84,14 +101,14 @@ class Quantity(TraitType):
             self.error(obj, value)
 
         if (self.dimensionality is not None and
-            self.dimensionality != value.dimensionality):
+                self.dimensionality != value.dimensionality):
             raise TraitError("The dimensionality of the '%s' trait of %s instance should "
                              "be %s, but a value with dimensionality %s was "
                              "specified" % (self.name, class_of(obj),
                                             self.dimensionality, value.dimensionality))
 
         if ((self.max is not None and (value.to(self.max.units) > self.max)) or
-            (self.min is not None and (value.to(self.min.units) < self.min))):
+                (self.min is not None and (value.to(self.min.units) < self.min))):
             raise TraitError("The value of the '%s' trait of %s instance should "
                              "be between %s and %s, but a value of %s was "
                              "specified" % (self.name, class_of(obj),

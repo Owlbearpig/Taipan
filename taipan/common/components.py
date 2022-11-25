@@ -164,7 +164,7 @@ class ComponentBase(traitlets.HasTraits):
         Not implemented? self.__components is not an attribute of self.
     """
 
-    def __init__(self, objectName: str=None, loop: asyncio.BaseEventLoop=None):
+    def __init__(self, objectName: str = None, loop: asyncio.BaseEventLoop = None):
         """
         Parameters
         ----------
@@ -241,7 +241,7 @@ class ComponentBase(traitlets.HasTraits):
 
 class DataSource(ComponentBase):
 
-    def __init__(self, objectName: str=None, loop: asyncio.BaseEventLoop=None):
+    def __init__(self, objectName: str = None, loop: asyncio.BaseEventLoop = None):
         super().__init__(objectName=objectName, loop=loop)
         self._dataSetReadyCallbacks = []
 
@@ -285,7 +285,6 @@ class DataSink(ComponentBase):
 
 
 class Manipulator(ComponentBase):
-
     class Status(enum.Enum):
         Undefined = 0
         Idle = 1

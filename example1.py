@@ -48,19 +48,19 @@ class AppRoot(ComponentBase):
     progress = Float(0, min=0, max=1, read_only=True).tag(name="Progress")
 
     manip1 = Instance(DummyManipulator)
-    manip2 = Instance(DummyManipulator)
+    #manip2 = Instance(DummyManipulator)
 
     def __init__(self, loop=None):
         super().__init__(objectName="Example application", loop=loop)
         self.manip1 = DummyManipulator()
-        self.manip2 = DummyManipulator()
-
+        #self.manip2 = DummyManipulator()
         self.ds = DummyContinuousDataSource(self.manip1)
 
         self.dataSaver = DataSaver(objectName="Data Saver")
         self.dataSaver.registerManipulator(self.manip1, "Position1")
-        self.dataSaver.registerManipulator(self.manip2, "Position2")
-        self.dataSaver.fileNameTemplate = "{date}-{name}-{Position1}-{Position2}"
+        #self.dataSaver.registerManipulator(self.manip2, "Position2")
+        #self.dataSaver.fileNameTemplate = "{date}-{name}-{Position1}-{Position2}"
+        self.dataSaver.fileNameTemplate = "{date}-{name}-{Position1}"
         self.dataSaver.set_trait("path", Path(r""))
         self.ds.addDataSetReadyCallback(self.dataSaver.process)
 

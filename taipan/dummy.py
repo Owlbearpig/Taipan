@@ -37,7 +37,6 @@ class DummyManipulator(Manipulator):
     def __init__(self):
         super().__init__()
         self.set_trait('status', Manipulator.Status.Idle)
-
         self.setPreferredUnits(ureg.mm, ureg.mm / ureg.s)
         self.velocity = Q_(1, 'mm/s')
         self.set_trait('value', Q_(0, 'mm'))
@@ -46,7 +45,6 @@ class DummyManipulator(Manipulator):
         self._step = Q_(0.005, 'ps')
         self._isMovingFuture = asyncio.Future()
         self._isMovingFuture.set_result(None)
-
 
     async def moveTo(self, val, velocity=None):
         if velocity is None:
@@ -63,13 +61,12 @@ class DummyManipulator(Manipulator):
 
         try:
             for target in values:
-                await asyncio.sleep(0.1) # more realistic
+                await asyncio.sleep(0.1)  # more realistic
                 self.set_trait('value', Q_(target, 'mm'))
             self._isMovingFuture = asyncio.Future()
             await self._isMovingFuture
         finally:
             self.set_trait('status', Manipulator.Status.Idle)
-
 
     async def __aenter__(self):
         await super().__aenter__()
