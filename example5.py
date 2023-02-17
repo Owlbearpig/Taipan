@@ -89,7 +89,7 @@ class AppRoot(TabularMeasurements2M):
         self.dataSaver.registerManipulator(self.manipulator2, "Position2")
         self.dataSaver.registerObjectAttribute(self, "currentMeasurementName", "currentTableEntry")
         self.dataSaver.fileNameTemplate = "{date}-{name}-{currentTableEntry}-{Position1}-{Position2}"
-        self.dataSaver.set_trait("path", Path(r"E:\Projects\Python\taipan\measurements"))
+        self.dataSaver.set_trait("path", Path(r""))
         self.TimeDomainScan.addDataSetReadyCallback(self.dataSaver.process)
         self.TimeDomainScan.addDataSetReadyCallback(self.setCurrentData)
         self._backAndForth = True

@@ -27,7 +27,7 @@ from traitlets import Instance, Float, Bool, Int
 from dummy import DummyManipulator, DummyContinuousDataSource
 from pathlib import Path
 from pint import Quantity
-import thz_context # important for unit conversion
+import thz_context  # important for unit conversion
 
 """
 Example scan, datasource + manip
@@ -35,7 +35,6 @@ Example scan, datasource + manip
 
 
 class AppRoot(Scan):
-
     someDataSet = DataSetTrait().tag(name="Current measurement",
                                      data_label="Amplitude",
                                      axes_labels=["Sample number"])
@@ -51,7 +50,7 @@ class AppRoot(Scan):
 
         self.dataSaver.registerManipulator(self.manipulator, "Position")
         self.dataSaver.fileNameTemplate = "{date}-{name}-{Position}"
-        self.dataSaver.set_trait("path", Path(r"E:\Projects\Python\taipan\measurements"))
+        self.dataSaver.set_trait("path", Path(r""))
         self.dataSource.addDataSetReadyCallback(self.dataSaver.process)
         self.dataSource.addDataSetReadyCallback(self.setCurrentData)
 
@@ -61,17 +60,15 @@ class AppRoot(Scan):
         self.scanVelocity = Q_(0.5, "mm/s")
         self.step = Q_(0.2, "mm")
 
-
     async def __aenter__(self):
+        await super().__aenter__()
         await self.dataSource.__aenter__()  # lockin
         return self
-
 
     async def __aexit__(self, *args):
         await self.dataSource.__aexit__(*args)  # lockin
 
         await super().__aexit__(*args)
-
 
     @action("Take new measurement")
     async def takeMeasurement(self):
