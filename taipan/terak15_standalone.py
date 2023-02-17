@@ -39,4 +39,3 @@ class AppRoot(ComponentBase):
 
     async def __aexit__(self, *args):
         await super().__aexit__(*args)
-        await self.terak15.__aexit__(*args)

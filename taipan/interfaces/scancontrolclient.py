@@ -98,6 +98,7 @@ class ScanControlClient(QObject):
     async def _establish_connection(self, webchannel):
         # Wait for initialized
         await webchannel
+
         print("Connected.")
         self.scancontrol = webchannel.objects["scancontrol"]
 
@@ -130,5 +131,6 @@ class ScanControlClient(QObject):
             client.connect(url, create_protocol=QWebChannelWebSocketProtocol))
         self.loop.run_until_complete(self._establish_connection(proto.webchannel))
         """
+
         proto = await client.connect(url, create_protocol=QWebChannelWebSocketProtocol)
         await self._establish_connection(proto.webchannel)
