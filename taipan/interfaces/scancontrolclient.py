@@ -121,11 +121,14 @@ class ScanControlClient(QObject):
     def run(self, target_function):
         self.loop.run_until_complete(target_function)
 
-    def connect(self, host="localhost", port="8002"):
+    async def connect(self, host="localhost", port="8002"):
         self.host = host
         self.port = port
         url = "ws://" + self.host + ":" + self.port
-
+        """
         proto = self.loop.run_until_complete(
             client.connect(url, create_protocol=QWebChannelWebSocketProtocol))
         self.loop.run_until_complete(self._establish_connection(proto.webchannel))
+        """
+        proto = await client.connect(url, create_protocol=QWebChannelWebSocketProtocol)
+        await self._establish_connection(proto.webchannel)
