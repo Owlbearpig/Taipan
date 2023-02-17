@@ -79,9 +79,6 @@ def _dumb_list_of_actions(inst):
     Basically looks for attributes 'inst' and returns them if they
     are an action.
 
-    Private member (_d..) therefore not strictly included in sphinx output.
-    Docstring isn't actually required.
-
     Parameters
     ----------
     inst : `object`
