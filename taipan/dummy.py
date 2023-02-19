@@ -34,6 +34,7 @@ from traitlets import Instance, Bool
 class DummyManipulator(Manipulator):
     isReferenced = Bool(False, read_only=True).tag(name="Is referenced")
 
+
     def __init__(self):
         super().__init__()
         self.set_trait('status', Manipulator.Status.Idle)
@@ -154,6 +155,8 @@ class DummyContinuousDataSource(DataSource):
         dataSet = DataSet(data, [taxis])
 
         self._dataSetReady(dataSet)
-        self.set_trait("currentData", DataSet(data, [taxis]))
+        self.set_trait("currentData", dataSet)
 
         return dataSet
+
+

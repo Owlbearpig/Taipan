@@ -19,13 +19,11 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import traitlets
-
+from traitlets import TraitError, Undefined, TraitType
 if float(traitlets.__version__[0]) <= 4:
-    from traitlets import TraitError, Undefined, TraitType, class_of
+    from traitlets import class_of
 else:
-    from traitlets import TraitError, Undefined, TraitType
     from traitlets.utils.descriptions import class_of
-
 from .dataset import DataSet as DataSetClass
 from .units import ureg, Q_
 import pathlib
@@ -33,9 +31,10 @@ import pathlib
 
 def instance_init(self, obj):
     with obj.cross_validation_lock:
-        v = self._validate(obj, self.default_value)
-        if self.name is not None:
-            self.set(obj, v)
+        if self.default_value is not Undefined:
+            v = self._validate(obj, self.default_value)
+            if self.name is not None:
+                self.set(obj, v)
 
 
 TraitType = type(TraitType.__name__, (TraitType,), {"instance_init": instance_init})

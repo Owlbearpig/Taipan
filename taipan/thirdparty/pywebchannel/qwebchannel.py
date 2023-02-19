@@ -39,7 +39,6 @@ class QWebChannel(object):
 
     def connection_made(self, transport):
         self.transport = transport
-
         def callback(data):
             for objectName in data:
                 self.QObjectType(objectName, data[objectName], self)
@@ -396,3 +395,5 @@ class Signal(object):
 
 
 QWebChannel.QObjectType = QObject
+
+
