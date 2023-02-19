@@ -30,27 +30,6 @@ import logging
 
 
 class Scan(DataSource):
-    """
-    A class used to represent an Animal
-
-    ...
-
-    Attributes
-    ----------
-    manipulator : str
-        a formatted string to print out what the animal says
-    dataSource : str
-        the name of the animal
-    minimumValue : str
-        the sound that the animal makes
-    maximumValue : int
-        the number of legs the animal has (default 4)
-
-    Methods
-    -------
-    _setUnits(sound=None)
-        Prints the animals name and what sound it makes
-    """
 
     manipulator = Instance(Manipulator, allow_none=True)
     dataSource = Instance(DataSource, allow_none=True)

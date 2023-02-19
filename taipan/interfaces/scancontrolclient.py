@@ -69,7 +69,6 @@ class ScanControlClient(QObject):
         return numpy.frombuffer(base64.b64decode(data), dtype=numpy.float64)
 
     def _decodeAmpArray(self, data):
-
         encAmpData = data['amplitude']
         decAmpData = []
         for set in encAmpData:
@@ -87,7 +86,6 @@ class ScanControlClient(QObject):
                 self.scancontrol._invokeSignalCallbacks(-2, [data])
 
     def _onPulseReady(self, data):
-
         data = self._decodeAmpArray(data)
         if self.scancontrol.timeAxis is not None:
             decTimeAxis = self._decodeData(self.scancontrol.timeAxis)
@@ -119,18 +117,19 @@ class ScanControlClient(QObject):
         print(context)
         print('Exception handler called')
 
-    def run(self, target_function):
-        self.loop.run_until_complete(target_function)
-
     async def connect(self, host="localhost", port="8002"):
         self.host = host
         self.port = port
         url = "ws://" + self.host + ":" + self.port
-        """
-        proto = self.loop.run_until_complete(
-            client.connect(url, create_protocol=QWebChannelWebSocketProtocol))
-        self.loop.run_until_complete(self._establish_connection(proto.webchannel))
-        """
 
         proto = await client.connect(url, create_protocol=QWebChannelWebSocketProtocol)
         await self._establish_connection(proto.webchannel)
+
+
+if __name__ == '__main__':
+    import asyncio
+    loop = asyncio.get_event_loop()
+    scancontrol = ScanControlClient(loop=loop)
+    loop.run_until_complete(scancontrol.connect(host="192.168.134.80"))
+
+    print(scancontrol)

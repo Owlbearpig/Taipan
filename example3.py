@@ -35,7 +35,7 @@ Example scan, datasource + manip
 
 
 class AppRoot(Scan):
-    someDataSet = DataSetTrait().tag(name="Current measurement",
+    currentData = DataSetTrait().tag(name="Current measurement",
                                      data_label="Amplitude",
                                      axes_labels=["Sample number"])
 
@@ -75,4 +75,4 @@ class AppRoot(Scan):
         await self.readDataSet()
 
     def setCurrentData(self, dataSet):
-        self.set_trait("someDataSet", dataSet)
+        self.set_trait("currentData", dataSet)

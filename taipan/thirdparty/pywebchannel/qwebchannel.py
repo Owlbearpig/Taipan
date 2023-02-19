@@ -6,7 +6,6 @@ import json
 import sys
 import enum
 import inspect
-from websockets import client
 
 
 class QWebChannelMessageTypes(enum.IntEnum):
@@ -40,7 +39,6 @@ class QWebChannel(object):
 
     def connection_made(self, transport):
         self.transport = transport
-
         def callback(data):
             for objectName in data:
                 self.QObjectType(objectName, data[objectName], self)
@@ -399,30 +397,3 @@ class Signal(object):
 QWebChannel.QObjectType = QObject
 
 
-class QWebChannelWebSocketProtocol(client.WebSocketClientProtocol):
-    """ Bridges WebSocketClientProtocol and QWebChannel.
-
-    Continuously reads messages in a task and invokes QWebChannel.message_received()
-    for each. Calls QWebChannel.connection_open() when connected.
-    Also patches QWebChannel.send() to run the websocket's send() in a task"""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def _task_send(self, data):
-        if not isinstance(data, str):
-            data = json.dumps(data)
-        self.loop.create_task(self.send(data))
-
-    def connection_open(self):
-        super().connection_open()
-
-        self.webchannel = QWebChannel()
-        self.webchannel.send = self._task_send
-        self.webchannel.connection_made(self)
-
-        self.loop.create_task(self.read_msgs())
-
-    async def read_msgs(self):
-        async for msg in self:
-            self.webchannel.message_received(msg)

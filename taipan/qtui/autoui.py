@@ -470,6 +470,7 @@ def generate_ui(component):
     stack = QtWidgets.QStackedWidget()
 
     def make_tree_items(component, name, depth, treeitem):
+
         prettyName = component.objectName or name
         newItem = QtWidgets.QTreeWidgetItem(treeitem)
         newItem.setText(0, prettyName)
