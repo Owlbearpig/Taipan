@@ -9,12 +9,12 @@ from interfaces.scancontrolclient import QWebChannelWebSocketProtocol
 from websockets import client
 import enum
 
-
 """
-1. Can laser and voltage be enabled too?
+1. Can laser and antenna voltage be enabled too?
 2. What is the difference between pulseReady and displayPulseReady?
 3. What are PulseFlags ?
 """
+
 
 class ScanControlStatus(enum.IntEnum):
     Uninitialized = 0
@@ -27,14 +27,14 @@ class ScanControlStatus(enum.IntEnum):
 
 class TeraK15(DataSource):
     status = Unicode(ScanControlStatus.Uninitialized.name, read_only=True).tag(name="System status", priority=0)
-    begin = Quantity(Q_(150, "ps")).tag(name="Start", priority=1)
-    end = Quantity(Q_(250, "ps")).tag(name="End", priority=2)
-    range = Quantity(Q_(100, "ps"), read_only=True).tag(name="Range", priority=3)
+    acq_begin = Quantity(Q_(150, "ps")).tag(name="Start", priority=1)
+    acq_end = Quantity(Q_(250, "ps")).tag(name="End", priority=2)
+    acq_range = Quantity(Q_(100, "ps"), read_only=True).tag(name="Range", priority=3)
     acq_on = Bool(False, read_only=True).tag(name="Acquistion active")
     desiredAverages = Integer(1, min=1, max=30000).tag(name="Averages", priority=4)
     currentAverages = Integer(0, read_only=True).tag(name="Current averages", priority=5)
-    currentRate = Quantity(Q_(0, "Hz"), read_only=True).tag(name="Current rate", priority=7)
-    rate = Quantity(Q_(0, "Hz")).tag(name="Requested rate", priority=6)
+    acq_rate = Quantity(Q_(0, "Hz"), read_only=True).tag(name="Current rate", priority=7)
+    requested_rate = Quantity(Q_(0, "Hz")).tag(name="Requested rate", priority=6)
 
     currentData = DataSetTrait(read_only=True).tag(name="Live data",
                                                    data_label="Amplitude",
@@ -46,11 +46,11 @@ class TeraK15(DataSource):
         self._setAveragesReachedFuture = asyncio.Future()
 
     async def __aenter__(self):
-        await self.establish_connection()
-        await self.connect_signals()
-        await self.single_update()
+        await self._establish_connection()
+        await self._single_update()
+        await self._connect_signals()
 
-    async def establish_connection(self, port="8002"):
+    async def _establish_connection(self, port="8002"):
         print("Initializing scancontrol connection...")
         try:
             if self.name_or_ip is not None:
@@ -68,22 +68,21 @@ class TeraK15(DataSource):
         self.scancontrol = proto.webchannel.objects["scancontrol"]
         print("Connected.")
 
-    def _status_changed(self, *args):
-        newStatus = self.scancontrol.status
-        self.set_trait("status", ScanControlStatus(newStatus).name)
-        self.set_trait("acq_on", newStatus == 3)
+    def status_changed(self, new_status):
+        self.set_trait("status", ScanControlStatus(new_status).name)
+        self.set_trait("acq_on", new_status == 3)
 
-    def _current_rate_changed(self, *args):
-        newRate = self.scancontrol.rate
-        self.set_trait("currentRate", Q_(newRate, "Hz"))
+    def acq_rate_changed(self, new_val):
+        self.set_trait("acq_rate", Q_(new_val, "Hz"))
 
-    def _begin_changed(self, *args):
-        self.set_trait("begin", Q_(self.scancontrol.begin, "ps"))
-        self.set_trait("range", Q_(self.scancontrol.range, "ps"))
+    def acq_begin_changed(self, new_val):
+        self.set_trait("acq_begin", Q_(new_val, "ps"))
 
-    def _end_changed(self, *args):
-        self.set_trait("end", Q_(self.scancontrol.end, "ps"))
-        self.set_trait("range", Q_(self.scancontrol.range, "ps"))
+    def acq_range_changed(self, new_val):
+        self.set_trait("acq_range", Q_(new_val, "ps"))
+
+    def acq_end_changed(self, new_val):
+        self.set_trait("acq_end", Q_(new_val, "ps"))
 
     def _decodeData(self, data):
         return numpy.frombuffer(base64.b64decode(data), dtype=numpy.float64)
@@ -133,15 +132,16 @@ class TeraK15(DataSource):
                         self.currentAverages >= self.desiredAverages):
                     self._setAveragesReachedFuture.set_result(True)
 
-    async def connect_signals(self):
-        self.scancontrol.statusChanged.connect(self._status_changed)
-        self.scancontrol.beginChanged.connect(self._begin_changed)
-        self.scancontrol.endChanged.connect(self._end_changed)
-        self.scancontrol.rateChanged.connect(self._current_rate_changed)
+    async def _connect_signals(self):
+        self.scancontrol.statusChanged.connect(self.status_changed)
+        self.scancontrol.beginChanged.connect(self.acq_begin_changed)
+        self.scancontrol.endChanged.connect(self.acq_end_changed)
+        self.scancontrol.rangeChanged.connect(self.acq_range_changed)
+        self.scancontrol.rateChanged.connect(self.acq_rate_changed)
         self.scancontrol.displayPulseReady.connect(self._onPulseReady)
 
-    @observe("rate")
-    def rate_changed(self, change):
+    @observe("requested_rate")
+    def _rate_changed(self, change):
         newVal = change["new"].to("Hz").magnitude
 
         async def _impl():
@@ -150,8 +150,8 @@ class TeraK15(DataSource):
 
         self._loop.create_task(_impl())
 
-    @observe("begin")
-    def acq_begin_changed(self, change):
+    @observe("acq_begin")
+    def _acq_begin_changed(self, change):
         newVal = change["new"].to("ps").magnitude
 
         async def _impl():
@@ -160,8 +160,8 @@ class TeraK15(DataSource):
 
         self._loop.create_task(_impl())
 
-    @observe("end")
-    def acq_end_changed(self, change):
+    @observe("acq_end")
+    def _acq_end_changed(self, change):
         newVal = change["new"].to("ps").magnitude
 
         async def _impl():
@@ -170,13 +170,13 @@ class TeraK15(DataSource):
 
         self._loop.create_task(_impl())
 
-    async def single_update(self):
+    async def _single_update(self):
         scan_control = self.scancontrol
 
         self.set_trait("status", ScanControlStatus(scan_control.status).name)
-        self.set_trait("begin", Q_(scan_control.begin, "ps"))
-        self.set_trait("end", Q_(scan_control.end, "ps"))
-        self.set_trait("range", Q_(scan_control.range, "ps"))
+        self.set_trait("acq_begin", Q_(scan_control.begin, "ps"))
+        self.set_trait("acq_end", Q_(scan_control.end, "ps"))
+        self.set_trait("acq_range", Q_(scan_control.range, "ps"))
         self.set_trait("acq_on", scan_control.status == 3)
         self.set_trait("desiredAverages", scan_control.desiredAverages)
         self.set_trait("currentAverages", scan_control.currentAverages)
@@ -198,7 +198,6 @@ class TeraK15(DataSource):
     async def start_acq(self):
         await self.reset_avg()
         await self.scancontrol.start()
-        self.set_trait("rate", Q_(self.scancontrol.rate, "Hz"))
 
     @action("Stop acquisition")
     async def stop_acq(self):
@@ -214,4 +213,3 @@ class TeraK15(DataSource):
     async def __aexit__(self, *args):
         print("Exiting")
         await super().__aexit__(*args)
-
