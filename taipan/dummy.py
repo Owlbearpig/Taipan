@@ -34,6 +34,7 @@ from traitlets import Instance, Bool
 class DummyManipulator(Manipulator):
     isReferenced = Bool(False, read_only=True).tag(name="Is referenced")
 
+
     def __init__(self):
         super().__init__()
         self.set_trait('status', Manipulator.Status.Idle)
@@ -61,30 +62,30 @@ class DummyManipulator(Manipulator):
 
         try:
             for target in values:
-                await asyncio.sleep(0.1)  # more realistic
+                await asyncio.sleep(0.2)  # more realistic
                 self.set_trait('value', Q_(target, 'mm'))
-            self._isMovingFuture = asyncio.Future()
-            await self._isMovingFuture
+            #self._isMovingFuture = asyncio.Future()
+            #await self._isMovingFuture
         finally:
             self.set_trait('status', Manipulator.Status.Idle)
 
     async def __aenter__(self):
         await super().__aenter__()
-
         self._updateFuture = ensure_weakly_binding_future(self.updateStatus)
 
         return self
 
     async def updateStatus(self):
         while True:
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(2)
+            #print(f"hello from {self.objectName}")
             await self.singleUpdate()
 
     async def singleUpdate(self):
         movFut = self._isMovingFuture
 
         if not movFut.done():
-            # check here if move done
+            # check if move done
             movFut.set_result(None)
 
     async def __aexit__(self, *args):
@@ -141,7 +142,7 @@ class DummyContinuousDataSource(DataSource):
             i = i + 1
 
     async def readDataSet(self):
-        await asyncio.sleep(0.1)  # more realistic
+        await asyncio.sleep(0.1)
 
         taxis = np.arange(self.manip._start.magnitude,
                           self.manip._stop.magnitude,
@@ -154,6 +155,8 @@ class DummyContinuousDataSource(DataSource):
         dataSet = DataSet(data, [taxis])
 
         self._dataSetReady(dataSet)
-        self.set_trait("currentData", DataSet(data, [taxis]))
+        self.set_trait("currentData", dataSet)
 
         return dataSet
+
+
