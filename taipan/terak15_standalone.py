@@ -17,7 +17,7 @@ class AppRoot(ComponentBase):
 
     def __init__(self, objectName=None, loop=None):
         super().__init__(objectName="Measurement", loop=loop)
-        self.title = "Taipan - Menlo"
+        self.title = "Taipan"
 
         self.dataSaver = DataSaver(objectName="Data Saver")
         self.terak15 = TeraK15(name_or_ip="192.168.134.80", objectName="TeraK15", loop=loop)
