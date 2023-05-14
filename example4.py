@@ -23,36 +23,34 @@ from common.save import DataSaver
 from common.units import Q_, ureg
 from common.traits import DataSet as DataSetTrait
 from traitlets import Instance, Float, Bool, Int
-from dummy import DummyManipulator, DummyContinuousDataSource
+from dummy import DummyManipulator, DummyContinuousDataSource, DummyLockIn
 from pathlib import Path
 from pint import Quantity
 import thz_context  # important for unit conversion
 
 """
-Example scan with datasource(data source + stage) + additional manip
+Example scan with datasource(data source + stage)
 """
 
 
 class AppRoot(Scan):
     currentData = DataSetTrait().tag(name="Current measurement",
                                      data_label="Amplitude",
-                                     axes_labels=["Sample number"])
+                                     axes_labels=["Time"])
 
     dataSaver = Instance(DataSaver)
 
     def __init__(self, loop=None):
-        super().__init__(objectName="Example application", loop=loop)
+        super().__init__(objectName="Example scan application", loop=loop)
         self.dataSaver = DataSaver(objectName="Data Saver")
 
-        self.manipulator = DummyManipulator()
-
-        dummy_stage = DummyManipulator()
-        dummy_stage.objectName = "Dummy stage"
-        dummy_stage.setPreferredUnits(ureg.ps, ureg.ps / ureg.s)
+        self.dummy_stage = DummyManipulator()
+        self.dummy_stage.objectName = "Dummy stage"
+        self.dummy_stage.setPreferredUnits(ureg.ps, ureg.ps / ureg.s)
 
         self.TimeDomainScan = Scan(objectName="TimeDomainScan")
-        self.TimeDomainScan.manipulator = dummy_stage
-        self.TimeDomainScan.dataSource = DummyContinuousDataSource(self.manipulator)
+        self.TimeDomainScan.manipulator = self.dummy_stage
+        self.TimeDomainScan.dataSource = DummyLockIn()
         self.TimeDomainScan.dataSource.objectName = "SR7230 (Dummy)"
 
         self.TimeDomainScan.continuousScan = True
@@ -64,6 +62,7 @@ class AppRoot(Scan):
         self.TimeDomainScan.scanVelocity = Q_(1, "ps/s")
         self.TimeDomainScan.retractAtEnd = True
 
+        self.manipulator = DummyManipulator()
         self.dataSource = self.TimeDomainScan
 
         self.dataSaver.registerManipulator(self.manipulator, "Position")
@@ -84,8 +83,10 @@ class AppRoot(Scan):
         return self
 
     async def __aexit__(self, *args):
-        await self.dataSource.__aexit__(*args)  # lockin
         await super().__aexit__(*args)
+        await self.dataSource.__aexit__(*args)  # lockin
+        await self.manipulator.__aexit__(*args)
+        await self.dummy_stage.__aexit__(*args)
 
     @action("Take new measurement")
     async def takeMeasurement(self):
