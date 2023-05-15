@@ -23,7 +23,7 @@ from common import ComponentBase, Scan, action, TabularMeasurements2M
 from common.save import DataSaver
 from common.units import Q_
 from common.traits import DataSet as DataSetTrait
-from dummy import DummyManipulator, DummyContinuousDataSource
+from dummy import DummyManipulator, DummyContinuousDataSource, DummyLockIn
 from pathlib import Path
 from traitlets import Instance, Int
 from pint import Quantity
@@ -38,7 +38,7 @@ Example table measurement with two manipulators
 class AppRoot(TabularMeasurements2M):
     currentData = DataSetTrait(read_only=True).tag(
         name="Time domain",
-        axes_labels=["ime"],
+        axes_labels=["Time"],
         data_label="Amplitude",
         is_power=False)
 
@@ -58,7 +58,7 @@ class AppRoot(TabularMeasurements2M):
 
         self.TimeDomainScan = Scan(objectName="TimeDomainScan")
         self.TimeDomainScan.manipulator = pi_stage
-        self.TimeDomainScan.dataSource = DummyContinuousDataSource(pi_stage)
+        self.TimeDomainScan.dataSource = DummyLockIn()
         self.TimeDomainScan.dataSource.objectName = "SR830 dummy"
 
         self.TimeDomainScan.continuousScan = True

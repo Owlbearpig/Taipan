@@ -39,7 +39,7 @@ class AppRoot(ComponentBase):
 
     someDataSet = DataSetTrait().tag(name="Current measurement",
                                      data_label="Amplitude",
-                                     axes_labels=["Sample number"])
+                                     axes_labels=["Time"])
 
     dataSaver = Instance(DataSaver)
     ds = Instance(DummyContinuousDataSource)
@@ -51,10 +51,10 @@ class AppRoot(ComponentBase):
     #manip2 = Instance(DummyManipulator)
 
     def __init__(self, loop=None):
-        super().__init__(objectName="Example application", loop=loop)
+        super().__init__(objectName="Cont. source with manip", loop=loop)
         self.manip1 = DummyManipulator()
         #self.manip2 = DummyManipulator()
-        self.ds = DummyContinuousDataSource(self.manip1)
+        self.ds = DummyContinuousDataSource()
 
         self.dataSaver = DataSaver(objectName="Data Saver")
         self.dataSaver.registerManipulator(self.manip1, "Position1")
@@ -64,6 +64,8 @@ class AppRoot(ComponentBase):
         self.dataSaver.set_trait("path", Path(r""))
         self.ds.addDataSetReadyCallback(self.dataSaver.process)
 
+        self.data_acq_task = None
+
     @action("Take new measurement")
     async def takeMeasurement(self):
         dataSet = await self.ds.readDataSet()
@@ -71,11 +73,14 @@ class AppRoot(ComponentBase):
 
     @action("start acquisition")
     async def startAcquisition(self):
-        self.task = self._loop.create_task(self.ds.update_live_data())
+        self.data_acq_task = self._loop.create_task(self.ds.update_live_data())
+        self.ds.set_trait("acq_on", True)
 
     @action("stop acquisition")
     async def stopAcquisition(self):
-        self.task.cancel()
+        if self.data_acq_task:
+            self.data_acq_task.cancel()
+            self.ds.set_trait("acq_on", False)
 
     @action("Take No. of measurements")
     async def takeSingleMeasurements(self):

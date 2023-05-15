@@ -35,7 +35,6 @@ class SR7230(DataSource):
     more details.
     """
 
-
     class SamplingMode(enum.Enum):
         SingleShot = 0
         Buffered = 1
@@ -333,7 +332,7 @@ class SR7230(DataSource):
     bufferLength = traitlets.Int(default_value=100000).tag(name="Buffer Length", command="LEN",
                                                            group="Data Curve Buffer")
     takeDataMode = traitlets.Enum(TakeDataMode, TakeDataMode.TakeDataTriggered).tag(name="Take Data Mode",
-                                                                           group="Data Curve Buffer")
+                                                                                    group="Data Curve Buffer")
     takeDataTriggeredTriggerMode = traitlets.Enum(
         TakeDataTriggeredTriggerMode, default_value=TakeDataTriggeredTriggerMode.Start_Cmd_Sample_ExtRising_Stop_Cmd,
         group="Data Curve Buffer")
@@ -381,7 +380,7 @@ class SR7230(DataSource):
         self.resource = resource
         self.ethernet = ethernet
         self.resource.timeout = 1000
-        #self.resource.set_visa_attribute(pyvisa_consts.VI_ATTR_SUPPRESS_END_EN, pyvisa_consts.VI_FALSE)
+        # self.resource.set_visa_attribute(pyvisa_consts.VI_ATTR_SUPPRESS_END_EN, pyvisa_consts.VI_FALSE)
 
         if ethernet:
             self.resource.read_termination = chr(0)
@@ -396,8 +395,6 @@ class SR7230(DataSource):
         self._lock = Lock()
 
         self._statusUpdateFuture = ensure_weakly_binding_future(self.contStatusUpdate)
-
-
 
     async def __aenter__(self):
         await super().__aenter__()
@@ -683,10 +680,10 @@ class SR7230(DataSource):
 
         curveAcquisitionStatusMonitor = await self.getCurveAcquisitionStatusMonitor()
         try:
-                curveAcquisitionStatus = int(curveAcquisitionStatusMonitor[0])
+            curveAcquisitionStatus = int(curveAcquisitionStatusMonitor[0])
         except Exception as e:
-                logging.info(e)
-                await self.statusUpdate()
+            logging.info(e)
+            await self.statusUpdate()
         status = int(curveAcquisitionStatusMonitor[2])
 
         self.set_trait("curveAcquisitionInProgressTD",

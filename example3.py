@@ -24,7 +24,7 @@ from common.save import DataSaver
 from common.units import Q_, ureg
 from common.traits import DataSet as DataSetTrait
 from traitlets import Instance, Float, Bool, Int
-from dummy import DummyManipulator, DummyContinuousDataSource
+from dummy import DummyManipulator, DummyContinuousDataSource, DummyLockIn
 from pathlib import Path
 from pint import Quantity
 import thz_context  # important for unit conversion
@@ -37,16 +37,16 @@ Example scan, datasource + manip
 class AppRoot(Scan):
     currentData = DataSetTrait().tag(name="Current measurement",
                                      data_label="Amplitude",
-                                     axes_labels=["Sample number"])
+                                     axes_labels=["Time"])
 
     dataSaver = Instance(DataSaver)
 
     def __init__(self, loop=None):
-        super().__init__(objectName="Example application", loop=loop)
+        super().__init__(objectName="Scan with cont. datasource", loop=loop)
         self.dataSaver = DataSaver(objectName="Data Saver")
 
         self.manipulator = DummyManipulator()
-        self.dataSource = DummyContinuousDataSource(self.manipulator)
+        self.dataSource = DummyContinuousDataSource()
 
         self.dataSaver.registerManipulator(self.manipulator, "Position")
         self.dataSaver.fileNameTemplate = "{date}-{name}-{Position}"
@@ -66,9 +66,8 @@ class AppRoot(Scan):
         return self
 
     async def __aexit__(self, *args):
-        await self.dataSource.__aexit__(*args)  # lockin
-
         await super().__aexit__(*args)
+        await self.dataSource.__aexit__(*args)  # lockin
 
     @action("Take new measurement")
     async def takeMeasurement(self):

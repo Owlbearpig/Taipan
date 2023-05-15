@@ -61,7 +61,7 @@ class DataSaver(DataSink):
                                name="File name template")
     mainFileName = Unicode('data').tag(name="Main file name")
 
-    enabled = Bool(True, help="Whether data storage is enabled").tag(
+    enabled = Bool(False, help="Whether data storage is enabled").tag(
                          name="Enabled")
 
     _manipulators = {}
