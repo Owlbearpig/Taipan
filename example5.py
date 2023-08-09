@@ -78,12 +78,14 @@ class AppRoot(TabularMeasurements2M):
         self.manipulator1 = manipulator1
         self.positioningVelocityM1 = Q_(4, "mm/s")
         self.scanVelocity = Q_(4, "mm/s")
+        self.manipulator1.set_limits(min_=Q_(-15, "mm"), max_=Q_(110, "mm"))
 
         manipulator2 = DummyManipulator()
         manipulator2.setPreferredUnits(ureg.mm, ureg.mm / ureg.s)
         manipulator2.objectName = "PI C-863 2"
         self.positioningVelocityM2 = Q_(4, "mm/s")
         self.manipulator2 = manipulator2
+        # self.manipulator2.set_limits(min_=Q_(-15, "mm"), max_=Q_(15, "mm"))
 
         self.dataSaver.registerManipulator(self.manipulator1, "Position1")
         self.dataSaver.registerManipulator(self.manipulator2, "Position2")

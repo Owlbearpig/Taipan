@@ -155,6 +155,18 @@ class TabularMeasurements2M(DataSource):
         if self.tableFile is None:
             raise RuntimeError("No table file specified!")
 
+        def check_limits(manip, row_val_):
+            manip_units = manip.trait_metadata('value', 'preferred_units')
+            row_val_ = Q_(float(row_val_), manip_units)
+
+            targetValueTrait = manip.class_traits()["targetValue"]
+            limits = targetValueTrait.min, targetValueTrait.max
+
+            if limits[0] and (row_val_ < limits[0]):
+                raise ValueError(f"Row {i} out of bounds ({row_val_} < {limits[0]})")
+            if limits[1] and (limits[1] < row_val_):
+                raise ValueError(f"Row {i} out of bounds ({limits[1]} < {row_val_})")
+
         names = []
         axis1, axis2 = [], []
 
@@ -166,7 +178,7 @@ class TabularMeasurements2M(DataSource):
                 # Skip comments
                 (row for row in table if not row.startswith('#')),
                 dialect='unix', skipinitialspace=True)
-            for row in reader:
+            for i, row in enumerate(reader):
                 if len(row) != 3:
                     raise RuntimeError(f"Row has wrong amount of elements: '{row}'")
 
@@ -176,11 +188,13 @@ class TabularMeasurements2M(DataSource):
                     axis1.append(Q_(float(row[1]), units_manip1))
                 except ValueError:
                     raise RuntimeError(f"Failed to convert {row[1]} to a float!")
-
                 try:
                     axis2.append(Q_(float(row[2]), units_manip2))
                 except ValueError:
                     raise RuntimeError(f"Failed to convert {row[2]} to a float!")
+
+                check_limits(self.manipulator1, row[1])
+                check_limits(self.manipulator2, row[2])
 
         self.set_trait('active', True)
         self.set_trait('progress', 0)

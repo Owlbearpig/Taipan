@@ -30,7 +30,7 @@ from common.traits import DataSet as DataSetTrait
 from common.traits import Quantity
 from asyncioext import ensure_weakly_binding_future
 # from pint import Quantity
-from traitlets import Instance, Bool, Enum, Int
+from traitlets import Instance, Bool, Enum, Int, List
 import warnings
 
 
@@ -43,7 +43,7 @@ class DummyManipulator(Manipulator):
         self.setPreferredUnits(ureg.mm, ureg.mm / ureg.s)
         self.velocity = Q_(10, 'mm/s')
         self.set_trait('value', Q_(0, 'mm'))
-        self._start = Q_(1, 'ps')
+        self._start = Quantity(Q_(1, 'ps'))
         self._stop = Q_(100, 'ps')
         self._step = Q_(0.05, 'ps')
         self._isMovingFuture = asyncio.Future()

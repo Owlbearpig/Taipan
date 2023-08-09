@@ -98,7 +98,6 @@ class Quantity(TraitType):
     def validate(self, obj, value):
         if not isinstance(value, ureg.Quantity):
             self.error(obj, value)
-
         if (self.dimensionality is not None and
                 self.dimensionality != value.dimensionality):
             raise TraitError("The dimensionality of the '%s' trait of %s instance should "

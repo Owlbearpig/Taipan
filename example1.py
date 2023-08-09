@@ -23,10 +23,11 @@ from common import ComponentBase, Scan, action
 from common.save import DataSaver
 from common.units import Q_
 from common.traits import DataSet as DataSetTrait
+from common.traits import Quantity
 from traitlets import Instance, Float, Bool, Int
 from dummy import DummyManipulator, DummyContinuousDataSource
 from pathlib import Path
-from pint import Quantity
+
 
 
 """
@@ -55,6 +56,7 @@ class AppRoot(ComponentBase):
         self.manip1 = DummyManipulator()
         #self.manip2 = DummyManipulator()
         self.ds = DummyContinuousDataSource()
+        self.manip1.set_limits(min_=Q_(-15, "mm"), max_=Q_(15, "mm"))
 
         self.dataSaver = DataSaver(objectName="Data Saver")
         self.dataSaver.registerManipulator(self.manip1, "Position1")
@@ -89,3 +91,8 @@ class AppRoot(ComponentBase):
             dataSet = await self.ds.readDataSet()
             self.set_trait("progress", (x + 1) / self.nMeasurements)
             self.set_trait("someDataSet", dataSet)
+
+    @action("do something")
+    def do_this(self):
+        targetValueTrait = self.manip1.class_traits()["targetValue"]
+        print(bool(targetValueTrait.min))
