@@ -37,6 +37,9 @@ import warnings
 class DummyManipulator(Manipulator):
     isReferenced = Bool(False, read_only=True).tag(name="Is referenced")
 
+    targetValue = Quantity(Q_(0, 'mm'), min=Q_(0, 'mm'), max=Q_(2047, 'mm')).tag(
+        name='Target value')
+
     def __init__(self):
         super().__init__()
         self.set_trait('status', Manipulator.Status.Idle)
@@ -294,7 +297,7 @@ class DummyContinuousDataSource(DataSource):
 
             self.set_trait("currentData", DataSet(data, [Q_(taxis, 'ps')]))
 
-            await asyncio.sleep(0.10, loop=self._loop)
+            await asyncio.sleep(0.10)
 
     async def start(self):
         self.start_acq()
