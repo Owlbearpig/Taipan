@@ -18,6 +18,5 @@ You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from .asyncserial import Serial
 from .weakly_binding_future import ensure_weakly_binding_future
 from .threaded_async_decorator import threaded_async
