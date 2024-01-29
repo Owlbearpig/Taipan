@@ -147,9 +147,9 @@ def create_progressbar(component, name, trait):
     progressBar = QtWidgets.QProgressBar()
     progressBar.setMinimum(trait.min * 1000)
     progressBar.setMaximum(trait.max * 1000)
-    progressBar.setValue(trait.get(component) * 1000)
+    progressBar.setValue(int(trait.get(component) * 1000))
     component.observe(
-        lambda change: progressBar.setValue(change['new'] * 1000),
+        lambda change: progressBar.setValue(int(change['new'] * 1000)),
         name
     )
 

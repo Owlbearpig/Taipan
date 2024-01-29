@@ -68,7 +68,7 @@ class DummyManipulator(Manipulator):
 
         try:
             for target in values:
-                await asyncio.sleep(dt)  # more realistic
+                await asyncio.sleep(dt*0)  # more realistic
                 self.set_trait('value', Q_(target, 'mm'))
             # self._isMovingFuture = asyncio.Future()
             # await self._isMovingFuture
