@@ -31,6 +31,7 @@ class DataSet:
             axes = []
         self.data = data
         self.axes = axes
+        self.datasources = [None]
 
     @property
     def isConsistent(self):
@@ -46,6 +47,15 @@ class DataSet:
                             (len(self.axes), self.data.ndim,
                              [len(ax) for ax in self.axes],
                              self.data.shape))
+
+    def __add__(self, other):
+        combined_axes = self.axes + other.axes
+        combined_data = np.array([self.data, other.data]) * self.data.units
+
+        dset = DataSet(combined_data, combined_axes, )
+        dset.datasources = [*self.datasources, *other.datasources]
+
+        return dset
 
     def __repr__(self):
         return 'DataSet(%s, %s)' % (repr(self.data), repr(self.axes))

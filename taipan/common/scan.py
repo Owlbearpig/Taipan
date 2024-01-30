@@ -341,13 +341,15 @@ class Scan2ds(Scan):
         first_dataset_ds1 = accumulator[0][0]
         first_dataset_ds2 = accumulator[0][1]
 
-        axes = first_dataset_ds1.axes.copy()  # assuming axes are the same for both datasources
-        axes.insert(0, axis)
+        axes_ds1 = first_dataset_ds1.axes.copy()
+        axes_ds2 = first_dataset_ds2.axes.copy()
+        axes_ds1.insert(0, axis)
+        axes_ds2.insert(0, axis)
 
         data_datasource1 = np.array([tup[0].data.magnitude for tup in accumulator]) * first_dataset_ds1.data.units
         data_datasource2 = np.array([tup[1].data.magnitude for tup in accumulator]) * first_dataset_ds2.data.units
 
-        dataset1, dataset2 = DataSet(data_datasource1, axes), DataSet(data_datasource2, axes)
+        dataset1, dataset2 = DataSet(data_datasource1, axes_ds1), DataSet(data_datasource2, axes_ds2)
 
         return dataset1, dataset2
 

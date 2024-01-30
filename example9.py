@@ -78,7 +78,8 @@ class AppRoot(Scan):
     @action("Take new measurement")
     async def takeMeasurement(self):
         new_datasets = await self.readDataSet()
-        print(new_datasets)
+
+        print(new_datasets.axes)
 
     def setCurrentData(self, dataSet):
         self.set_trait("currentData", dataSet)

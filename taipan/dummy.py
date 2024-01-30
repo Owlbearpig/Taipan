@@ -329,6 +329,10 @@ class DummyComboDataSauce(DataSource):
     datasource1 = Instance(DataSource, allow_none=True)
     datasource2 = Instance(DataSource, allow_none=True)
 
+    currentData = DataSetTrait().tag(name="Current measurement",
+                                     data_label="Amplitude",
+                                     axes_labels=["Time"])
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, objectName="DummyComboDataSauce")
 
@@ -337,11 +341,12 @@ class DummyComboDataSauce(DataSource):
 
     async def readDataSet(self):
         dataset1 = await self.datasource1.readDataSet()
+        dataset1.datasources = [self.datasource1]
+
         dataset2 = await self.datasource2.readDataSet()
+        dataset2.datasources = [self.datasource2]
 
-        combined_axes = dataset1.axes + dataset2.axes
-
-        return
+        return dataset1 + dataset2
 
     async def __aenter__(self):
         await super().__aenter__()
