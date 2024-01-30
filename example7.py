@@ -18,7 +18,7 @@ You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from common import ComponentBase, Scan, action, DataSource
+from common import ComponentBase, Scan, action, DataSource, Scan2ds
 from common.save import DataSaver
 from common.units import Q_, ureg
 from common.traits import DataSet as DataSetTrait
@@ -29,11 +29,11 @@ from pint import Quantity
 import thz_context  # important for unit conversion
 
 """
-Example scan with datasource(data source + stage)
+Example scan with double datasource
 """
 
 
-class AppRoot(Scan):
+class AppRoot(Scan2ds):
     currentData = DataSetTrait().tag(name="Current measurement",
                                      data_label="Amplitude",
                                      axes_labels=["Time"])
@@ -66,6 +66,8 @@ class AppRoot(Scan):
 
         self.manipulator = DummyManipulator()
         self.dataSource = self.TimeDomainScan
+
+        self.dataSource2 = self.TimeDomainScan
 
         self.dataSaver.registerManipulator(self.manipulator, "Position")
         self.dataSaver.fileNameTemplate = "{date}-{name}-{Position}"

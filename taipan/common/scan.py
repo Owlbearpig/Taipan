@@ -30,51 +30,49 @@ import logging
 
 
 class Scan(DataSource):
-
     manipulator = Instance(Manipulator, allow_none=True)
     dataSource = Instance(DataSource, allow_none=True)
-    dataSource2 = Instance(DataSource, allow_none=True)
 
     minimumValue = Quantity(Q_(0), help="The Scan's minimum value").tag(
-                                   name="Minimum value",
-                                   priority=0)
+        name="Minimum value",
+        priority=0)
 
     maximumValue = Quantity(Q_(0), help="The Scan's maximum value").tag(
-                                   name="Maximum value",
-                                   priority=1)
+        name="Maximum value",
+        priority=1)
 
     step = Quantity(Q_(0), help="The step width used for the Scan",
-                           min=Q_(0)).tag(
-                           name="Step width", priority=2)
+                    min=Q_(0)).tag(
+        name="Step width", priority=2)
 
     overscan = Quantity(Q_(0), help="The offset from the boundary positions",
-                               min=Q_(0)).tag(name="Overscan", priority=3)
+                        min=Q_(0)).tag(name="Overscan", priority=3)
 
     scanVelocity = Quantity(Q_(0), help="The velocity of the Manipulator used "
                                         "during the scan").tag(
-                                   name="Scan velocity", priority=4)
+        name="Scan velocity", priority=4)
 
     positioningVelocity = Quantity(Q_(0), help="The velocity of the "
                                                "Manipulator during positioning"
                                                " movement (not during data "
                                                "acquisiton)").tag(
-                                          name="Positioning velocity",
-                                          priority=5)
+        name="Positioning velocity",
+        priority=5)
 
     retractAtEnd = Bool(False, help="Retract the manipulator to the start "
                                     "position at the end of the scan.").tag(
-                               name="Retract manipulator at end")
+        name="Retract manipulator at end")
 
     active = Bool(False, read_only=True, help="Whether the scan is currently "
                                               "acquiring data").tag(
-                                         name="Active")
+        name="Active")
 
     progress = Float(0, min=0, max=1, read_only=True).tag(name="Progress")
 
-    def __init__(self, manipulator: Manipulator=None,
-                 dataSource: DataSource=None, minimumValue=None,
-                 maximumValue=None, step=None, objectName: str=None,
-                 loop: asyncio.BaseEventLoop=None):
+    def __init__(self, manipulator: Manipulator = None,
+                 dataSource: DataSource = None, minimumValue=None,
+                 maximumValue=None, step=None, objectName: str = None,
+                 loop: asyncio.BaseEventLoop = None):
         super().__init__(objectName=objectName, loop=loop)
 
         self.__original_class = self.__class__
@@ -257,7 +255,7 @@ class Scan(DataSource):
         self.manipulator.observe(statusObserver, 'status')
 
         fut.add_done_callback(lambda fut:
-            self.manipulator.unobserve(statusObserver, 'status'))
+                              self.manipulator.unobserve(statusObserver, 'status'))
 
         return fut
 
@@ -291,7 +289,7 @@ class Scan(DataSource):
                 step = -step
 
             axis = (np.arange(min.magnitude, max.magnitude, step.magnitude)
-                        * stepUnits)
+                    * stepUnits)
 
             dataSet = None
 
@@ -318,3 +316,12 @@ class Scan(DataSource):
 
             self.set_trait('active', False)
             self._activeFuture = None
+
+
+class Scan2ds(Scan):
+    dataSource2 = Instance(DataSource, allow_none=True)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+

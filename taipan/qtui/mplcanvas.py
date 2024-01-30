@@ -17,6 +17,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
+import os
 
 from PyQt5 import QtCore, QtWidgets, QtGui
 from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg,
@@ -32,7 +33,8 @@ import time
 def style_mpl():
     _defPal = QtGui.QPalette()
     _defFont = QtGui.QFont()
-    _defFont.setFamily("Arial")
+    if "nt" in os.name:
+        _defFont.setFamily("Arial")
 
     highlightColor = _defPal.color(QtGui.QPalette.Highlight).darker(120)
     darkerHighlightColor = highlightColor.darker(120)

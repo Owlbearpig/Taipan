@@ -18,18 +18,18 @@ You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from common import ComponentBase, Scan, action, DataSource
+from common import ComponentBase, Scan, action, DataSource, Scan2ds
 from common.save import DataSaver
 from common.units import Q_, ureg
 from common.traits import DataSet as DataSetTrait
 from traitlets import Instance, Float, Bool, Int
-from dummy import DummyManipulator, DummyContinuousDataSource, DummyLockIn
+from dummy import DummyManipulator, DummyDoubleDatasource
 from pathlib import Path
 from pint import Quantity
 import thz_context  # important for unit conversion
 
 """
-Example scan with datasource(data source + stage)
+Example scan with double datasource
 """
 
 
@@ -48,24 +48,8 @@ class AppRoot(Scan):
         self.dummy_stage.objectName = "Dummy stage"
         self.dummy_stage.setPreferredUnits(ureg.ps, ureg.ps / ureg.s)
 
-        self.TimeDomainScan = Scan(objectName="TimeDomainScan")
-
-        self.TimeDomainScan.manipulator = self.dummy_stage
-        self.TimeDomainScan.dataSource = DummyLockIn()
-
-        self.TimeDomainScan.dataSource.objectName = "SR7230 (Dummy)"
-
-        self.TimeDomainScan.continuousScan = True
-        self.TimeDomainScan.minimumValue = Q_(840, "ps")
-        self.TimeDomainScan.maximumValue = Q_(910, "ps")
-        self.TimeDomainScan.overscan = Q_(1, "ps")
-        self.TimeDomainScan.step = Q_(0.05, "ps")
-        self.TimeDomainScan.positioningVelocity = Q_(40, "ps/s")
-        self.TimeDomainScan.scanVelocity = Q_(1, "ps/s")
-        self.TimeDomainScan.retractAtEnd = True
-
         self.manipulator = DummyManipulator()
-        self.dataSource = self.TimeDomainScan
+        self.dataSource = DummyDoubleDatasource()
 
         self.dataSaver.registerManipulator(self.manipulator, "Position")
         self.dataSaver.fileNameTemplate = "{date}-{name}-{Position}"
@@ -81,7 +65,7 @@ class AppRoot(Scan):
 
     async def __aenter__(self):
         await super().__aenter__()
-        await self.dataSource.__aenter__()  # lockin
+        await self.dataSource.__aenter__()
         return self
 
     async def __aexit__(self, *args):

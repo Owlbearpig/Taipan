@@ -68,7 +68,7 @@ class DummyManipulator(Manipulator):
 
         try:
             for target in values:
-                await asyncio.sleep(dt*0)  # more realistic
+                await asyncio.sleep(dt * 0)  # more realistic
                 self.set_trait('value', Q_(target, 'mm'))
             # self._isMovingFuture = asyncio.Future()
             # await self._isMovingFuture
@@ -249,7 +249,7 @@ class DummyLockIn(DataSource):
         elif self.samplingMode == DummyLockIn.SamplingMode.Buffered:
             data = await self.read_buffer()
             sample_period = self.samplePeriod.magnitude
-            axis = Q_(np.arange(0, len(data)*sample_period, sample_period), 'ps')
+            axis = Q_(np.arange(0, len(data) * sample_period, sample_period), 'ps')
             dataSet = DataSet(Q_(data), [axis])
             self._dataSetReady(dataSet)
             return dataSet
@@ -279,8 +279,8 @@ class DummyContinuousDataSource(DataSource):
     acq_range = Quantity(Q_(70, 'ps')).tag(name="Range", priority=1)
     acq_on = Bool(False, read_only=True).tag(name="Acquistion active")
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._acq_future = None
 
     async def __aexit__(self, *args):
@@ -323,3 +323,25 @@ class DummyContinuousDataSource(DataSource):
         self._dataSetReady(self.currentData)
 
         return self.currentData
+
+
+class DummyDoubleDatasource(DummyContinuousDataSource):
+    currentData2 = DataSetTrait(read_only=True, axes_labels=['foo'],
+                               data_label='bar')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    async def update_live_data(self):
+        dt = 0.05
+        taxis = dt * np.arange(self.acq_range.magnitude / dt) + self.acq_begin.magnitude
+        while self.acq_on:
+            omega = 2 * np.pi * ureg.THz
+            data = np.sin(omega * taxis * ureg.ps)
+            data += 5e-3 * (np.random.random(data.shape) - 0.5) * np.max(data)
+            data = data * ureg.nA
+
+            self.set_trait("currentData", DataSet(data, [Q_(taxis, 'ps')]))
+            self.set_trait("currentData2", DataSet(data, [Q_(taxis, 'ps')]))
+
+            await asyncio.sleep(0.10)
