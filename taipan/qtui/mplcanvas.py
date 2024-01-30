@@ -64,9 +64,9 @@ class MPLCanvas(QtWidgets.QGroupBox):
         Tukey_5Percent = 3
 
     windowFunctionMap = {
-        WindowTypes.Rectangular:    lambda M: windows.boxcar(M, sym=False),
-        WindowTypes.Hann:           lambda M: windows.hann(M, sym=False),
-        WindowTypes.Flattop:        lambda M: windows.flattop(M, sym=False),
+        WindowTypes.Rectangular: lambda M: windows.boxcar(M, sym=False),
+        WindowTypes.Hann: lambda M: windows.hann(M, sym=False),
+        WindowTypes.Flattop: lambda M: windows.flattop(M, sym=False),
         WindowTypes.Tukey_5Percent: lambda M: windows.tukey(M, sym=False,
                                                             alpha=0.05),
     }
@@ -189,7 +189,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
             ftline.set_data([], [])
             return
 
-        #data.data -= np.mean(data.data)
+        # data.data -= np.mean(data.data)
         line.set_data(data.axes[0].magnitude, data.data.magnitude)
         freqs, dBdata = self.get_ft_data(data)
         ftline.set_data(freqs, dBdata)
@@ -224,16 +224,16 @@ class MPLCanvas(QtWidgets.QGroupBox):
 
         if self._axesLabels and redraw_axes_labels:
             self.axes.set_xlabel('{} [{:C~}]'.format(
-                                 self._axesLabels[0],
-                                 self.dataSet.axes[0].units))
-            self.ft_axes.set_xlabel('1 / {} [1 / {:C~}]' .format(
-                                    self._axesLabels[0],
-                                    self.dataSet.axes[0].units))
+                self._axesLabels[0],
+                self.dataSet.axes[0].units))
+            self.ft_axes.set_xlabel('1 / {} [1 / {:C~}]'.format(
+                self._axesLabels[0],
+                self.dataSet.axes[0].units))
 
         if self._dataLabel and redraw_data_label:
             self.axes.set_ylabel('{} [{:C~}]'.format(
-                                 self._dataLabel,
-                                 self.dataSet.data.units))
+                self._dataLabel,
+                self.dataSet.data.units))
 
             ftUnits = self.dataSet.data.units
             if not self.dataIsPower:
@@ -291,13 +291,20 @@ class MPLCanvas(QtWidgets.QGroupBox):
         redraw_axes_labels = (self._axesLabels != axes_labels or
                               self.prevDataSet and self.dataSet and
                               self.prevDataSet.axes[0].units !=
-                                  self.dataSet.axes[0].units)
+                              self.dataSet.axes[0].units)
         redraw_data_label = (self._dataLabel != data_label or
                              self.prevDataSet and self.dataSet and
                              self.prevDataSet.data.units !=
-                                 self.dataSet.data.units)
+                             self.dataSet.data.units)
 
         self._axesLabels = axes_labels
         self._dataLabel = data_label
 
         self._replot(redraw_axes, redraw_axes_labels, redraw_data_label)
+
+
+class MPLCanvasDoubleDataset(MPLCanvas):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+

@@ -232,7 +232,7 @@ class DummyLockIn(DataSource):
             self._data_buffer.extend(data)
 
     async def stop(self):
-        pass
+        pass  # stop never works anyway
 
     async def read_buffer(self):
         buffer = np.array(self._data_buffer).copy()
@@ -327,7 +327,7 @@ class DummyContinuousDataSource(DataSource):
 
 class DummyDoubleDatasource(DummyContinuousDataSource):
     currentData2 = DataSetTrait(read_only=True, axes_labels=['foo'],
-                               data_label='bar')
+                                data_label='bar')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

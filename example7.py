@@ -34,7 +34,11 @@ Example scan with double datasource
 
 
 class AppRoot(Scan2ds):
-    currentData = DataSetTrait().tag(name="Current measurement",
+    currentDataDS1 = DataSetTrait().tag(name="Current measurement",
+                                     data_label="Amplitude",
+                                     axes_labels=["Time"])
+
+    currentDataDS2 = DataSetTrait().tag(name="Current measurement",
                                      data_label="Amplitude",
                                      axes_labels=["Time"])
 
@@ -66,14 +70,14 @@ class AppRoot(Scan2ds):
 
         self.manipulator = DummyManipulator()
         self.dataSource = self.TimeDomainScan
-
         self.dataSource2 = self.TimeDomainScan
 
         self.dataSaver.registerManipulator(self.manipulator, "Position")
         self.dataSaver.fileNameTemplate = "{date}-{name}-{Position}"
         self.dataSaver.set_trait("path", Path(r""))
-        self.dataSource.addDataSetReadyCallback(self.dataSaver.process)
-        self.dataSource.addDataSetReadyCallback(self.setCurrentData)
+        # self.dataSource.addDataSetReadyCallback(self.dataSaver.process)
+        self.dataSource.addDataSetReadyCallback(self.setCurrentData_DS1)
+        self.dataSource2.addDataSetReadyCallback(self.setCurrentData_DS2)
 
         self.minimumValue = Q_(0, "mm")
         self.maximumValue = Q_(10, "mm")
@@ -96,5 +100,8 @@ class AppRoot(Scan2ds):
     async def takeMeasurement(self):
         await self.readDataSet()
 
-    def setCurrentData(self, dataSet):
-        self.set_trait("currentData", dataSet)
+    def setCurrentData_DS1(self, dataSet):
+        self.set_trait("currentDataDS1", dataSet)
+
+    def setCurrentData_DS2(self, dataSet):
+        self.set_trait("currentDataDS2", dataSet)

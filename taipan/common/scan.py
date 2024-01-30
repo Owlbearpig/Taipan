@@ -321,7 +321,92 @@ class Scan(DataSource):
 class Scan2ds(Scan):
     dataSource2 = Instance(DataSource, allow_none=True)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, datasource2: DataSource = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.dataSource2 = datasource2
 
+    async def _doSteppedScan(self, axis):
+        accumulator = []
+        await self.dataSource.start()
+        await self.dataSource2.start()
+        updater = self.updateProgress(axis)
+        self.manipulator.observe(updater, 'value')
+        for position in axis:
+            await self.manipulator.moveTo(position, self.scanVelocity)
+            accumulator.append((await self.dataSource.readDataSet(), await self.dataSource2.readDataSet()))
+        self.manipulator.unobserve(updater, 'value')
+        await self.dataSource.stop()
+        await self.dataSource2.stop()
 
+        first_dataset_ds1 = accumulator[0][0]
+        first_dataset_ds2 = accumulator[0][1]
+
+        axes = first_dataset_ds1.axes.copy()  # assuming axes are the same for both datasources
+        axes.insert(0, axis)
+
+        data_datasource1 = np.array([tup[0].data.magnitude for tup in accumulator]) * first_dataset_ds1.data.units
+        data_datasource2 = np.array([tup[1].data.magnitude for tup in accumulator]) * first_dataset_ds2.data.units
+
+        dataset1, dataset2 = DataSet(data_datasource1, axes), DataSet(data_datasource2, axes)
+
+        return dataset1, dataset2
+
+    def readDataSet(self):
+        self._activeFuture = self._loop.create_task(self._readDataSetImpl())
+        return self._activeFuture
+
+    async def _readDataSetImpl(self):
+        if not self._activeFuture:
+            raise asyncio.InvalidStateError()
+
+        if self.active:
+            raise asyncio.InvalidStateError()
+
+        self.set_trait('active', True)
+        self.set_trait('progress', 0)
+
+        axis = None
+
+        try:
+            await self.dataSource.stop()
+            await self.dataSource2.stop()
+            await self._createManipulatorIdleFuture()
+
+            step = abs(self.step)
+            stepUnits = step.units
+            min = self.minimumValue.to(stepUnits)
+            max = self.maximumValue.to(stepUnits)
+
+            # ensure correct step sign
+            if (max < min):
+                step = -step
+
+            axis = (np.arange(min.magnitude, max.magnitude, step.magnitude)
+                    * stepUnits)
+
+            dataSet1, dataSet2 = None, None
+
+            if self.continuousScan:
+                dataSet, axis = await self._doContinuousScan(axis)
+            else:
+                dataSet1, dataSet2 = await self._doSteppedScan(axis)
+
+            self._dataSetReady(dataSet1)
+            self._dataSetReady(dataSet2)
+            return dataSet1, dataSet2
+
+        except asyncio.CancelledError:
+            logging.warning('Scan "{}" was cancelled'.format(self.objectName))
+            raise
+
+        finally:
+            self._loop.create_task(self.dataSource.stop())
+            self.manipulator.stop()
+            if self.retractAtEnd and axis is not None:
+                self._loop.create_task(
+                    self.manipulator.moveTo(axis[0] - self._getOverscan(axis),
+                                            self.positioningVelocity)
+                )
+
+            self.set_trait('active', False)
+            self._activeFuture = None
