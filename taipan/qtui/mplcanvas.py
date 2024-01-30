@@ -32,6 +32,7 @@ import time
 def style_mpl():
     _defPal = QtGui.QPalette()
     _defFont = QtGui.QFont()
+    _defFont.setFamily("Arial")
 
     highlightColor = _defPal.color(QtGui.QPalette.Highlight).darker(120)
     darkerHighlightColor = highlightColor.darker(120)

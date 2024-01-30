@@ -49,8 +49,10 @@ class AppRoot(Scan):
         self.dummy_stage.setPreferredUnits(ureg.ps, ureg.ps / ureg.s)
 
         self.TimeDomainScan = Scan(objectName="TimeDomainScan")
+
         self.TimeDomainScan.manipulator = self.dummy_stage
         self.TimeDomainScan.dataSource = DummyLockIn()
+        """
         self.TimeDomainScan.dataSource.objectName = "SR7230 (Dummy)"
 
         self.TimeDomainScan.continuousScan = True
@@ -61,10 +63,17 @@ class AppRoot(Scan):
         self.TimeDomainScan.positioningVelocity = Q_(40, "ps/s")
         self.TimeDomainScan.scanVelocity = Q_(1, "ps/s")
         self.TimeDomainScan.retractAtEnd = True
-
+        """
         self.manipulator = DummyManipulator()
         self.dataSource = self.TimeDomainScan
+        """
+        self.TimeDomainScan2 = Scan(objectName="TimeDomainScan1")
 
+        self.TimeDomainScan2.manipulator = DummyManipulator()
+        self.TimeDomainScan2.dataSource = DummyLockIn()
+
+        self.dataSource2 = self.TimeDomainScan2
+        """
         self.dataSaver.registerManipulator(self.manipulator, "Position")
         self.dataSaver.fileNameTemplate = "{date}-{name}-{Position}"
         self.dataSaver.set_trait("path", Path(r""))

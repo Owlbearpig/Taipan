@@ -33,6 +33,7 @@ class Scan(DataSource):
 
     manipulator = Instance(Manipulator, allow_none=True)
     dataSource = Instance(DataSource, allow_none=True)
+    dataSource2 = Instance(DataSource, allow_none=True)
 
     minimumValue = Quantity(Q_(0), help="The Scan's minimum value").tag(
                                    name="Minimum value",
