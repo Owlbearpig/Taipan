@@ -23,7 +23,7 @@ from common.save import DataSaver
 from common.units import Q_, ureg
 from common.traits import DataSet as DataSetTrait
 from traitlets import Instance, Float, Bool, Int
-from dummy import DummyManipulator, DummyContinuousDataSource, DummyLockIn
+from dummy import DummyManipulator, DummyComboDataSauce, DummyLockIn
 from pathlib import Path
 from pint import Quantity
 import thz_context  # important for unit conversion
@@ -33,15 +33,11 @@ Example scan with double datasource
 """
 
 
-class AppRoot(Scan2ds):
-    currentDataDS1 = DataSetTrait().tag(name="Current measurement",
-                                        data_label="Amplitude",
-                                        axes_labels=["Time"])
-
-    currentDataDS2 = DataSetTrait().tag(name="Current measurement",
-                                        data_label="Amplitude",
-                                        axes_labels=["Time"])
-
+class AppRoot(Scan):
+    currentData = DataSetTrait().tag(name="Current2 measurement",
+                                     data_label="Amplitude",
+                                     axes_labels=["Time"])
+    dummy_stage = Instance(DummyManipulator)
     dataSaver = Instance(DataSaver)
 
     def __init__(self, loop=None):
@@ -52,32 +48,15 @@ class AppRoot(Scan2ds):
         self.dummy_stage.objectName = "Dummy stage"
         self.dummy_stage.setPreferredUnits(ureg.ps, ureg.ps / ureg.s)
 
-        self.TimeDomainScan = Scan(objectName="TimeDomainScan")
-
-        self.TimeDomainScan.manipulator = self.dummy_stage
-        self.TimeDomainScan.dataSource = DummyLockIn()
-
-        self.TimeDomainScan.dataSource.objectName = "SR7230 (Dummy)"
-
-        self.TimeDomainScan.continuousScan = True
-        self.TimeDomainScan.minimumValue = Q_(840, "ps")
-        self.TimeDomainScan.maximumValue = Q_(910, "ps")
-        self.TimeDomainScan.overscan = Q_(1, "ps")
-        self.TimeDomainScan.step = Q_(0.05, "ps")
-        self.TimeDomainScan.positioningVelocity = Q_(40, "ps/s")
-        self.TimeDomainScan.scanVelocity = Q_(1, "ps/s")
-        self.TimeDomainScan.retractAtEnd = True
-
         self.manipulator = DummyManipulator()
-        self.dataSource = self.TimeDomainScan
-        self.dataSource2 = self.TimeDomainScan
+        self.dataSource = DummyComboDataSauce()
+        # self.dataSource = DummyLockIn()
 
         self.dataSaver.registerManipulator(self.manipulator, "Position")
         self.dataSaver.fileNameTemplate = "{date}-{name}-{Position}"
         self.dataSaver.set_trait("path", Path(r""))
-        # self.dataSource.addDataSetReadyCallback(self.dataSaver.process)
-        self.dataSource.addDataSetReadyCallback(self.setCurrentData_DS1)
-        self.dataSource2.addDataSetReadyCallback(self.setCurrentData_DS2)
+        #self.dataSource.addDataSetReadyCallback(self.dataSaver.process)
+        #self.dataSource.addDataSetReadyCallback(self.setCurrentData)
 
         self.minimumValue = Q_(0, "mm")
         self.maximumValue = Q_(10, "mm")
@@ -87,7 +66,7 @@ class AppRoot(Scan2ds):
 
     async def __aenter__(self):
         await super().__aenter__()
-        await self.dataSource.__aenter__()  # lockin
+        await self.dataSource.__aenter__()
         return self
 
     async def __aexit__(self, *args):
@@ -98,10 +77,8 @@ class AppRoot(Scan2ds):
 
     @action("Take new measurement")
     async def takeMeasurement(self):
-        await self.readDataSet()
+        new_datasets = await self.readDataSet()
+        print(new_datasets)
 
-    def setCurrentData_DS1(self, dataSet):
-        self.set_trait("currentDataDS1", dataSet)
-
-    def setCurrentData_DS2(self, dataSet):
-        self.set_trait("currentDataDS2", dataSet)
+    def setCurrentData(self, dataSet):
+        self.set_trait("currentData", dataSet)

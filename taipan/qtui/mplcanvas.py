@@ -301,10 +301,3 @@ class MPLCanvas(QtWidgets.QGroupBox):
         self._dataLabel = data_label
 
         self._replot(redraw_axes, redraw_axes_labels, redraw_data_label)
-
-
-class MPLCanvasDoubleDataset(MPLCanvas):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-

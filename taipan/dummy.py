@@ -20,7 +20,7 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 import logging
 import time
 
-from common import DataSource, Manipulator, DataSet
+from common import DataSource, Manipulator, DataSet, Scan
 from common.components import action
 import asyncio
 import numpy as np
@@ -147,8 +147,8 @@ class DummyLockIn(DataSource):
     _signal_buffer = []
     _data_buffer = []
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._signalUpdateFuture = ensure_weakly_binding_future(self.dummy_signal)
         self._updateFuture = ensure_weakly_binding_future(self.update)
 
@@ -323,6 +323,30 @@ class DummyContinuousDataSource(DataSource):
         self._dataSetReady(self.currentData)
 
         return self.currentData
+
+
+class DummyComboDataSauce(DataSource):
+    datasource1 = Instance(DataSource, allow_none=True)
+    datasource2 = Instance(DataSource, allow_none=True)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, objectName="DummyComboDataSauce")
+
+        self.datasource1 = DummyLockIn(objectName="Lockin1")
+        self.datasource2 = DummyLockIn(objectName="Lockin2")
+
+    async def readDataSet(self):
+        dataset1 = await self.datasource1.readDataSet()
+        dataset2 = await self.datasource2.readDataSet()
+
+        combined_axes = dataset1.axes + dataset2.axes
+
+        return
+
+    async def __aenter__(self):
+        await super().__aenter__()
+        await self.datasource1.__aenter__()
+        await self.datasource2.__aenter__()
 
 
 class DummyDoubleDatasource(DummyContinuousDataSource):

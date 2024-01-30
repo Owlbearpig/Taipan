@@ -17,9 +17,9 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
-
 import numpy as np
 from .units import Q_
+
 
 class DataSet:
 
@@ -35,8 +35,8 @@ class DataSet:
     @property
     def isConsistent(self):
         return len(self.axes) == self.data.ndim and \
-               all([len(ax) == shape
-                    for (ax, shape) in zip(self.axes, self.data.shape)])
+            all([len(ax) == shape
+                 for (ax, shape) in zip(self.axes, self.data.shape)])
 
     def checkConsistency(self):
         if not self.isConsistent:
@@ -52,5 +52,5 @@ class DataSet:
 
     def __str__(self):
         return 'DataSet with:\n    %s\n  and axes:\n    %s' % \
-                (repr(self.data).replace('\n', '\n    '),
-                 repr(self.axes).replace('\n', '\n    '))
+            (repr(self.data).replace('\n', '\n    '),
+             repr(self.axes).replace('\n', '\n    '))
