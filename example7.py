@@ -102,6 +102,3 @@ class AppRoot(Scan2ds):
 
     def setCurrentData_DS1(self, dataSet):
         self.set_trait("currentDataDS1", dataSet)
-
-    def setCurrentData_DS2(self, dataSet):
-        self.set_trait("currentDataDS2", dataSet)

@@ -39,7 +39,6 @@ def instance_init(self, obj):
 
 TraitType = type(TraitType.__name__, (TraitType,), {"instance_init": instance_init})
 
-
 class DataSet(TraitType):
     """A trait for a DataSet."""
 

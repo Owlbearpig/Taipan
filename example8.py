@@ -18,7 +18,7 @@ You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from common import ComponentBase, Scan, action, DataSource, Scan2ds
+from common import ComponentBase, Scan, action, DataSource
 from common.save import DataSaver
 from common.units import Q_, ureg
 from common.traits import DataSet as DataSetTrait

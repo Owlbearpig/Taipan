@@ -319,14 +319,29 @@ class Scan(DataSource):
 
 
 class MultiDataSourceScan(Scan):
-    def __init__(self, datasource2: DataSource = None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.dataSource2 = datasource2
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(objectName="MultiDataSourceScan", *args, **kwargs)
         self._dataSources = [self.dataSource]
 
-    def register_additionalDataSource(self):
+    async def __aenter__(self):
+        await super().__aenter__()
+        for dSource in self._dataSources:
+            await dSource.__aenter__()
 
-        return
+    def registerDataSource(self, dataSource: DataSource = None):
+        if DataSource is None:
+            return
+
+        if self._dataSources[0] is None:
+            self._dataSources[0] = dataSource
+            self.dataSource = dataSource
+            return
+        else:
+            new_component_trait_name = f"dataSource{len(self._dataSources)}"
+            self.add_traits(**{new_component_trait_name: Instance(DataSource)})
+            self.setAttribute(new_component_trait_name, dataSource)
+            self._dataSources.append(dataSource)
 
     async def _doSteppedScan(self, axis):
         accumulator = {}
@@ -343,21 +358,69 @@ class MultiDataSourceScan(Scan):
         for dSource in self._dataSources:
             await dSource.stop()
 
+        datasets = []
+        for dSource in self._dataSources:
+            first_dataset = accumulator[dSource][0]
+            axes_dset = first_dataset.axes.copy()
+            axes_dset.insert(0, axis)
+            data = np.array([dSet.data.magnitude for dSet in accumulator[dSource]]) * first_dataset.data.units
+            datasets.append(DataSet(data, axes_dset))
 
-        first_dataset_ds1 = accumulator[0][0]
-        first_dataset_ds2 = accumulator[0][1]
+        return datasets
 
-        axes_ds1 = first_dataset_ds1.axes.copy()
-        axes_ds2 = first_dataset_ds2.axes.copy()
-        axes_ds1.insert(0, axis)
-        axes_ds2.insert(0, axis)
+    async def _doContinuousScan(self, axis):
+        overscan = self._getOverscan(axis)
 
-        data_datasource1 = np.array([tup[0].data.magnitude for tup in accumulator]) * first_dataset_ds1.data.units
-        data_datasource2 = np.array([tup[1].data.magnitude for tup in accumulator]) * first_dataset_ds2.data.units
+        await self.manipulator.moveTo(axis[0] - overscan,
+                                      self.positioningVelocity)
 
-        dataset1, dataset2 = DataSet(data_datasource1, axes_ds1), DataSet(data_datasource2, axes_ds2)
+        prefUnits = axis.units
+        axis = (await self.manipulator.configureTrigger(axis)).to(prefUnits)
 
-        return dataset1, dataset2
+        updater = self.updateProgress(axis)
+
+        try:
+            self.manipulator.observe(updater, 'value')
+
+            for dSource in self._dataSources:
+                try:
+                    await dSource.start(scanAxis=axis)
+                except TypeError:
+                    await dSource.start()
+
+            await self.manipulator.moveTo(axis[-1] + overscan,
+                                          self.scanVelocity)
+            for dSource in self._dataSources:
+                await dSource.stop()
+
+        finally:
+            self.manipulator.unobserve(updater, 'value')
+
+        dataSets = []
+        for dSource in self._dataSources:
+            dataSet = await dSource.readDataSet()
+            dataSet.checkConsistency()
+            dataSet.axes = dataSet.axes.copy()
+            dataSet.axes[0] = axis
+
+            expectedLength = len(dataSet.axes[0])
+
+            # Oops, somehow the received amount of data does not match our
+            # expectation
+            if dataSet.data.shape[0] != expectedLength:
+                warnings.warn("Length of recorded data set does not match "
+                              "expectation. Actual length: %d, expected "
+                              "length: %d - trimming." %
+                              (dataSet.data.shape[0], expectedLength))
+                if (dataSet.data.shape[0] < expectedLength):
+                    dataSet.axes[0].resize(dataSet.data.shape[0])
+                else:
+                    dataSet.data = dataSet.data.copy()
+                    dataSet.data.resize((expectedLength,) + dataSet.data.shape[1:])
+
+            dataSets.append(dataSet)
+
+        return dataSets, axis
 
     def readDataSet(self):
         self._activeFuture = self._loop.create_task(self._readDataSetImpl())
@@ -376,8 +439,8 @@ class MultiDataSourceScan(Scan):
         axis = None
 
         try:
-            await self.dataSource.stop()
-            await self.dataSource2.stop()
+            for dSource in self._dataSources:
+                await dSource.stop()
             await self._createManipulatorIdleFuture()
 
             step = abs(self.step)
@@ -392,23 +455,24 @@ class MultiDataSourceScan(Scan):
             axis = (np.arange(min.magnitude, max.magnitude, step.magnitude)
                     * stepUnits)
 
-            dataSet1, dataSet2 = None, None
-
+            dSets = None
             if self.continuousScan:
-                dataSet, axis = await self._doContinuousScan(axis)
+                dSets, axis = await self._doContinuousScan(axis)
             else:
-                dataSet1, dataSet2 = await self._doSteppedScan(axis)
+                dSets = await self._doSteppedScan(axis)
 
-            self._dataSetReady(dataSet1)
-            self._dataSetReady(dataSet2)
-            return dataSet1, dataSet2
+            for dSet in dSets:
+                self._dataSetReady(dSet)
+
+            return dSets
 
         except asyncio.CancelledError:
             logging.warning('Scan "{}" was cancelled'.format(self.objectName))
             raise
 
         finally:
-            self._loop.create_task(self.dataSource.stop())
+            for dSource in self._dataSources:
+                self._loop.create_task(dSource.stop())
             self.manipulator.stop()
             if self.retractAtEnd and axis is not None:
                 self._loop.create_task(
@@ -418,4 +482,3 @@ class MultiDataSourceScan(Scan):
 
             self.set_trait('active', False)
             self._activeFuture = None
-
