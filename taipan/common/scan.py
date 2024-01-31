@@ -318,25 +318,31 @@ class Scan(DataSource):
             self._activeFuture = None
 
 
-class Scan2ds(Scan):
-    dataSource2 = Instance(DataSource, allow_none=True)
-
+class MultiDataSourceScan(Scan):
     def __init__(self, datasource2: DataSource = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.dataSource2 = datasource2
+        self._dataSources = [self.dataSource]
+
+    def register_additionalDataSource(self):
+
+        return
 
     async def _doSteppedScan(self, axis):
-        accumulator = []
-        await self.dataSource.start()
-        await self.dataSource2.start()
+        accumulator = {}
+        for dSource in self._dataSources:
+            accumulator[dSource] = []
+            await dSource.start()
         updater = self.updateProgress(axis)
         self.manipulator.observe(updater, 'value')
         for position in axis:
             await self.manipulator.moveTo(position, self.scanVelocity)
-            accumulator.append((await self.dataSource.readDataSet(), await self.dataSource2.readDataSet()))
+            for dSource in self._dataSources:
+                accumulator[dSource].append(await dSource.readDataSet())
         self.manipulator.unobserve(updater, 'value')
-        await self.dataSource.stop()
-        await self.dataSource2.stop()
+        for dSource in self._dataSources:
+            await dSource.stop()
+
 
         first_dataset_ds1 = accumulator[0][0]
         first_dataset_ds2 = accumulator[0][1]
@@ -412,3 +418,4 @@ class Scan2ds(Scan):
 
             self.set_trait('active', False)
             self._activeFuture = None
+
