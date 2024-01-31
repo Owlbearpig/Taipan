@@ -78,6 +78,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
     _axesLabels = None
     _prevDataLabel = None
     _dataLabel = None
+    _dataSources = []
 
     _lastPlotTime = 0
     _isLiveData = False
@@ -258,6 +259,22 @@ class MPLCanvas(QtWidgets.QGroupBox):
             self.canvas.blit(self.ft_axes.bbox)
 
     def drawDataSet(self, newDataSet, axes_labels, data_label):
+        newDataSetDS = newDataSet.dataSource
+        if newDataSetDS:
+            if newDataSetDS not in self._dataSources:
+                self._dataSources.append(newDataSetDS)
+                self._lines.extend(self.axes.plot([], [], [], [], animated=True))
+                self._lines[-2].set_alpha(0.25)
+                self._ftlines.extend(self.ft_axes.plot([], [], [], [], animated=True))
+                self._ftlines[-2].set_alpha(0.25)
+                #self.axes.legend(['Previous', 'Current'])
+                #self.ft_axes.legend(['Previous', 'Current'])
+            idx = self._dataSources.index(newDataSetDS)
+            self._lines[0] = self._lines[idx]
+            self._lines[1] = self._lines[idx+1]
+            self._ftlines[0] = self._ftlines[idx]
+            self._ftlines[1] = self._ftlines[idx + 1]
+
         plotTime = time.perf_counter()
 
         looksLikeLiveData = plotTime - self._lastPlotTime < 1

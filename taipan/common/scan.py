@@ -321,7 +321,7 @@ class Scan(DataSource):
 class MultiDataSourceScan(Scan):
 
     def __init__(self, *args, **kwargs):
-        super().__init__(objectName="MultiDataSourceScan", *args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._dataSources = [self.dataSource]
 
     async def __aenter__(self):
@@ -354,6 +354,7 @@ class MultiDataSourceScan(Scan):
             await self.manipulator.moveTo(position, self.scanVelocity)
             for dSource in self._dataSources:
                 accumulator[dSource].append(await dSource.readDataSet())
+                accumulator[dSource][-1].dataSource = dSource
         self.manipulator.unobserve(updater, 'value')
         for dSource in self._dataSources:
             await dSource.stop()
@@ -364,7 +365,7 @@ class MultiDataSourceScan(Scan):
             axes_dset = first_dataset.axes.copy()
             axes_dset.insert(0, axis)
             data = np.array([dSet.data.magnitude for dSet in accumulator[dSource]]) * first_dataset.data.units
-            datasets.append(DataSet(data, axes_dset))
+            datasets.append(DataSet(data, axes_dset, dSource))
 
         return datasets
 
@@ -399,6 +400,7 @@ class MultiDataSourceScan(Scan):
         dataSets = []
         for dSource in self._dataSources:
             dataSet = await dSource.readDataSet()
+            dataSet.dataSource = dSource
             dataSet.checkConsistency()
             dataSet.axes = dataSet.axes.copy()
             dataSet.axes[0] = axis
@@ -455,7 +457,6 @@ class MultiDataSourceScan(Scan):
             axis = (np.arange(min.magnitude, max.magnitude, step.magnitude)
                     * stepUnits)
 
-            dSets = None
             if self.continuousScan:
                 dSets, axis = await self._doContinuousScan(axis)
             else:

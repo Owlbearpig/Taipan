@@ -20,10 +20,9 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 from .units import Q_
 
-
 class DataSet:
 
-    def __init__(self, data=None, axes=None):
+    def __init__(self, data=None, axes=None, dataSource=None):
         super().__init__()
         if data is None:
             data = Q_(np.array(0.0))
@@ -31,7 +30,7 @@ class DataSet:
             axes = []
         self.data = data
         self.axes = axes
-        self.datasources = [None]
+        self.dataSource = dataSource
 
     @property
     def isConsistent(self):
@@ -47,15 +46,6 @@ class DataSet:
                             (len(self.axes), self.data.ndim,
                              [len(ax) for ax in self.axes],
                              self.data.shape))
-
-    def __add__(self, other):
-        combined_axes = self.axes + other.axes
-        combined_data = np.array([self.data, other.data]) * self.data.units
-
-        dset = DataSet(combined_data, combined_axes, )
-        dset.datasources = [*self.datasources, *other.datasources]
-
-        return dset
 
     def __repr__(self):
         return 'DataSet(%s, %s)' % (repr(self.data), repr(self.axes))

@@ -23,7 +23,7 @@ from common.save import DataSaver
 from common.units import Q_, ureg
 from common.traits import DataSet as DataSetTrait
 from traitlets import Instance, Float, Bool, Int
-from dummy import DummyManipulator, DummyComboDataSauce, DummyLockIn
+from dummy import DummyManipulator, DummyContinuousDataSource, DummyLockIn
 from pathlib import Path
 from pint import Quantity
 import thz_context  # important for unit conversion
@@ -33,50 +33,55 @@ Example MultiDataSourceScan
 """
 
 
-class AppRoot(Scan):
+class AppRoot(ComponentBase):
     currentData = DataSetTrait().tag(name="Current2 measurement",
                                      data_label="Amplitude",
                                      axes_labels=["Time"])
-    dataSaver = Instance(DataSaver)
+    dataSaverDS1 = Instance(DataSaver)
+    dataSaverDS2 = Instance(DataSaver)
+
+    manipulator = Instance(DummyManipulator)
+
+    multiDataSourceScan = Instance(MultiDataSourceScan)
 
     def __init__(self, loop=None):
         super().__init__(objectName="Example scan application", loop=loop)
-        self.dataSaver = DataSaver(objectName="Data Saver")
+        self.dataSaverDS1 = DataSaver(objectName="Data Saver DS 1")
+        self.dataSaverDS2 = DataSaver(objectName="Data Saver DS 2")
 
-        self.dummyStage = DummyManipulator()
-        self.dummyStage.objectName = "Dummy stage"
-        self.dummyStage.setPreferredUnits(ureg.ps, ureg.ps / ureg.s)
+        self.manipulator = DummyManipulator()
+        self.manipulator.objectName = "Dummy stage (Not really doing much : ) )"
+        self.manipulator.setPreferredUnits(ureg.ps, ureg.ps / ureg.s)
 
         self.scan_manip = DummyManipulator()
+        self.scan_manip.setPreferredUnits(ureg.ps, ureg.ps / ureg.s)
+
         self.multiDataSourceScan = MultiDataSourceScan()
-        self.multiDataSourceScan.continuousScan = True
-        self.multiDataSourceScan.minimumValue = Q_(840, "ps")
-        self.multiDataSourceScan.maximumValue = Q_(910, "ps")
-        self.multiDataSourceScan.overscan = Q_(1, "ps")
-        self.multiDataSourceScan.step = Q_(0.05, "ps")
-        self.multiDataSourceScan.positioningVelocity = Q_(40, "ps/s")
-        self.multiDataSourceScan.scanVelocity = Q_(1, "ps/s")
-        self.multiDataSourceScan.retractAtEnd = True
         self.multiDataSourceScan.manipulator = self.scan_manip
-        self.multiDataSourceScan.dummy_lockin1 = DummyLockIn()
-        self.dummy_lockin1 = DummyLockIn(objectName="lockin1")
-        self.dummy_lockin2 = DummyLockIn(objectName="lockin2")
-        self.multiDataSourceScan.registerDataSource(self.dummy_lockin1)
-        self.multiDataSourceScan.registerDataSource(self.dummy_lockin2)
+        self.dummy_ds1 = DummyContinuousDataSource(objectName="DS1")
+        self.dummy_ds2 = DummyContinuousDataSource(objectName="DS2")
+        self.multiDataSourceScan.registerDataSource(self.dummy_ds1)
+        self.multiDataSourceScan.registerDataSource(self.dummy_ds2)
 
-        self.dataSource = self.multiDataSourceScan
+        self.multiDataSourceScan.minimumValue = Q_(840, "ps")
+        self.multiDataSourceScan.maximumValue = Q_(860, "ps")
+        self.multiDataSourceScan.overscan = Q_(1, "ps")
+        self.multiDataSourceScan.step = Q_(10, "ps")
+        self.multiDataSourceScan.positioningVelocity = Q_(40, "ps/s")
+        self.multiDataSourceScan.scanVelocity = Q_(1000, "ps/s")
 
-        self.multiDataSourceScan.dataSource2 = Instance(DummyLockIn)
+        self.dataSaverDS1.registerManipulator(self.scan_manip, "Position")
+        self.dataSaverDS2.registerManipulator(self.scan_manip, "Position")
 
-        self.manipulator = self.dummyStage
-        self.dataSaver.registerManipulator(self.manipulator, "Position")
-        #self.dataSaver.registerDataSource(self.dummy_lockin1, "DataSource")
-        #self.dataSaver.registerDataSource(self.dummy_lockin2, "DataSource")
+        self.dataSaverDS1.fileNameTemplate = "DS1-{date}-{name}-{Position}"
+        self.dataSaverDS1.set_trait("path", Path(r""))
+        self.dataSaverDS2.fileNameTemplate = "DS2-{date}-{name}-{Position}"
+        self.dataSaverDS2.set_trait("path", Path(r""))
+        self.dummy_ds1.addDataSetReadyCallback(self.dataSaverDS1.process)
+        self.dummy_ds2.addDataSetReadyCallback(self.dataSaverDS2.process)
 
-        self.dataSaver.fileNameTemplate = "{date}-{name}-{Position}"
-        self.dataSaver.set_trait("path", Path(r""))
-        self.dataSource.addDataSetReadyCallback(self.dataSaver.process)
-        # self.dataSource.addDataSetReadyCallback(self.setCurrentData)
+        self.dummy_ds1.addDataSetReadyCallback(self.setCurrentData)
+        self.dummy_ds2.addDataSetReadyCallback(self.setCurrentData)
 
         self.minimumValue = Q_(0, "mm")
         self.maximumValue = Q_(10, "mm")
@@ -86,22 +91,17 @@ class AppRoot(Scan):
 
     async def __aenter__(self):
         await super().__aenter__()
-        await self.dataSource.__aenter__()
-        await self.dummy_lockin1.__aenter__()
-        await self.dummy_lockin2.__aenter__()
+        await self.multiDataSourceScan.__aenter__()
         return self
 
     async def __aexit__(self, *args):
         await super().__aexit__(*args)
-        await self.dataSource.__aexit__(*args)  # lockin
+        await self.multiDataSourceScan.__aexit__(*args)
         await self.manipulator.__aexit__(*args)
-        await self.dummyStage.__aexit__(*args)
 
     @action("Take new measurement")
     async def takeMeasurement(self):
-        new_datasets = await self.readDataSet()
-
-        print(new_datasets.axes)
+        new_datasets = await self.multiDataSourceScan.readDataSet()
 
     def setCurrentData(self, dataSet):
         self.set_trait("currentData", dataSet)

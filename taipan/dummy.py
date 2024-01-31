@@ -289,13 +289,14 @@ class DummyContinuousDataSource(DataSource):
     async def update_live_data(self):
         dt = 0.05
         taxis = dt * np.arange(self.acq_range.magnitude / dt) + self.acq_begin.magnitude
+        freq = 0.5+np.random.random()  # freq between 0.5 and 1.5 (THz)
         while self.acq_on:
-            omega = 2 * np.pi * ureg.THz
+            omega = 2 * np.pi * freq * ureg.THz
             data = np.sin(omega * taxis * ureg.ps)
             data += 5e-3 * (np.random.random(data.shape) - 0.5) * np.max(data)
             data = data * ureg.nA
 
-            self.set_trait("currentData", DataSet(data, [Q_(taxis, 'ps')]))
+            self.set_trait("currentData", DataSet(data, [Q_(taxis, 'ps')], self))
 
             await asyncio.sleep(0.10)
 
@@ -323,35 +324,6 @@ class DummyContinuousDataSource(DataSource):
         self._dataSetReady(self.currentData)
 
         return self.currentData
-
-
-class DummyComboDataSauce(DataSource):
-    datasource1 = Instance(DataSource, allow_none=True)
-    datasource2 = Instance(DataSource, allow_none=True)
-
-    currentData = DataSetTrait().tag(name="Current measurement",
-                                     data_label="Amplitude",
-                                     axes_labels=["Time"])
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, objectName="DummyComboDataSauce")
-
-        self.datasource1 = DummyLockIn(objectName="Lockin1")
-        self.datasource2 = DummyLockIn(objectName="Lockin2")
-
-    async def readDataSet(self):
-        dataset1 = await self.datasource1.readDataSet()
-        dataset1.datasources = [self.datasource1]
-
-        dataset2 = await self.datasource2.readDataSet()
-        dataset2.datasources = [self.datasource2]
-
-        return dataset1 + dataset2
-
-    async def __aenter__(self):
-        await super().__aenter__()
-        await self.datasource1.__aenter__()
-        await self.datasource2.__aenter__()
 
 
 class DummyDoubleDatasource(DummyContinuousDataSource):
