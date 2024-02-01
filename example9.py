@@ -18,7 +18,7 @@ You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from common import ComponentBase, Scan, action, DataSource, MultiDataSourceScan
+from common import ComponentBase, Scan, action, DataSource, MultiDataSourceScan, DataSet
 from common.save import DataSaver
 from common.units import Q_, ureg
 from common.traits import DataSet as DataSetTrait
@@ -34,9 +34,11 @@ Example MultiDataSourceScan
 
 
 class AppRoot(ComponentBase):
+
     currentData = DataSetTrait().tag(name="Current2 measurement",
                                      data_label="Amplitude",
-                                     axes_labels=["Time"])
+                                     axes_labels=["Time"],
+                                     is_multisource_plot=True)
     dataSaverDS1 = Instance(DataSaver)
     dataSaverDS2 = Instance(DataSaver)
 
@@ -58,8 +60,8 @@ class AppRoot(ComponentBase):
 
         self.multiDataSourceScan = MultiDataSourceScan()
         self.multiDataSourceScan.manipulator = self.scan_manip
-        self.dummy_ds1 = DummyContinuousDataSource(objectName="DS1")
-        self.dummy_ds2 = DummyContinuousDataSource(objectName="DS2")
+        self.dummy_ds1 = DummyContinuousDataSource(objectName="DS1", freq=1)
+        self.dummy_ds2 = DummyContinuousDataSource(objectName="DS2", freq=2)
         self.multiDataSourceScan.registerDataSource(self.dummy_ds1)
         self.multiDataSourceScan.registerDataSource(self.dummy_ds2)
 
@@ -80,8 +82,8 @@ class AppRoot(ComponentBase):
         self.dummy_ds1.addDataSetReadyCallback(self.dataSaverDS1.process)
         self.dummy_ds2.addDataSetReadyCallback(self.dataSaverDS2.process)
 
-        self.dummy_ds1.addDataSetReadyCallback(self.setCurrentData)
-        self.dummy_ds2.addDataSetReadyCallback(self.setCurrentData)
+        self.dummy_ds1.addDataSetReadyCallback(self.setCurrentDataDS1)
+        self.dummy_ds2.addDataSetReadyCallback(self.setCurrentDataDS2)
 
         self.minimumValue = Q_(0, "mm")
         self.maximumValue = Q_(10, "mm")
@@ -103,5 +105,12 @@ class AppRoot(ComponentBase):
     async def takeMeasurement(self):
         new_datasets = await self.multiDataSourceScan.readDataSet()
 
-    def setCurrentData(self, dataSet):
+    # could also add dataSet.dataSource = self to _dataSetReady, before callbacks are called
+    # but then it would affect all datasources
+    def setCurrentDataDS1(self, dataSet: DataSet):
+        dataSet.dataSource = self.dummy_ds1
+        self.set_trait("currentData", dataSet)
+
+    def setCurrentDataDS2(self, dataSet: DataSet):
+        dataSet.dataSource = self.dummy_ds2
         self.set_trait("currentData", dataSet)

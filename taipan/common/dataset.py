@@ -20,6 +20,7 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 import numpy as np
 from .units import Q_
 
+
 class DataSet:
 
     def __init__(self, data=None, axes=None, dataSource=None):

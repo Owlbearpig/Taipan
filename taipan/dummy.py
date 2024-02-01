@@ -279,9 +279,10 @@ class DummyContinuousDataSource(DataSource):
     acq_range = Quantity(Q_(70, 'ps')).tag(name="Range", priority=1)
     acq_on = Bool(False, read_only=True).tag(name="Acquistion active")
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, freq=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._acq_future = None
+        self.freq = freq
 
     async def __aexit__(self, *args):
         await super().__aexit__(*args)
@@ -289,14 +290,16 @@ class DummyContinuousDataSource(DataSource):
     async def update_live_data(self):
         dt = 0.05
         taxis = dt * np.arange(self.acq_range.magnitude / dt) + self.acq_begin.magnitude
-        freq = 0.5+np.random.random()  # freq between 0.5 and 1.5 (THz)
+        freq = 0.5 + np.random.random()  # freq between 0.5 and 1.5 (THz)
+        if self.freq is not None:
+            freq = self.freq
         while self.acq_on:
             omega = 2 * np.pi * freq * ureg.THz
             data = np.sin(omega * taxis * ureg.ps)
             data += 5e-3 * (np.random.random(data.shape) - 0.5) * np.max(data)
             data = data * ureg.nA
 
-            self.set_trait("currentData", DataSet(data, [Q_(taxis, 'ps')], self))
+            self.set_trait("currentData", DataSet(data, [Q_(taxis, 'ps')]))
 
             await asyncio.sleep(0.10)
 

@@ -291,8 +291,6 @@ class Scan(DataSource):
             axis = (np.arange(min.magnitude, max.magnitude, step.magnitude)
                     * stepUnits)
 
-            dataSet = None
-
             if self.continuousScan:
                 dataSet, axis = await self._doContinuousScan(axis)
             else:
@@ -354,7 +352,6 @@ class MultiDataSourceScan(Scan):
             await self.manipulator.moveTo(position, self.scanVelocity)
             for dSource in self._dataSources:
                 accumulator[dSource].append(await dSource.readDataSet())
-                accumulator[dSource][-1].dataSource = dSource
         self.manipulator.unobserve(updater, 'value')
         for dSource in self._dataSources:
             await dSource.stop()

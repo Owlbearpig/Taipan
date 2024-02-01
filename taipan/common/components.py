@@ -26,7 +26,8 @@ from configparser import ConfigParser
 from traitlets import Instance
 from copy import deepcopy
 from .units import ureg, Q_
-from .traits import Quantity
+from .traits import Quantity, DataSetClass
+from .traits import DataSet as DataSetTrait
 
 
 def action(name=None, help=None, **kwargs):
@@ -258,7 +259,7 @@ class DataSource(ComponentBase):
     def removeDataSetReadyCallback(self, callback):
         self._dataSetReadyCallbacks.remove(callback)
 
-    def _dataSetReady(self, dataSet):
+    def _dataSetReady(self, dataSet: DataSetClass):
         for cb in self._dataSetReadyCallbacks:
             cb(dataSet)
 
