@@ -101,7 +101,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
 
         self.autoscaleAction = self.mpl_toolbar.addAction("Auto-scale")
         self.autoscaleAction.setCheckable(True)
-        self.autoscaleAction.setChecked(True)
+        self.autoscaleAction.setChecked(False)
         self.autoscaleAction.triggered.connect(self._autoscale)
 
         self.mpl_toolbar.addWidget(QtWidgets.QLabel("Fourier transform "
@@ -154,7 +154,6 @@ class MPLCanvas(QtWidgets.QGroupBox):
         if not self._isLiveData:
             self.axes.draw_artist(self._lines[0])
             self.ft_axes.draw_artist(self._ftlines[0])
-
         self.axes.draw_artist(self._lines[1])
         self.ft_axes.draw_artist(self._ftlines[1])
 
@@ -323,7 +322,7 @@ class MPLMSCanvas(MPLCanvas):
             self.prevDataSetDict[dataSource] = None
             self._linesDict[dataSource] = []
             self._ftlinesDict[dataSource] = []
-            self._linesDict[dataSource].extend(self.axes.plot([], [], [], [], animated=True))
+            self._linesDict[dataSource].extend(self.axes.plot([], [], [], [], animated=True, c="red"))
             self._linesDict[dataSource][0].set_alpha(0.25)
             self._ftlinesDict[dataSource].extend(self.ft_axes.plot([], [], [], [], animated=True))
             self._ftlinesDict[dataSource][0].set_alpha(0.25)
@@ -380,14 +379,14 @@ class MPLMSCanvas(MPLCanvas):
         self._dataLabel = data_label
 
         self._replot(redraw_axes, redraw_axes_labels, redraw_data_label)
+        #print(self._linesDict)
 
     def _replot(self, redraw_axes=False, redraw_axes_labels=False,
                 redraw_data_label=False):
-        """
+
         if not self._isLiveData[self.dataSet.dataSource]:
             self._dataSetToLines(self.prevDataSet, self._lines[0],
                                  self._ftlines[0])
-        """
         self._dataSetToLines(self.dataSet, self._lines[1], self._ftlines[1])
 
         if self._axesLabels and redraw_axes_labels:
@@ -424,3 +423,16 @@ class MPLMSCanvas(MPLCanvas):
             self._redraw_artists()
             self.canvas.blit(self.axes.bbox)
             self.canvas.blit(self.ft_axes.bbox)
+
+    def _redraw_artists(self, *args):
+        if not self._isLiveData:
+            self.axes.draw_artist(self._lines[0])
+            self.ft_axes.draw_artist(self._ftlines[0])
+        for lines in self._linesDict.values():
+            self.axes.draw_artist(lines[1])
+            self.axes.draw_artist(lines[0])
+        for ftlines in self._ftlinesDict.values():
+            self.ft_axes.draw_artist(ftlines[1])
+            self.ft_axes.draw_artist(ftlines[0])
+
+
