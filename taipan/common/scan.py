@@ -25,6 +25,7 @@ import warnings
 from traitlets import Bool, Float, Instance
 from copy import deepcopy
 from common.traits import Quantity
+from common.traits import DataSet as DataSetTrait
 from common.units import Q_
 import logging
 
@@ -317,6 +318,10 @@ class Scan(DataSource):
 
 
 class MultiDataSourceScan(Scan):
+    currentData = DataSetTrait().tag(name="Live data",
+                                     data_label="Amplitude",
+                                     axes_labels=["Time"],
+                                     is_multisource_plot=True)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

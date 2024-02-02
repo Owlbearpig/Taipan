@@ -110,7 +110,9 @@ class AppRoot(ComponentBase):
     def setCurrentDataDS1(self, dataSet: DataSet):
         dataSet.dataSource = self.dummy_ds1
         self.set_trait("currentData", dataSet)
+        self.multiDataSourceScan.set_trait("currentData", dataSet)
 
     def setCurrentDataDS2(self, dataSet: DataSet):
         dataSet.dataSource = self.dummy_ds2
         self.set_trait("currentData", dataSet)
+        self.multiDataSourceScan.set_trait("currentData", dataSet)
