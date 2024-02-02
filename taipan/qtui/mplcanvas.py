@@ -101,7 +101,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
 
         self.autoscaleAction = self.mpl_toolbar.addAction("Auto-scale")
         self.autoscaleAction.setCheckable(True)
-        self.autoscaleAction.setChecked(False)
+        self.autoscaleAction.setChecked(True)
         self.autoscaleAction.triggered.connect(self._autoscale)
 
         self.mpl_toolbar.addWidget(QtWidgets.QLabel("Fourier transform "
@@ -305,7 +305,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
 class MPLMSCanvas(MPLCanvas):
     _dataSources = []
     _lastPlotTime = {}
-    _isLiveData = {}
+    _isLiveDataDict = {}
     prevDataSetDict = {}
     _linesDict = {}
     _ftlinesDict = {}
@@ -318,7 +318,7 @@ class MPLMSCanvas(MPLCanvas):
         if dataSource not in self._dataSources:
             self._dataSources.append(dataSource)
             self._lastPlotTime[dataSource] = 0
-            self._isLiveData[dataSource] = False
+            self._isLiveDataDict[dataSource] = False
             self.prevDataSetDict[dataSource] = None
             self._linesDict[dataSource] = []
             self._ftlinesDict[dataSource] = []
@@ -327,8 +327,8 @@ class MPLMSCanvas(MPLCanvas):
             self._ftlinesDict[dataSource].extend(self.ft_axes.plot([], [], [], [], animated=True))
             self._ftlinesDict[dataSource][0].set_alpha(0.25)
             self._redraw()
-            #self.axes.legend(['Previous', 'Current'])
-            #self.ft_axes.legend(['Previous', 'Current'])
+            # self.axes.legend(['Previous', 'Current'])
+            # self.ft_axes.legend(['Previous', 'Current'])
 
         self._lines = self._linesDict[dataSource]
         self._ftlines = self._ftlinesDict[dataSource]
@@ -337,19 +337,19 @@ class MPLMSCanvas(MPLCanvas):
 
         looksLikeLiveData = plotTime - self._lastPlotTime[dataSource] < 1
 
-        if looksLikeLiveData != self._isLiveData[dataSource]:
+        if looksLikeLiveData != self._isLiveDataDict[dataSource]:
             if looksLikeLiveData:
                 self.canvas.mpl_disconnect(self._redraw_id)
             else:
                 self._redraw_id = self.canvas.mpl_connect('draw_event',
                                                           self._redraw_artists)
 
-        self._isLiveData[dataSource] = looksLikeLiveData
+        self._isLiveDataDict[dataSource] = looksLikeLiveData
+        self._isLiveData = self._isLiveDataDict[dataSource]
 
         # artificially limit the replot rate to 5 Hz
         if (plotTime - self._lastPlotTime[dataSource] < 0.2):
-            pass
-            # return
+            return
 
         self._lastPlotTime[dataSource] = plotTime
 
@@ -379,60 +379,15 @@ class MPLMSCanvas(MPLCanvas):
         self._dataLabel = data_label
 
         self._replot(redraw_axes, redraw_axes_labels, redraw_data_label)
-        #print(self._linesDict)
-
-    def _replot(self, redraw_axes=False, redraw_axes_labels=False,
-                redraw_data_label=False):
-
-        if not self._isLiveData[self.dataSet.dataSource]:
-            self._dataSetToLines(self.prevDataSet, self._lines[0],
-                                 self._ftlines[0])
-        self._dataSetToLines(self.dataSet, self._lines[1], self._ftlines[1])
-
-        if self._axesLabels and redraw_axes_labels:
-            self.axes.set_xlabel('{} [{:C~}]'.format(
-                self._axesLabels[0],
-                self.dataSet.axes[0].units))
-            self.ft_axes.set_xlabel('1 / {} [1 / {:C~}]'.format(
-                self._axesLabels[0],
-                self.dataSet.axes[0].units))
-
-        if self._dataLabel and redraw_data_label:
-            self.axes.set_ylabel('{} [{:C~}]'.format(
-                self._dataLabel,
-                self.dataSet.data.units))
-
-            ftUnits = self.dataSet.data.units
-            if not self.dataIsPower:
-                ftUnits = ftUnits ** 2
-
-            self.ft_axes.set_ylabel('Power [dB-({:C~})]'.format(ftUnits))
-
-        axis_limits_changed = False
-        if (self.autoscaleAction.isChecked()):
-            axis_limits_changed = self._autoscale(redraw=False)
-
-        # check whether a full redraw is necessary or if simply redrawing
-        # the data lines is enough
-        if (redraw_axes or redraw_axes_labels or
-                redraw_data_label or axis_limits_changed):
-            self._redraw()
-        else:
-            for bg in self.backgrounds:
-                self.canvas.restore_region(bg)
-            self._redraw_artists()
-            self.canvas.blit(self.axes.bbox)
-            self.canvas.blit(self.ft_axes.bbox)
 
     def _redraw_artists(self, *args):
         if not self._isLiveData:
             self.axes.draw_artist(self._lines[0])
             self.ft_axes.draw_artist(self._ftlines[0])
+
         for lines in self._linesDict.values():
             self.axes.draw_artist(lines[1])
             self.axes.draw_artist(lines[0])
         for ftlines in self._ftlinesDict.values():
             self.ft_axes.draw_artist(ftlines[1])
             self.ft_axes.draw_artist(ftlines[0])
-
-
