@@ -30,6 +30,20 @@ import thz_context  # important for unit conversion
 
 """
 Example MultiDataSourceScan
+
+It is possible to have live update of MultiDataSourceScan.currentData by calling 
+_dataSetReady(currentData) on each datasource when acquisition is on. 
+Problem is that all _dataSetReady callbacks(like the datasaver) are then 
+also called when each trace is done.
+Looking at other datasources _dataSetReady(dataSet) should only be called when taking a measurement 
+(when calling readDataSet) of the datasource.
+
+The other option would be to combine the individual sources into a single datasource with a dataSet trait
+which is updated with both dataSets when acquisition is on. However, readDataSet then returns two dataSets 
+which means Scan and Tabular has to be modified. 
+The plot would then be on the datasource tab and not on the top tab.
+Or the dataSet from the top class would have to be given as an argument when the datasource is created,
+so that the dataSet can be set.
 """
 
 
