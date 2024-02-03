@@ -381,13 +381,11 @@ class MPLMSCanvas(MPLCanvas):
         self._replot(redraw_axes, redraw_axes_labels, redraw_data_label)
 
     def _redraw_artists(self, *args):
-        if not self._isLiveData:
-            self.axes.draw_artist(self._lines[0])
-            self.ft_axes.draw_artist(self._ftlines[0])
-
-        for lines in self._linesDict.values():
+        for dsource in self._dataSources:
+            lines, ftlines = self._linesDict[dsource], self._ftlinesDict[dsource]
+            isLiveData = self._isLiveDataDict[dsource]
+            if not isLiveData:
+                self.axes.draw_artist(lines[0])
+                self.ft_axes.draw_artist(ftlines[0])
             self.axes.draw_artist(lines[1])
-            self.axes.draw_artist(lines[0])
-        for ftlines in self._ftlinesDict.values():
             self.ft_axes.draw_artist(ftlines[1])
-            self.ft_axes.draw_artist(ftlines[0])

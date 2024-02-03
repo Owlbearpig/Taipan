@@ -300,8 +300,9 @@ class DummyContinuousDataSource(DataSource):
             data = data * ureg.nA
 
             self.set_trait("currentData", DataSet(data, [Q_(taxis, 'ps')]))
+            self._dataSetReady(self.currentData)
 
-            await asyncio.sleep(0.10)
+            await asyncio.sleep(0.50)
 
     async def start(self):
         self.start_acq()

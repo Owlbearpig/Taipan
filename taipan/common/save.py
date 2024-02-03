@@ -145,17 +145,17 @@ class DataSaver(DataSink):
                             data=data.data.magnitude, dataUnits=dataUnits)
         return fileName
 
-    def process(self, data):
+    def process(self, dataset):
         if not self.enabled:
             logging.info("Data storage is disabled, not saving data.")
             return
 
         filename = None
         if self.fileFormat == self.Formats.Text:
-            filename = self._saveTxt(data)
+            filename = self._saveTxt(dataset)
         elif self.fileFormat == self.Formats.HDF5:
-            filename = self._saveHDF5(data)
+            filename = self._saveHDF5(dataset)
         elif self.fileFormat == self.Formats.Numpy:
-            filename = self._saveNumpy(data)
+            filename = self._saveNumpy(dataset)
 
         logging.info("Saved data as {}".format(filename))
