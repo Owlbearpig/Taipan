@@ -276,7 +276,7 @@ class DummyContinuousDataSource(DataSource):
                                data_label='bar')
 
     acq_begin = Quantity(Q_(500, 'ps')).tag(name="Start", priority=0)
-    acq_range = Quantity(Q_(70, 'ps')).tag(name="Range", priority=1)
+    acq_range = Quantity(Q_(10, 'ps')).tag(name="Range", priority=1)
     acq_on = Bool(False, read_only=True).tag(name="Acquistion active")
 
     def __init__(self, freq=None, *args, **kwargs):
@@ -300,7 +300,7 @@ class DummyContinuousDataSource(DataSource):
             data = data * ureg.nA
 
             self.set_trait("currentData", DataSet(data, [Q_(taxis, 'ps')]))
-            # self._dataSetReady(self.currentData)
+            self._dataSetReady(self.currentData)
 
             await asyncio.sleep(0.50)
 
