@@ -294,7 +294,7 @@ class Manipulator(ComponentBase):
     targetValue = Quantity(Q_(0)).tag(name="Target value")
     status = traitlets.Enum(Status, default_value=Status.Undefined,
                             read_only=True)
-    limits = traitlets.Unicode(read_only=True).tag(name="Target value limits")
+    limits = traitlets.Unicode(read_only=True, default_value="None set").tag(name="Target value limits")
 
     def __init__(self, objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
@@ -327,12 +327,13 @@ class Manipulator(ComponentBase):
 
     def set_limits(self, min_=None, max_=None):
         units, min_magn, max_magn = None, "-inf", "inf"
+        class_traits = self.class_traits()
         if min_:
-            self.class_traits()["targetValue"].min = min_
+            class_traits["targetValue"].min = min_
             units = min_.units
             min_magn = min_.magnitude
         if max_:
-            self.class_traits()["targetValue"].max = max_
+            class_traits["targetValue"].max = max_
             units = max_.units
             max_magn = max_.magnitude
 

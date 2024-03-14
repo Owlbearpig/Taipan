@@ -25,7 +25,7 @@ from traitlets import Bool, Unicode
 from common import ureg, Q_
 import traceback
 import logging
-from pint.context import Context
+from pint import Context
 import uuid
 
 
