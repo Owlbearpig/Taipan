@@ -1,19 +1,15 @@
-import time
-
-from common import Manipulator, action
-from asyncioext import ensure_weakly_binding_future
+from common import action
 import asyncio
-from traitlets import Bool, Unicode
+from traitlets import Unicode, observe
 from common import ureg, Q_
-import traceback
-import logging
-from pint import Context
-import uuid
 from stages.tmcl import TMCL
-from enum import Enum
 
 
 class AxisAtController(TMCL):
+
+    status_str = Unicode(read_only=True, default_value=str(TMCL.status.default_value),
+                         priority=0).tag(name="Status")
+
     def __init__(self, port, objectName=None, loop=None):
         super().__init__(port, objectName=objectName, loop=loop)
 
@@ -46,14 +42,9 @@ class AxisAtController(TMCL):
     async def __aexit__(self, *args):
         await super().__aexit__(*args)
 
-    def handleError(self, msg):
-        pass
-
-    async def setAxisVariable(self, var, value):
-        pass
-
-    async def queryAxisVariable(self, var):
-        pass
+    @observe("status")
+    def _on_status_change(self, change):
+        self.set_trait("status_str", str(change["new"].name))
 
     @action("Halt", priority=0)
     def stop(self):
@@ -71,6 +62,13 @@ class AxisAtController(TMCL):
     @action("Home to ref. switch", priority=2)
     async def reference(self):
         await self._rfs()
+        while True:
+            sts = await self._rfs(cmd_type="STATUS")
+            self.set_trait("status_str", "Referencing")
+            if not sts:
+                self.set_trait("status_str", str(self.status.name))
+                break
+            await asyncio.sleep(0.2)
 
     async def waitForTargetReached(self):
         return await self._isMovingFuture
