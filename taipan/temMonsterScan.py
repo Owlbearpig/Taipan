@@ -68,6 +68,7 @@ class AppRoot(Scan):
         self._oldScanXStop = self.dataSource.stop
         self.dataSource.start = self.startMotorScan
         self.dataSource.stop = self.stopMotorScan
+
         self.manipulator = self.manipulatorY
         self.retractAtEnd = True
         self.minimumValue = Q_(0,'mm')

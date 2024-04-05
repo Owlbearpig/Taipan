@@ -20,11 +20,12 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 from .components import (action, ComponentBase, DataSource,
                          DAQDevice, DataSink, Manipulator, PostProcessor)
 from .dataset import DataSet
-from .scan import Scan
+from .scan import Scan, MultiDataSourceScan
 from .table import TabularMeasurements
 from .table_2m import TabularMeasurements2M
 from .units import ureg, Q_
+from .multiDataSource import MultiDataSource
+
 
 class TimeoutException(Exception):
     pass
-

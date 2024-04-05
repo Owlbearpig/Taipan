@@ -25,55 +25,55 @@ import warnings
 from traitlets import Bool, Float, Instance
 from copy import deepcopy
 from common.traits import Quantity
+from common.traits import DataSet as DataSetTrait
 from common.units import Q_
 import logging
 
 
 class Scan(DataSource):
-
     manipulator = Instance(Manipulator, allow_none=True)
     dataSource = Instance(DataSource, allow_none=True)
 
     minimumValue = Quantity(Q_(0), help="The Scan's minimum value").tag(
-                                   name="Minimum value",
-                                   priority=0)
+        name="Minimum value",
+        priority=0)
 
     maximumValue = Quantity(Q_(0), help="The Scan's maximum value").tag(
-                                   name="Maximum value",
-                                   priority=1)
+        name="Maximum value",
+        priority=1)
 
     step = Quantity(Q_(0), help="The step width used for the Scan",
-                           min=Q_(0)).tag(
-                           name="Step width", priority=2)
+                    min=Q_(0)).tag(
+        name="Step width", priority=2)
 
     overscan = Quantity(Q_(0), help="The offset from the boundary positions",
-                               min=Q_(0)).tag(name="Overscan", priority=3)
+                        min=Q_(0)).tag(name="Overscan", priority=3)
 
     scanVelocity = Quantity(Q_(0), help="The velocity of the Manipulator used "
                                         "during the scan").tag(
-                                   name="Scan velocity", priority=4)
+        name="Scan velocity", priority=4)
 
     positioningVelocity = Quantity(Q_(0), help="The velocity of the "
                                                "Manipulator during positioning"
                                                " movement (not during data "
                                                "acquisiton)").tag(
-                                          name="Positioning velocity",
-                                          priority=5)
+        name="Positioning velocity",
+        priority=5)
 
     retractAtEnd = Bool(False, help="Retract the manipulator to the start "
                                     "position at the end of the scan.").tag(
-                               name="Retract manipulator at end")
+        name="Retract manipulator at end")
 
     active = Bool(False, read_only=True, help="Whether the scan is currently "
                                               "acquiring data").tag(
-                                         name="Active")
+        name="Active")
 
     progress = Float(0, min=0, max=1, read_only=True).tag(name="Progress")
 
-    def __init__(self, manipulator: Manipulator=None,
-                 dataSource: DataSource=None, minimumValue=None,
-                 maximumValue=None, step=None, objectName: str=None,
-                 loop: asyncio.BaseEventLoop=None):
+    def __init__(self, manipulator: Manipulator = None,
+                 dataSource: DataSource = None, minimumValue=None,
+                 maximumValue=None, step=None, objectName: str = None,
+                 loop: asyncio.BaseEventLoop = None):
         super().__init__(objectName=objectName, loop=loop)
 
         self.__original_class = self.__class__
@@ -256,7 +256,7 @@ class Scan(DataSource):
         self.manipulator.observe(statusObserver, 'status')
 
         fut.add_done_callback(lambda fut:
-            self.manipulator.unobserve(statusObserver, 'status'))
+                              self.manipulator.unobserve(statusObserver, 'status'))
 
         return fut
 
@@ -290,9 +290,7 @@ class Scan(DataSource):
                 step = -step
 
             axis = (np.arange(min.magnitude, max.magnitude, step.magnitude)
-                        * stepUnits)
-
-            dataSet = None
+                    * stepUnits)
 
             if self.continuousScan:
                 dataSet, axis = await self._doContinuousScan(axis)
@@ -308,6 +306,176 @@ class Scan(DataSource):
 
         finally:
             self._loop.create_task(self.dataSource.stop())
+            self.manipulator.stop()
+            if self.retractAtEnd and axis is not None:
+                self._loop.create_task(
+                    self.manipulator.moveTo(axis[0] - self._getOverscan(axis),
+                                            self.positioningVelocity)
+                )
+
+            self.set_trait('active', False)
+            self._activeFuture = None
+
+
+class MultiDataSourceScan(Scan):
+    currentData = DataSetTrait().tag(name="Live data",
+                                     data_label="Amplitude",
+                                     axes_labels=["Time"],
+                                     is_multisource_plot=True)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._dataSources = [self.dataSource]
+
+    async def __aenter__(self):
+        await super().__aenter__()
+        for dSource in self._dataSources:
+            await dSource.__aenter__()
+
+    def registerDataSource(self, dataSource: DataSource = None):
+        if DataSource is None:
+            return
+
+        if self._dataSources[0] is None:
+            self._dataSources[0] = dataSource
+            self.dataSource = dataSource
+            return
+        else:
+            new_component_trait_name = f"dataSource{len(self._dataSources)}"
+            self.add_traits(**{new_component_trait_name: Instance(DataSource)})
+            self.setAttribute(new_component_trait_name, dataSource)
+            self._dataSources.append(dataSource)
+
+    async def _doSteppedScan(self, axis):
+        accumulator = {}
+        for dSource in self._dataSources:
+            accumulator[dSource] = []
+            await dSource.start()
+        updater = self.updateProgress(axis)
+        self.manipulator.observe(updater, 'value')
+        for position in axis:
+            await self.manipulator.moveTo(position, self.scanVelocity)
+            for dSource in self._dataSources:
+                accumulator[dSource].append(await dSource.readDataSet())
+        self.manipulator.unobserve(updater, 'value')
+        for dSource in self._dataSources:
+            await dSource.stop()
+
+        datasets = []
+        for dSource in self._dataSources:
+            first_dataset = accumulator[dSource][0]
+            axes_dset = first_dataset.axes.copy()
+            axes_dset.insert(0, axis)
+            data = np.array([dSet.data.magnitude for dSet in accumulator[dSource]]) * first_dataset.data.units
+            datasets.append(DataSet(data, axes_dset, dSource))
+
+        return datasets
+
+    async def _doContinuousScan(self, axis):
+        overscan = self._getOverscan(axis)
+
+        await self.manipulator.moveTo(axis[0] - overscan,
+                                      self.positioningVelocity)
+
+        prefUnits = axis.units
+        axis = (await self.manipulator.configureTrigger(axis)).to(prefUnits)
+
+        updater = self.updateProgress(axis)
+
+        try:
+            self.manipulator.observe(updater, 'value')
+
+            for dSource in self._dataSources:
+                try:
+                    await dSource.start(scanAxis=axis)
+                except TypeError:
+                    await dSource.start()
+
+            await self.manipulator.moveTo(axis[-1] + overscan,
+                                          self.scanVelocity)
+            for dSource in self._dataSources:
+                await dSource.stop()
+
+        finally:
+            self.manipulator.unobserve(updater, 'value')
+
+        dataSets = []
+        for dSource in self._dataSources:
+            dataSet = await dSource.readDataSet()
+            dataSet.dataSource = dSource
+            dataSet.checkConsistency()
+            dataSet.axes = dataSet.axes.copy()
+            dataSet.axes[0] = axis
+
+            expectedLength = len(dataSet.axes[0])
+
+            # Oops, somehow the received amount of data does not match our
+            # expectation
+            if dataSet.data.shape[0] != expectedLength:
+                warnings.warn("Length of recorded data set does not match "
+                              "expectation. Actual length: %d, expected "
+                              "length: %d - trimming." %
+                              (dataSet.data.shape[0], expectedLength))
+                if (dataSet.data.shape[0] < expectedLength):
+                    dataSet.axes[0].resize(dataSet.data.shape[0])
+                else:
+                    dataSet.data = dataSet.data.copy()
+                    dataSet.data.resize((expectedLength,) + dataSet.data.shape[1:])
+
+            dataSets.append(dataSet)
+
+        return dataSets, axis
+
+    def readDataSet(self):
+        self._activeFuture = self._loop.create_task(self._readDataSetImpl())
+        return self._activeFuture
+
+    async def _readDataSetImpl(self):
+        if not self._activeFuture:
+            raise asyncio.InvalidStateError()
+
+        if self.active:
+            raise asyncio.InvalidStateError()
+
+        self.set_trait('active', True)
+        self.set_trait('progress', 0)
+
+        axis = None
+
+        try:
+            for dSource in self._dataSources:
+                await dSource.stop()
+            await self._createManipulatorIdleFuture()
+
+            step = abs(self.step)
+            stepUnits = step.units
+            min = self.minimumValue.to(stepUnits)
+            max = self.maximumValue.to(stepUnits)
+
+            # ensure correct step sign
+            if (max < min):
+                step = -step
+
+            axis = (np.arange(min.magnitude, max.magnitude, step.magnitude)
+                    * stepUnits)
+
+            if self.continuousScan:
+                dSets, axis = await self._doContinuousScan(axis)
+            else:
+                dSets = await self._doSteppedScan(axis)
+
+            for dSet in dSets:
+                self._dataSetReady(dSet)
+
+            return dSets
+
+        except asyncio.CancelledError:
+            logging.warning('Scan "{}" was cancelled'.format(self.objectName))
+            raise
+
+        finally:
+            for dSource in self._dataSources:
+                self._loop.create_task(dSource.stop())
             self.manipulator.stop()
             if self.retractAtEnd and axis is not None:
                 self._loop.create_task(

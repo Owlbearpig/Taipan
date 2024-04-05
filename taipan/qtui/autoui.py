@@ -27,7 +27,7 @@ try:
     from .pyqtgraphplotter import PyQtGraphPlotter
     usePyQtGraph = True
 except:
-    from .mplcanvas import MPLCanvas
+    from .mplcanvas import MPLCanvas, MPLMSCanvas
     usePyQtGraph = False
 
 import asyncio
@@ -147,9 +147,9 @@ def create_progressbar(component, name, trait):
     progressBar = QtWidgets.QProgressBar()
     progressBar.setMinimum(trait.min * 1000)
     progressBar.setMaximum(trait.max * 1000)
-    progressBar.setValue(trait.get(component) * 1000)
+    progressBar.setValue(int(trait.get(component) * 1000))
     component.observe(
-        lambda change: progressBar.setValue(change['new'] * 1000),
+        lambda change: progressBar.setValue(int(change['new'] * 1000)),
         name
     )
 
@@ -196,7 +196,10 @@ def create_plot_area(component, name, prettyName, trait):
                          trait.metadata.get('data_label', None))
         canvas.dataIsPower = trait.metadata.get('is_power', False)
     else:
-        canvas = MPLCanvas()
+        if trait.metadata.get('is_multisource_plot', False):
+            canvas = MPLMSCanvas()
+        else:
+            canvas = MPLCanvas()
 
     component.observe(draw, name)
     canvas.setTitle(prettyName)

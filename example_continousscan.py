@@ -36,7 +36,7 @@ class AppRoot(ComponentBase):
         super().__init__(objectName=": )", loop=loop)
         self.manipulator = DummyManipulator()
         self.manipulator.objectName = "Stage"
-        self.dataSource = DummyContinuousDataSource(self.manipulator)
+        self.dataSource = DummyContinuousDataSource()
 
     async def __aenter__(self):
         await super().__aenter__()

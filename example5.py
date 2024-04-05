@@ -23,7 +23,7 @@ from common import ComponentBase, Scan, action, TabularMeasurements2M
 from common.save import DataSaver
 from common.units import Q_
 from common.traits import DataSet as DataSetTrait
-from dummy import DummyManipulator, DummyContinuousDataSource
+from dummy import DummyManipulator, DummyContinuousDataSource, DummyLockIn
 from pathlib import Path
 from traitlets import Instance, Int
 from pint import Quantity
@@ -38,7 +38,7 @@ Example table measurement with two manipulators
 class AppRoot(TabularMeasurements2M):
     currentData = DataSetTrait(read_only=True).tag(
         name="Time domain",
-        axes_labels=["ime"],
+        axes_labels=["Time"],
         data_label="Amplitude",
         is_power=False)
 
@@ -58,7 +58,7 @@ class AppRoot(TabularMeasurements2M):
 
         self.TimeDomainScan = Scan(objectName="TimeDomainScan")
         self.TimeDomainScan.manipulator = pi_stage
-        self.TimeDomainScan.dataSource = DummyContinuousDataSource(pi_stage)
+        self.TimeDomainScan.dataSource = DummyLockIn()
         self.TimeDomainScan.dataSource.objectName = "SR830 dummy"
 
         self.TimeDomainScan.continuousScan = True
@@ -78,12 +78,14 @@ class AppRoot(TabularMeasurements2M):
         self.manipulator1 = manipulator1
         self.positioningVelocityM1 = Q_(4, "mm/s")
         self.scanVelocity = Q_(4, "mm/s")
+        self.manipulator1.set_limits(min_=Q_(-15, "mm"), max_=Q_(110, "mm"))
 
         manipulator2 = DummyManipulator()
         manipulator2.setPreferredUnits(ureg.mm, ureg.mm / ureg.s)
         manipulator2.objectName = "PI C-863 2"
         self.positioningVelocityM2 = Q_(4, "mm/s")
         self.manipulator2 = manipulator2
+        # self.manipulator2.set_limits(min_=Q_(-15, "mm"), max_=Q_(15, "mm"))
 
         self.dataSaver.registerManipulator(self.manipulator1, "Position1")
         self.dataSaver.registerManipulator(self.manipulator2, "Position2")

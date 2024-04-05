@@ -17,6 +17,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
+import os
 
 from PyQt5 import QtCore, QtWidgets, QtGui
 from matplotlib.backends.backend_qt5agg import (FigureCanvasQTAgg,
@@ -32,6 +33,8 @@ import time
 def style_mpl():
     _defPal = QtGui.QPalette()
     _defFont = QtGui.QFont()
+    if "nt" in os.name:
+        _defFont.setFamily("Arial")
 
     highlightColor = _defPal.color(QtGui.QPalette.Highlight).darker(120)
     darkerHighlightColor = highlightColor.darker(120)
@@ -61,9 +64,9 @@ class MPLCanvas(QtWidgets.QGroupBox):
         Tukey_5Percent = 3
 
     windowFunctionMap = {
-        WindowTypes.Rectangular:    lambda M: windows.boxcar(M, sym=False),
-        WindowTypes.Hann:           lambda M: windows.hann(M, sym=False),
-        WindowTypes.Flattop:        lambda M: windows.flattop(M, sym=False),
+        WindowTypes.Rectangular: lambda M: windows.boxcar(M, sym=False),
+        WindowTypes.Hann: lambda M: windows.hann(M, sym=False),
+        WindowTypes.Flattop: lambda M: windows.flattop(M, sym=False),
         WindowTypes.Tukey_5Percent: lambda M: windows.tukey(M, sym=False,
                                                             alpha=0.05),
     }
@@ -151,7 +154,6 @@ class MPLCanvas(QtWidgets.QGroupBox):
         if not self._isLiveData:
             self.axes.draw_artist(self._lines[0])
             self.ft_axes.draw_artist(self._ftlines[0])
-
         self.axes.draw_artist(self._lines[1])
         self.ft_axes.draw_artist(self._ftlines[1])
 
@@ -186,7 +188,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
             ftline.set_data([], [])
             return
 
-        #data.data -= np.mean(data.data)
+        # data.data -= np.mean(data.data)
         line.set_data(data.axes[0].magnitude, data.data.magnitude)
         freqs, dBdata = self.get_ft_data(data)
         ftline.set_data(freqs, dBdata)
@@ -221,16 +223,16 @@ class MPLCanvas(QtWidgets.QGroupBox):
 
         if self._axesLabels and redraw_axes_labels:
             self.axes.set_xlabel('{} [{:C~}]'.format(
-                                 self._axesLabels[0],
-                                 self.dataSet.axes[0].units))
-            self.ft_axes.set_xlabel('1 / {} [1 / {:C~}]' .format(
-                                    self._axesLabels[0],
-                                    self.dataSet.axes[0].units))
+                self._axesLabels[0],
+                self.dataSet.axes[0].units))
+            self.ft_axes.set_xlabel('1 / {} [1 / {:C~}]'.format(
+                self._axesLabels[0],
+                self.dataSet.axes[0].units))
 
         if self._dataLabel and redraw_data_label:
             self.axes.set_ylabel('{} [{:C~}]'.format(
-                                 self._dataLabel,
-                                 self.dataSet.data.units))
+                self._dataLabel,
+                self.dataSet.data.units))
 
             ftUnits = self.dataSet.data.units
             if not self.dataIsPower:
@@ -288,13 +290,102 @@ class MPLCanvas(QtWidgets.QGroupBox):
         redraw_axes_labels = (self._axesLabels != axes_labels or
                               self.prevDataSet and self.dataSet and
                               self.prevDataSet.axes[0].units !=
-                                  self.dataSet.axes[0].units)
+                              self.dataSet.axes[0].units)
         redraw_data_label = (self._dataLabel != data_label or
                              self.prevDataSet and self.dataSet and
                              self.prevDataSet.data.units !=
-                                 self.dataSet.data.units)
+                             self.dataSet.data.units)
 
         self._axesLabels = axes_labels
         self._dataLabel = data_label
 
         self._replot(redraw_axes, redraw_axes_labels, redraw_data_label)
+
+
+class MPLMSCanvas(MPLCanvas):
+    _dataSources = []
+    _lastPlotTime = {}
+    _isLiveDataDict = {}
+    prevDataSetDict = {}
+    _linesDict = {}
+    _ftlinesDict = {}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def drawDataSet(self, newDataSet, axes_labels, data_label):
+        dataSource = newDataSet.dataSource
+        if dataSource not in self._dataSources:
+            self._dataSources.append(dataSource)
+            self._lastPlotTime[dataSource] = 0
+            self._isLiveDataDict[dataSource] = False
+            self.prevDataSetDict[dataSource] = None
+            self._linesDict[dataSource] = []
+            self._ftlinesDict[dataSource] = []
+            self._linesDict[dataSource].extend(self.axes.plot([], [], [], [], animated=True, c="red"))
+            self._linesDict[dataSource][0].set_alpha(0.25)
+            self._ftlinesDict[dataSource].extend(self.ft_axes.plot([], [], [], [], animated=True))
+            self._ftlinesDict[dataSource][0].set_alpha(0.25)
+            self._redraw()
+            # self.axes.legend(['Previous', 'Current'])
+            # self.ft_axes.legend(['Previous', 'Current'])
+
+        self._lines = self._linesDict[dataSource]
+        self._ftlines = self._ftlinesDict[dataSource]
+
+        plotTime = time.perf_counter()
+
+        looksLikeLiveData = plotTime - self._lastPlotTime[dataSource] < 1
+
+        if looksLikeLiveData != self._isLiveDataDict[dataSource]:
+            if looksLikeLiveData:
+                self.canvas.mpl_disconnect(self._redraw_id)
+            else:
+                self._redraw_id = self.canvas.mpl_connect('draw_event',
+                                                          self._redraw_artists)
+
+        self._isLiveDataDict[dataSource] = looksLikeLiveData
+        self._isLiveData = self._isLiveDataDict[dataSource]
+
+        # artificially limit the replot rate to 5 Hz
+        if (plotTime - self._lastPlotTime[dataSource] < 0.2):
+            return
+
+        self._lastPlotTime[dataSource] = plotTime
+
+        self.prevDataSet = self.prevDataSetDict[dataSource]
+
+        self.dataSet = newDataSet
+        self.prevDataSetDict[dataSource] = self.dataSet
+
+        redraw_axes = (self.prevDataSet is None or
+                       len(self.prevDataSet.axes) != len(self.dataSet.axes))
+        if not redraw_axes:
+            for x, y in zip(self.prevDataSet.axes, self.dataSet.axes):
+                if x.units != y.units:
+                    redraw_axes = True
+                    break
+
+        redraw_axes_labels = (self._axesLabels != axes_labels or
+                              self.prevDataSet and self.dataSet and
+                              self.prevDataSet.axes[0].units !=
+                              self.dataSet.axes[0].units)
+        redraw_data_label = (self._dataLabel != data_label or
+                             self.prevDataSet and self.dataSet and
+                             self.prevDataSet.data.units !=
+                             self.dataSet.data.units)
+
+        self._axesLabels = axes_labels
+        self._dataLabel = data_label
+
+        self._replot(redraw_axes, redraw_axes_labels, redraw_data_label)
+
+    def _redraw_artists(self, *args):
+        for dsource in self._dataSources:
+            lines, ftlines = self._linesDict[dsource], self._ftlinesDict[dsource]
+            isLiveData = self._isLiveDataDict[dsource]
+            if not isLiveData:
+                self.axes.draw_artist(lines[0])
+                self.ft_axes.draw_artist(ftlines[0])
+            self.axes.draw_artist(lines[1])
+            self.ft_axes.draw_artist(ftlines[1])

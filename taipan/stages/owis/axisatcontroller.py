@@ -26,7 +26,7 @@ from common import ureg, Q_
 from common.traits import Quantity
 import traceback
 import logging
-from pint.context import Context
+from pint import Context
 import uuid
 
 

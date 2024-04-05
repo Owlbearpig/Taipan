@@ -28,9 +28,10 @@ from common.units import Q_
 import csv
 
 
-class TabularMeasurements2M(DataSource):
+class TabularMeasurements3M(DataSource):
     manipulator1 = Instance(Manipulator, allow_none=True)
     manipulator2 = Instance(Manipulator, allow_none=True)
+    manipulator3 = Instance(Manipulator, allow_none=True)
 
     dataSource = Instance(DataSource, allow_none=True)
 
@@ -40,6 +41,11 @@ class TabularMeasurements2M(DataSource):
         name="Positioning velocity M1",
         priority=4)
     positioningVelocityM2 = Quantity(Q_(1), help="The velocity of "
+                                                 "Manipulator2 during positioning"
+                                                 " movement").tag(
+        name="Positioning velocity M2",
+        priority=4)
+    positioningVelocityM3 = Quantity(Q_(1), help="The velocity of "
                                                  "Manipulator2 during positioning"
                                                  " movement").tag(
         name="Positioning velocity M2",
@@ -60,6 +66,7 @@ class TabularMeasurements2M(DataSource):
 
     def __init__(self, manipulator1: Manipulator = None,
                  manipulator2: Manipulator = None,
+                 manipulator3: Manipulator = None,
                  dataSource: DataSource = None, objectName: str = None,
                  loop: asyncio.BaseEventLoop = None):
         super().__init__(objectName=objectName, loop=loop)
@@ -68,9 +75,11 @@ class TabularMeasurements2M(DataSource):
 
         self.observe(self._setUnits, 'manipulator1')
         self.observe(self._setUnits, 'manipulator2')
+        self.observe(self._setUnits, 'manipulator3')
 
         self.manipulator1 = manipulator1
         self.manipulator2 = manipulator2
+        self.manipulator3 = manipulator3
 
         self.dataSource = dataSource
 
@@ -87,7 +96,8 @@ class TabularMeasurements2M(DataSource):
             return
 
         positioningVelocityTraitMap = {'manipulator1': ['positioningVelocityM1'],
-                                       'manipulator2': ['positioningVelocityM2']}
+                                       'manipulator2': ['positioningVelocityM2'],
+                                       'manipulator3': ['positioningVelocityM3']}
 
         traitsWithVelocityUnits = positioningVelocityTraitMap[change['name']]
         traitsWithBaseUnits = []
@@ -111,14 +121,15 @@ class TabularMeasurements2M(DataSource):
 
         self.add_traits(**newTraits)
 
-    async def _doSteppedScan(self, names, axis1, axis2):
+    async def _doSteppedScan(self, names, axis1, axis2, axis3):
         accumulator = []
         await self.dataSource.start()
 
-        for i, (name, position1, position2) in enumerate(zip(names, axis1, axis2)):
+        for i, (name, position1, position2, position3) in enumerate(zip(names, axis1, axis2, axis3)):
             self.set_trait('currentMeasurementName', name)
             await self.manipulator1.moveTo(position1, self.positioningVelocityM1)
             await self.manipulator2.moveTo(position2, self.positioningVelocityM2)
+            await self.manipulator3.moveTo(position3, self.positioningVelocityM3)
             accumulator.append(await self.dataSource.readDataSet())
             self.set_trait('progress', (i + 1) / len(axis1))
 
@@ -155,35 +166,20 @@ class TabularMeasurements2M(DataSource):
         if self.tableFile is None:
             raise RuntimeError("No table file specified!")
 
-
-        def check_limits(manip, row_val_, row_idx):
-            manip_units = manip.trait_metadata('value', 'preferred_units')
-            row_val_ = Q_(float(row_val_), manip_units)
-
-            targetValueTrait = manip.class_traits()["targetValue"]
-            limits = targetValueTrait.min, targetValueTrait.max
-
-            if limits[0] and (row_val_ < limits[0]):
-                raise ValueError(f"Row {row_idx} out of bounds ({row_val_} < {limits[0]})")
-            if limits[1] and (limits[1] < row_val_):
-                raise ValueError(f"Row {row_idx} out of bounds ({limits[1]} < {row_val_})")
-                raise ValueError(f"Row {i} out of bounds ({row_val_} < {limits[0]})")
-            if limits[1] and (limits[1] < row_val_):
-                raise ValueError(f"Row {i} out of bounds ({limits[1]} < {row_val_})")
-
         names = []
-        axis1, axis2 = [], []
+        axis1, axis2, axis3 = [], [], []
 
         units_manip1 = self.manipulator1.trait_metadata('value', 'preferred_units')
         units_manip2 = self.manipulator2.trait_metadata('value', 'preferred_units')
+        units_manip3 = self.manipulator3.trait_metadata('value', 'preferred_units')
 
         with self.tableFile.open() as table:
             reader = csv.reader(
                 # Skip comments
                 (row for row in table if not row.startswith('#')),
                 dialect='unix', skipinitialspace=True)
-            for i, row in enumerate(reader):
-                if len(row) != 3:
+            for row in reader:
+                if len(row) != 4:
                     raise RuntimeError(f"Row has wrong amount of elements: '{row}'")
 
                 names.append(row[0])
@@ -192,18 +188,16 @@ class TabularMeasurements2M(DataSource):
                     axis1.append(Q_(float(row[1]), units_manip1))
                 except ValueError:
                     raise RuntimeError(f"Failed to convert {row[1]} to a float!")
+
                 try:
                     axis2.append(Q_(float(row[2]), units_manip2))
                 except ValueError:
                     raise RuntimeError(f"Failed to convert {row[2]} to a float!")
 
-<<<<<<< HEAD
-                check_limits(self.manipulator1, row[1], i)
-                check_limits(self.manipulator2, row[2], i)
-=======
-                check_limits(self.manipulator1, row[1])
-                check_limits(self.manipulator2, row[2])
->>>>>>> d91d05d1fe589067dc43b742dd4d563c6a113224
+                try:
+                    axis3.append(Q_(float(row[3]), units_manip3))
+                except ValueError:
+                    raise RuntimeError(f"Failed to convert {row[3]} to a float!")
 
         self.set_trait('active', True)
         self.set_trait('progress', 0)
@@ -212,8 +206,9 @@ class TabularMeasurements2M(DataSource):
             await self.dataSource.stop()
             await self.manipulator1.waitForTargetReached()
             await self.manipulator2.waitForTargetReached()
+            await self.manipulator3.waitForTargetReached()
 
-            dataSet = await self._doSteppedScan(names, axis1, axis2)
+            dataSet = await self._doSteppedScan(names, axis1, axis2, axis3)
 
             self._dataSetReady(dataSet)
             return dataSet
@@ -222,5 +217,6 @@ class TabularMeasurements2M(DataSource):
             self._loop.create_task(self.dataSource.stop())
             self.manipulator1.stop()
             self.manipulator2.stop()
+            self.manipulator3.stop()
             self.set_trait('active', False)
             self._activeFuture = None

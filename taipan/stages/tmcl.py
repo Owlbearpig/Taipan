@@ -23,13 +23,13 @@ from threading import Lock
 from thirdparty.PyTMCL.TMCL.communication import TMCLCommunicator
 from common import Manipulator, Q_, ureg
 from traitlets import Enum as EnumTrait
+from traitlets import Bool
 from enum import Enum
 from common.traits import Quantity
 from asyncioext import threaded_async, ensure_weakly_binding_future
 
 
 class TMCL(Manipulator):
-
     class StepAngle(Enum):
         Step_0_9 = 0
         Step_1_8 = 1
@@ -55,9 +55,11 @@ class TMCL(Manipulator):
 
     stepAngle = EnumTrait(StepAngle, StepAngle.Step_1_8).tag(name="Step angle")
     angularAcceleration = Quantity(Q_(100), min=Q_(0), max=Q_(2047)).tag(
-                              name='Acceleration')
+        name='Acceleration')
     microSteps = EnumTrait(Microsteps, Microsteps.Microsteps_64).tag(
-                              name="Microstepping")
+        name="Microstepping")
+    referenceable = Bool(False, read_only=True,
+                         help="Whether the Stage has a Reference switch").tag(name="Referenceable")
 
     def __init__(self, port, baud=9600, axis=0, objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
@@ -67,23 +69,30 @@ class TMCL(Manipulator):
                                      float('inf'), float('inf'), float('inf'))
         self.comm._ser.baudrate = baud
         self.axis = axis
-
         self.setPreferredUnits(ureg.deg, ureg.dimensionless)
+        self.unit = 'deg'
+        self.manipConvFactor = 1
 
         self.velocity = Q_(20)
-        self.set_trait('value', Q_(0, 'deg'))
+        self.set_trait('value', Q_(0, self.unit))
 
         self.set_trait('status', self.Status.Idle)
         self._isMovingFuture = asyncio.Future()
         self._isMovingFuture.set_result(None)
 
-    def _angle2steps(self, angle):
+    def _unit2steps(self, units):
         convFactor = 0.9 if self.stepAngle == self.StepAngle.Step_0_9 else 1.8
-        return angle * self._MicroStepMap[self.microSteps] / convFactor
+        convFactor *= self.manipConvFactor
+        steps = units * self._MicroStepMap[self.microSteps] / convFactor
 
-    def _steps2angle(self, steps):
+        return steps
+
+    def _steps2unit(self, steps):
         convFactor = 0.9 if self.stepAngle == self.StepAngle.Step_0_9 else 1.8
-        return steps * convFactor / self._MicroStepMap[self.microSteps]
+        convFactor *= self.manipConvFactor
+        units = steps * convFactor / self._MicroStepMap[self.microSteps]
+
+        return units
 
     @threaded_async
     def _get_param(self, param):
@@ -96,13 +105,35 @@ class TMCL(Manipulator):
             self.comm.sap(self.axis, param, value)
 
     @threaded_async
+    def _set_global_param(self, bank_number, param, value):
+        with self.comm_lock:
+            self.comm.sgp(bank_number, param, value)
+
+    @threaded_async
+    def _store_param(self, param):
+        with self.comm_lock:
+            self.comm.stap(self.axis, param)
+
+    @threaded_async
+    def _rfs(self, cmd_type='START'):  # reference search
+        if self.referenceable:
+            with self.comm_lock:
+                return self.comm.rfs(self.axis, cmd_type)  # commands 'STATUS','END' also exist
+
+    @threaded_async
     def _mvp(self, target):
         with self.comm_lock:
             self.comm.mvp(self.axis, 'ABS', target)
 
+    async def _set_init_targetValue(self):
+        stepPos = await self._get_param(1)
+        self.set_trait('targetValue', Q_(self._steps2unit(stepPos), self.unit))
+
     async def __aenter__(self):
         await super().__aenter__()
+        await self._set_init_targetValue()
         self._updateFuture = ensure_weakly_binding_future(self._update)
+
         return self
 
     async def __aexit__(self, *args):
@@ -116,7 +147,7 @@ class TMCL(Manipulator):
 
     async def _singleUpdate(self):
         stepPos = await self._get_param(1)
-        self.set_trait('value', Q_(self._steps2angle(stepPos), 'deg'))
+        self.set_trait('value', Q_(self._steps2unit(stepPos), self.unit))
 
         movFut = self._isMovingFuture
 
@@ -126,11 +157,11 @@ class TMCL(Manipulator):
             if reached and not movFut.done():
                 movFut.set_result(None)
 
-    async def moveTo(self, val, velocity=None):
+    async def moveTo(self, val: Quantity, velocity=None):
         if velocity is None:
             velocity = self.velocity
 
-        val = self._angle2steps(val.to('deg').magnitude)
+        val = self._unit2steps(val.to(self.unit).magnitude)
         velocity = velocity.magnitude
         accel = self.angularAcceleration.magnitude
 
@@ -163,8 +194,10 @@ class TMCL(Manipulator):
 
         self._isMovingFuture.cancel()
 
+
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
+
 
     async def run():
         async with TMCL('/dev/ttyUSB0') as stepper:
@@ -172,5 +205,6 @@ if __name__ == '__main__':
             await stepper.moveTo(Q_(360, 'deg'))
             await stepper.moveTo(Q_(0, 'deg'))
             print("moving done.!")
+
 
     loop.run_until_complete(run())

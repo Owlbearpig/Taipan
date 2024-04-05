@@ -9,12 +9,13 @@ from interfaces.scancontrolclient import QWebChannelWebSocketProtocol
 from websockets import client
 import enum
 
-
 """
 1. Can laser and voltage be enabled too? No
-2. What is the difference between pulseReady and displayPulseReady? pulseReady is raw data, displayPulseReady is processed and rate limited (25 Hz)
+2. What is the difference between pulseReady and displayPulseReady? 
+pulseReady is raw data, displayPulseReady is processed and rate limited (25 Hz)
 3. What are PulseFlags ? Something to do with triggering of the delayline?
 """
+
 
 class ScanControlStatus(enum.IntEnum):
     Uninitialized = 0
@@ -83,7 +84,7 @@ class TeraK15(DataSource):
 
     def acq_end_changed(self, new_val):
         self.set_trait("acq_end", Q_(new_val, "ps"))
-    
+
     def desired_averages_changed(self, new_val):
         self.set_trait("desiredAverages", new_val)
 
@@ -118,6 +119,7 @@ class TeraK15(DataSource):
                         self.currentAverages >= self.desiredAverages):
                     self._setAveragesReachedFuture.set_result(True)
     """
+
     def _onPulseReady(self, data):
         data = self._decodeAmpArray(data)
         if self.scancontrol.timeAxis is not None:
@@ -144,7 +146,7 @@ class TeraK15(DataSource):
         self.scancontrol.rateChanged.connect(self.acq_rate_changed)
         self.scancontrol.pulseReady.connect(self._onPulseReady)
         self.scancontrol.desiredAveragesChanged.connect(self.desired_averages_changed)
-    
+
     @observe("desiredAverages")
     def _desired_averages_changed(self, change):
         async def _impl():
@@ -152,7 +154,7 @@ class TeraK15(DataSource):
             await self.reset_avg()
 
         self._loop.create_task(_impl())
-    
+
     @observe("acq_rate")
     def _rate_changed(self, change):
         newVal = change["new"].to("Hz").magnitude
@@ -227,4 +229,3 @@ class TeraK15(DataSource):
     async def __aexit__(self, *args):
         print("Exiting")
         await super().__aexit__(*args)
-

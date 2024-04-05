@@ -24,7 +24,7 @@ from common.save import DataSaver
 from common.units import Q_, ureg
 from common.traits import DataSet as DataSetTrait
 from traitlets import Instance, Float, Bool, Int
-from dummy import DummyManipulator, DummyContinuousDataSource
+from dummy import DummyManipulator, DummyContinuousDataSource, DummyLockIn
 from pathlib import Path
 from pint import Quantity
 import thz_context # important for unit conversion
@@ -37,9 +37,9 @@ With measurement parameters set on two dummy manipulators
 
 class AppRoot(ComponentBase):
 
-    someDataSet = DataSetTrait().tag(name="Current measurement",
+    currentData = DataSetTrait().tag(name="Current measurement",
                                      data_label="Amplitude",
-                                     axes_labels=["Sample number"])
+                                     axes_labels=["Time"])
 
     dataSaver = Instance(DataSaver)
     ds = Instance(DataSource)
@@ -51,7 +51,7 @@ class AppRoot(ComponentBase):
     manip1 = Instance(DummyManipulator)
 
     def __init__(self, loop=None):
-        super().__init__(objectName="Example application", loop=loop)
+        super().__init__(objectName="Del. line + lockin with 2x manip", loop=loop)
         self.dataSaver = DataSaver(objectName="Data Saver")
         self.manip1 = DummyManipulator()
         self.manip2 = DummyManipulator()
@@ -62,12 +62,12 @@ class AppRoot(ComponentBase):
 
         self.TimeDomainScan = Scan(objectName="TimeDomainScan")
         self.TimeDomainScan.manipulator = dummy_stage
-        self.TimeDomainScan.dataSource = DummyContinuousDataSource(self.manip1)
+        self.TimeDomainScan.dataSource = DummyLockIn()
         self.TimeDomainScan.dataSource.objectName = "SR7230 (Dummy)"
 
         self.TimeDomainScan.continuousScan = True
-        self.TimeDomainScan.minimumValue = Q_(840, "ps")
-        self.TimeDomainScan.maximumValue = Q_(910, "ps")
+        self.TimeDomainScan.minimumValue = Q_(1, "ps")
+        self.TimeDomainScan.maximumValue = Q_(50, "ps")
         self.TimeDomainScan.overscan = Q_(1, "ps")
         self.TimeDomainScan.step = Q_(0.05, "ps")
         self.TimeDomainScan.positioningVelocity = Q_(40, "ps/s")
@@ -85,7 +85,7 @@ class AppRoot(ComponentBase):
     @action("Take new measurement")
     async def takeMeasurement(self):
         dataSet = await self.ds.readDataSet()
-        self.set_trait("someDataSet", dataSet)
+        self.set_trait("currentData", dataSet)
 
     @action("Take No. of measurements")
     async def takeSingleMeasurements(self):
@@ -93,4 +93,4 @@ class AppRoot(ComponentBase):
         for x in range(self.nMeasurements):
             dataSet = await self.ds.readDataSet()
             self.set_trait("progress", (x + 1) / self.nMeasurements)
-            self.set_trait("someDataSet", dataSet)
+            self.set_trait("currentData", dataSet)

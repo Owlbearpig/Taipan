@@ -1,7 +1,5 @@
-
 import serial
-
-from  . import codec
+from . import codec
 from .consts import *
 from .error import *
 
@@ -10,7 +8,7 @@ class TMCLCommunicator(object):
     """Abstraction of a Communication handler that speak TMCL via serial port to a TMCM"""
 
     def __init__(self, port, num_motors, num_banks, max_output,
-                 max_velocity, max_coordinate, max_position,debug=False):
+                 max_velocity, max_coordinate, max_position, debug=False):
         self._port = port
         self._debug = debug
         self._ser = serial.Serial(port)
@@ -28,35 +26,39 @@ class TMCLCommunicator(object):
         Initialize the communicator using the specifications from a dictionary
         """
         return cls(port,
-                specs['num_motors'],
-                specs['num_banks'],
-                specs['max_output'],
-                specs['max_velocity'],
-                specs['max_coordinate'],
-                specs['max_position'],
-                debug)
+                   specs['num_motors'],
+                   specs['num_banks'],
+                   specs['max_output'],
+                   specs['max_velocity'],
+                   specs['max_coordinate'],
+                   specs['max_position'],
+                   debug)
 
     def _query(self, request):
         """Encode and send a query. Receive, decode, and return reply"""
         req = codec.encodeRequestCommand(*request)
-        req = list(map(ord,req))
+        req = list(map(ord, req))
         if self._debug:
-            #print("send to TMCL: ", codec.hexString(req), codec.decodeRequestCommand(req))
+            # print("send to TMCL: ", codec.hexString(req), codec.decodeRequestCommand(req))
             print(("send to TMCL: ", codec.hexString(req), codec.decodeRequestCommand(req)))
         self._ser.write(req)
         resp = codec.decodeReplyCommand(self._ser.read(9))
         if self._debug:
-            #tmp = resp.values()[:-1]
+            # tmp = resp.values()[:-1]
             tmp = list(resp.values())[:-1]
             tmp = codec.encodeReplyCommand(*tmp)
-            #print("got from TMCL:", codec.hexString(tmp), resp)
+            # print("got from TMCL:", codec.hexString(tmp), resp)
             print(("got from TMCL:", codec.hexString(tmp), resp))
         return resp['status'], resp['value']
 
     def _pn_checkrange(self, parameter_number, value, prefix):
         """Check if value is valid for given parameter_number"""
-        pn = int(parameter_number)
+        if isinstance(parameter_number, tuple):
+            pn = parameter_number
+        else:
+            pn = int(parameter_number)
         v = int(value)
+
         DICT = AXIS_PARAMETER if type(pn) == int else GLOBAL_PARAMETER
         if not pn in DICT:
             raise TMCLKeyError(prefix, "parameter number", pn, DICT)
@@ -67,8 +69,8 @@ class TMCLCommunicator(object):
                 NOTINRANGE = True
         if NOTINRANGE:
             raise TMCLMissingElement(prefix, "parameter", repr(name),
-                                      " + ".join(["range({}, {})".format(l, h)
-                                      for l, h in ranges]))
+                                     " + ".join(["range({}, {})".format(l, h)
+                                                 for l, h in ranges]))
         return pn, v
 
     def ror(self, motor_number, velocity):
@@ -465,7 +467,7 @@ class TMCLCommunicator(object):
         v = int(value)
         if not 0 <= bn < self.num_banks:
             raise TMCLRangeError(c, "bank number", bn, self.num_banks)
-        pn, v = self._pn_checkrange((bn, pn), v, c)
+        (bn, pn), v = self._pn_checkrange((bn, pn), v, c)
         status, value = self._query((0x01, cn, pn, bn, v))
         if status != STAT_OK:
             raise TMCLStatusError(c, STATUSCODES[status])

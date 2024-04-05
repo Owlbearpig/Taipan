@@ -17,9 +17,8 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
-import time
 
-from common import ComponentBase, Scan, action, DataSource
+from common import ComponentBase, Scan, action, DataSource, Scan2ds
 from common.save import DataSaver
 from common.units import Q_, ureg
 from common.traits import DataSet as DataSetTrait
@@ -30,29 +29,55 @@ from pint import Quantity
 import thz_context  # important for unit conversion
 
 """
-Example scan, datasource + manip
+Example scan with double datasource
 """
 
 
-class AppRoot(Scan):
-    currentData = DataSetTrait().tag(name="Current measurement",
-                                     data_label="Amplitude",
-                                     axes_labels=["Time"])
+class AppRoot(Scan2ds):
+    currentDataDS1 = DataSetTrait().tag(name="Current measurement",
+                                        data_label="Amplitude",
+                                        axes_labels=["Time"])
+
+    currentDataDS2 = DataSetTrait().tag(name="Current measurement",
+                                        data_label="Amplitude",
+                                        axes_labels=["Time"])
 
     dataSaver = Instance(DataSaver)
 
     def __init__(self, loop=None):
-        super().__init__(objectName="Scan with cont. datasource", loop=loop)
+        super().__init__(objectName="Example scan application", loop=loop)
         self.dataSaver = DataSaver(objectName="Data Saver")
 
+        self.dummy_stage = DummyManipulator()
+        self.dummy_stage.objectName = "Dummy stage"
+        self.dummy_stage.setPreferredUnits(ureg.ps, ureg.ps / ureg.s)
+
+        self.TimeDomainScan = Scan(objectName="TimeDomainScan")
+
+        self.TimeDomainScan.manipulator = self.dummy_stage
+        self.TimeDomainScan.dataSource = DummyLockIn()
+
+        self.TimeDomainScan.dataSource.objectName = "SR7230 (Dummy)"
+
+        self.TimeDomainScan.continuousScan = True
+        self.TimeDomainScan.minimumValue = Q_(840, "ps")
+        self.TimeDomainScan.maximumValue = Q_(910, "ps")
+        self.TimeDomainScan.overscan = Q_(1, "ps")
+        self.TimeDomainScan.step = Q_(0.05, "ps")
+        self.TimeDomainScan.positioningVelocity = Q_(40, "ps/s")
+        self.TimeDomainScan.scanVelocity = Q_(1, "ps/s")
+        self.TimeDomainScan.retractAtEnd = True
+
         self.manipulator = DummyManipulator()
-        self.dataSource = DummyContinuousDataSource()
+        self.dataSource = self.TimeDomainScan
+        self.dataSource2 = self.TimeDomainScan
 
         self.dataSaver.registerManipulator(self.manipulator, "Position")
         self.dataSaver.fileNameTemplate = "{date}-{name}-{Position}"
         self.dataSaver.set_trait("path", Path(r""))
-        self.dataSource.addDataSetReadyCallback(self.dataSaver.process)
-        self.dataSource.addDataSetReadyCallback(self.setCurrentData)
+        # self.dataSource.addDataSetReadyCallback(self.dataSaver.process)
+        self.dataSource.addDataSetReadyCallback(self.setCurrentData_DS1)
+        self.dataSource2.addDataSetReadyCallback(self.setCurrentData_DS2)
 
         self.minimumValue = Q_(0, "mm")
         self.maximumValue = Q_(10, "mm")
@@ -68,10 +93,12 @@ class AppRoot(Scan):
     async def __aexit__(self, *args):
         await super().__aexit__(*args)
         await self.dataSource.__aexit__(*args)  # lockin
+        await self.manipulator.__aexit__(*args)
+        await self.dummy_stage.__aexit__(*args)
 
     @action("Take new measurement")
     async def takeMeasurement(self):
         await self.readDataSet()
 
-    def setCurrentData(self, dataSet):
-        self.set_trait("currentData", dataSet)
+    def setCurrentData_DS1(self, dataSet):
+        self.set_trait("currentDataDS1", dataSet)

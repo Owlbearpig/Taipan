@@ -26,7 +26,8 @@ from configparser import ConfigParser
 from traitlets import Instance
 from copy import deepcopy
 from .units import ureg, Q_
-from .traits import Quantity
+from .traits import Quantity, DataSetClass
+from .traits import DataSet as DataSetTrait
 
 
 def action(name=None, help=None, **kwargs):
@@ -258,7 +259,7 @@ class DataSource(ComponentBase):
     def removeDataSetReadyCallback(self, callback):
         self._dataSetReadyCallbacks.remove(callback)
 
-    def _dataSetReady(self, dataSet):
+    def _dataSetReady(self, dataSet: DataSetClass):
         for cb in self._dataSetReadyCallbacks:
             cb(dataSet)
 
@@ -293,8 +294,13 @@ class Manipulator(ComponentBase):
     targetValue = Quantity(Q_(0)).tag(name="Target value")
     status = traitlets.Enum(Status, default_value=Status.Undefined,
                             read_only=True)
+<<<<<<< HEAD
     limits = traitlets.Unicode(read_only=True).tag(name="Target value limits")
     
+=======
+    limits = traitlets.Unicode(read_only=True, default_value="None set").tag(name="Target value limits")
+
+>>>>>>> d91d05d1fe589067dc43b742dd4d563c6a113224
     def __init__(self, objectName=None, loop=None):
         super().__init__(objectName=objectName, loop=loop)
         self._trigStart = None
@@ -326,18 +332,18 @@ class Manipulator(ComponentBase):
     
     def set_limits(self, min_=None, max_=None):
         units, min_magn, max_magn = None, "-inf", "inf"
+        class_traits = self.class_traits()
         if min_:
-            self.class_traits()["targetValue"].min = min_
+            class_traits["targetValue"].min = min_
             units = min_.units
             min_magn = min_.magnitude
         if max_:
-            self.class_traits()["targetValue"].max = max_
+            class_traits["targetValue"].max = max_
             units = max_.units
             max_magn = max_.magnitude
 
         self.set_trait("limits", f"({min_magn}, {max_magn}) {units}")
 
-    
     @traitlets.observe("targetValue")
     def _targetValueObserver(self, change):
         if not self.__blockTargetValueUpdate:
