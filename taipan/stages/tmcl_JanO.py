@@ -57,14 +57,26 @@ class TMCL(Manipulator):
         Microsteps.Microsteps_32: 32,
         Microsteps.Microsteps_64: 64
     }
+        
+    class Direction(Enum):
+        Positive = 1
+        Negative = -1
+        
+    _DirectionMap = {Direction.Positive: 1, Direction.Negative: -1}
 
     stepAngle = EnumTrait(StepAngle, StepAngle.Step_1_8).tag(name="Step angle")
     angularAcceleration = Quantity(Q_(100), min=Q_(0), max=Q_(2047)).tag(
-                              name='Acceleration')
+                              name='Acceleration', priority=1)
     microSteps = EnumTrait(Microsteps, Microsteps.Microsteps_64).tag(
                               name="Microstepping")
-
-    def __init__(self, port, baud=9600, axis=0, objectName=None, loop=None):
+    direction = EnumTrait(Direction, Direction.Negative).tag(
+                              name="Direction")
+    
+    targetValue = Quantity(Q_(0, "mm"), min=Q_(-15, "mm"), max=Q_(14, "mm")).tag(name='Target value')
+    value = Quantity(Q_(0, "mm"), read_only=True).tag(name="Value")
+    velocity = Quantity(Q_(1, "mm")).tag(name="Velocity")
+                              
+    def __init__(self, port, baud=9600, axis=0, objectName=None, loop=None, implementation=None):
         super().__init__(objectName=objectName, loop=loop)
 
         self.comm_lock = Lock()
@@ -72,25 +84,70 @@ class TMCL(Manipulator):
                                      float('inf'), float('inf'), float('inf'))
         self.comm._ser.baudrate = baud
         self.axis = axis
-
-        self.setPreferredUnits(ureg.deg, ureg.dimensionless)
-
-        self.velocity = Q_(20)
-        self.set_trait('value', Q_(0, 'deg'))
+        
+        self.implementation = implementation # JanO
+        if implementation != 'Linear_mm':
+            print("Limits only implemented for linear implementation. Comment out targetValue trait")
+            
+        if implementation is None:
+            self.setPreferredUnits(ureg.deg, ureg.deg / ureg.s)    
+            self.velocity = Q_(100, 'deg/s')
+            self.set_trait('value', Q_(0, 'deg'))
+            self.unit = 'deg'
+            self.convFactor2 = 1
+            self.convFactor3 = self.convFactor2
+        elif implementation=='Rotator':
+            self.convFactor2 = 180/1963
+            self.setPreferredUnits(ureg.deg, ureg.deg / ureg.s)            
+            self.velocity = Q_(500*self.convFactor2//1, 'deg/s')
+            self.set_trait('value', Q_(0, 'deg'))
+            self.convFactor3 = self.convFactor2
+            self.unit = 'deg'
+            
+        elif implementation=='Linear_mm':
+            self.convFactor2 = (24.45-2.35)/16000
+            self.setPreferredUnits(ureg.mm, ureg.mm / ureg.s)            
+            self.velocity = Q_((500*self.convFactor2*100)//10/10, 'mm/s')
+            self.set_trait('value', Q_(0, 'mm'))
+            self.convFactor3 = self.convFactor2
+            self.unit = 'mm'
+        
+        # JanO: added on 23.11.2022 for a specific linear translation  (ACCUDEX)
+        # based on a stepper motor (TMCL) with endswitches. One could add 
+        # the option of referencing (drive to an end switch)
+        elif implementation=='Linear_mm_ACCUDEX':
+            #self.convFactor = 204
+            self.convFactor2 = 204.5/36830 #mm/deg
+            # 500 deg/s => took 97 s to move 204.5 mm- 2.11 mm/S
+            self.convFactor3 = 2.11/500
+            self.setPreferredUnits(ureg.mm, ureg.mm / ureg.s)            
+            self.velocity = Q_((237*self.convFactor3*100)//10/10, 'mm/s')
+            self.set_trait('value', Q_(0, 'mm'))
+            self.unit = 'mm'
+            self.direction = self.Direction.Positive
+            
+        else:
+            self.setPreferredUnits(ureg.deg, ureg.deg / ureg.s)            
+            self.velocity = Q_(100, 'deg/s')
+            self.set_trait('value', Q_(0, 'deg'))
+            self.unit = 'deg'
+            self.convFactor2 = 1
+            self.convFactor3 = self.convFactor2
+            print('Warning - the selected type of TMCL implementation is not implemented')
 
         self.set_trait('status', self.Status.Idle)
         self._isMovingFuture = asyncio.Future()
         self._isMovingFuture.set_result(None)
 
     def _angle2steps(self, angle):
-        convFactor = 0.9 if self.stepAngle == self.StepAngle.Step_0_9 else 1.8
-        factor2 = 360/1963 if self.stepAngle == self.StepAngle.Step_0_9 else 180/1963
-        return angle * self._MicroStepMap[self.microSteps] / convFactor /factor2
+        #convFactor = 0.9 if self.stepAngle == self.StepAngle.Step_0_9 else 1.8
+        convFactor = 1.8
+        return angle * self._MicroStepMap[self.microSteps] / convFactor /self.convFactor2
 
     def _steps2angle(self, steps):
-        convFactor = 0.9 if self.stepAngle == self.StepAngle.Step_0_9 else 1.8
-        factor2 = 360/1963 if self.stepAngle == self.StepAngle.Step_0_9 else 180/1963
-        return steps * convFactor * factor2 / self._MicroStepMap[self.microSteps]
+        convFactor = 1.8
+        #print(self.angularAcceleration)
+        return steps * convFactor * self.convFactor2 / self._MicroStepMap[self.microSteps]
 
     async def waitForTargetReached(self, timeout=30): # coppied from PI by JanO for TabularScan
         return await self._isMovingFuture
@@ -126,7 +183,7 @@ class TMCL(Manipulator):
 
     async def _singleUpdate(self):
         stepPos = await self._get_param(1)
-        self.set_trait('value', Q_(self._steps2angle(stepPos), 'deg'))
+        self.set_trait('value', self._DirectionMap[self.direction]*Q_(self._steps2angle(stepPos), self.unit))
 
         movFut = self._isMovingFuture
 
@@ -140,11 +197,11 @@ class TMCL(Manipulator):
         if velocity is None:
             velocity = self.velocity
 
-        val = self._angle2steps(val.to('deg').magnitude)
-        velocity = velocity.magnitude
+        val = self._DirectionMap[self.direction]*self._angle2steps(val.to(self.unit).magnitude)
+        
+        velocity = velocity.magnitude/self.convFactor3
         accel = self.angularAcceleration.magnitude
 
-        # stop if still moving
         if not self._isMovingFuture.done():
             self.stop()
 
@@ -185,3 +242,32 @@ if __name__ == '__main__':
             print("moving done.!")
 
     loop.run_until_complete(run())
+
+
+'''
+    def _angle2steps(self, angle):
+        convFactor = 0.9 if self.stepAngle == self.StepAngle.Step_0_9 else 1.8
+        if self.implementation is None:
+            factor2 = 1
+        elif self.implementation == 'Rotator':
+            factor2 = 2*self.conv_factor if self.stepAngle == self.StepAngle.Step_0_9 else self.conv_factor
+        elif self.implementation == 'Linear_mm': 
+            factor2 = 2*self.conv_factor if self.stepAngle == self.StepAngle.Step_0_9 else self.conv_factor
+        else:
+            factor2 = 1
+            print('Warning - the selected type of TMCL implementation is not implemented')
+        return angle * self._MicroStepMap[self.microSteps] / convFactor /factor2
+
+    def _steps2angle(self, steps):
+        convFactor = 0.9 if self.stepAngle == self.StepAngle.Step_0_9 else 1.8
+        if self.implementation is None:
+            factor2 = 1
+        elif self.implementation == 'Rotator':
+            factor2 = 2*self.conv_factor if self.stepAngle == self.StepAngle.Step_0_9 else self.conv_factor
+        elif self.implementation == 'Linear_mm': 
+            factor2 = 2*self.conv_factor if self.stepAngle == self.StepAngle.Step_0_9 else self.conv_factor
+        else:
+            factor2 = 1
+            print('Warning - the selected type of TMCL implementation is not implemented')
+        return steps * convFactor * factor2 / self._MicroStepMap[self.microSteps]
+'''

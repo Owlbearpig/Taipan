@@ -94,7 +94,6 @@ def read_pulse_data(ip, q):
     q.close()
     loop.close()
 
-
 class TW4B(DataSource):
 
     discoverer = None
@@ -256,8 +255,8 @@ class TW4B(DataSource):
         self.set_trait('acq_current_avg', 0)
         if self._setAveragesReachedFuture.done():
             self._setAveragesReachedFuture = asyncio.Future()
-
-    async def __aenter__(self):
+    
+    async def device_init(self):
         print("Initializing TW4B...")
 
         self.ip = None
@@ -296,14 +295,27 @@ class TW4B(DataSource):
         self.dataReaderProcess.start()
 
         self.pulseReader = ensure_weakly_binding_future(self.readPulseFromQueue)
-
+        
         ok = await self.read_message()
+        
         if ok != 'OK':
             raise TW4BException("Initialization failed")
-
+        
         await self.singleUpdate()
         self._statusUpdater = ensure_weakly_binding_future(self.updateStatus)
-
+    
+    async def __aenter__(self):
+        retries = 10
+        for i in range(1, retries):
+            try:
+                await self.device_init()
+                break
+            except asyncio.streams.IncompleteReadError:
+                if i == retries-1:
+                    raise TW4BException("Initialization failed")
+                print(f"Initialization failed, retrying: {i}/{retries}")
+                await asyncio.sleep(1)
+        
         return self
 
     async def __aexit__(self, *args):

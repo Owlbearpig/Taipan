@@ -23,6 +23,7 @@ from asyncioext import ensure_weakly_binding_future
 import asyncio
 from traitlets import Bool, Unicode
 from common import ureg, Q_
+from common.traits import Quantity
 import traceback
 import logging
 from pint.context import Context
@@ -63,6 +64,8 @@ class AxisAtController(Manipulator):
     limitSwitchActive = Bool(read_only=True).tag(name="Limit switch active")
     motorPowerStageError = Bool(read_only=True).tag(
                                 name="Motor power stage error")
+    targetValue = Quantity(Q_(0, "mm"), min=Q_(-10, "mm"), max=Q_(100, "mm")).tag(
+                              name='Target value')
 
     def __init__(self, connection=None, axis=1, pitch=Q_(1), objectName=None,
                  loop=None):
@@ -229,6 +232,9 @@ class AxisAtController(Manipulator):
             self._isMovingFuture.cancel()
 
         await self.send('stop' + str(self.axis))
+
+    async def waitForTargetReached(self, timeout=30): # coppied from PI by Cornelius for TabularScan
+        return await self._isMovingFuture
 
     @action("Set Position to zero", priority=1)
     async def resetCounter(self):
