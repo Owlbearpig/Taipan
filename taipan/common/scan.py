@@ -335,7 +335,7 @@ class MultiDataSourceScan(Scan):
     def registerDataSource(self, dataSource: DataSource = None):
         if DataSource is None:
             return
-
+        
         if self._dataSources[0] is None:
             self._dataSources[0] = dataSource
             self.dataSource = dataSource
@@ -345,7 +345,8 @@ class MultiDataSourceScan(Scan):
             self.add_traits(**{new_component_trait_name: Instance(DataSource)})
             self.setAttribute(new_component_trait_name, dataSource)
             self._dataSources.append(dataSource)
-
+        self._dataSources[-1].objectName = f"DS{len(self._dataSources)}"
+        
     async def _doSteppedScan(self, axis):
         accumulator = {}
         for dSource in self._dataSources:
@@ -401,12 +402,13 @@ class MultiDataSourceScan(Scan):
 
         dataSets = []
         for dSource in self._dataSources:
+            await asyncio.sleep(1)
             dataSet = await dSource.readDataSet()
+            print(dSource.objectName)
             dataSet.dataSource = dSource
             dataSet.checkConsistency()
             dataSet.axes = dataSet.axes.copy()
             dataSet.axes[0] = axis
-
             expectedLength = len(dataSet.axes[0])
 
             # Oops, somehow the received amount of data does not match our
@@ -423,7 +425,7 @@ class MultiDataSourceScan(Scan):
                     dataSet.data.resize((expectedLength,) + dataSet.data.shape[1:])
 
             dataSets.append(dataSet)
-
+ 
         return dataSets, axis
 
     def readDataSet(self):

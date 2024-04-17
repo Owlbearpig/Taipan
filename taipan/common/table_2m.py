@@ -197,13 +197,8 @@ class TabularMeasurements2M(DataSource):
                 except ValueError:
                     raise RuntimeError(f"Failed to convert {row[2]} to a float!")
 
-<<<<<<< HEAD
                 check_limits(self.manipulator1, row[1], i)
                 check_limits(self.manipulator2, row[2], i)
-=======
-                check_limits(self.manipulator1, row[1])
-                check_limits(self.manipulator2, row[2])
->>>>>>> d91d05d1fe589067dc43b742dd4d563c6a113224
 
         self.set_trait('active', True)
         self.set_trait('progress', 0)

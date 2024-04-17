@@ -21,6 +21,8 @@ class MultiDataSource(DataSource):
 
     async def __aexit__(self, *args):
         await super().__aexit__(*args)
+        for dSource in self._dataSources:
+            await dSource.__aexit__(*args)
 
     def register_datasource(self, dataSource: DataSource):
         new_component_trait_name = f"dataSource{len(self._dataSources)}"

@@ -21,6 +21,7 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 
 from common import DataSink
 from common.traits import Path as PathTrait
+from pathlib import Path
 from enum import Enum, unique
 from traitlets import Bool, Enum as EnumTrait, Unicode
 import numpy as np
@@ -61,7 +62,7 @@ class DataSaver(DataSink):
                                name="File name template")
     mainFileName = Unicode('data').tag(name="Main file name")
 
-    enabled = Bool(False, help="Whether data storage is enabled").tag(
+    enabled = Bool(True, help="Whether data storage is enabled").tag(
                          name="Enabled")
 
     _manipulators = {}
@@ -117,7 +118,7 @@ class DataSaver(DataSink):
                                                      **attributeValues)
         formattedName += self.extension[self.fileFormat]
         formattedName = formattedName.translate(self._fileNameTranslationTable)
-        return str(self.path.joinpath(formattedName))
+        return Path(self.path.joinpath(formattedName))
 
     def _saveTxt(self, data):
         if len(data.axes) > 1 or len(data.axes) == 0:
@@ -129,6 +130,9 @@ class DataSaver(DataSink):
         if self.textFileWithHeaders:
             header = '{:C} {:C}'.format(data.axes[0].units, data.data.units)
         filename = self._getFileName()
+        ds = str(data.dataSource.objectName)
+        print(ds)
+        filename = str(filename.parents[0] / (ds + str(filename.name)))
         np.savetxt(filename, toSave, header=header)
         return filename
 
