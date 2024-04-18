@@ -24,7 +24,7 @@ import matplotlib
 matplotlib.use("Qt5Agg")
 
 from qtui.autoui import generate_ui
-import quamash
+import qasync
 from PyQt5 import QtCore, QtWidgets
 import asyncio
 import sys
@@ -80,11 +80,10 @@ async def run(app, rootClass, loop):
 
         logging.getLogger().removeHandler(handler)
 
-
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
-    loop = quamash.QEventLoop(app)
+    loop = qasync.QEventLoop(app)
     asyncio.set_event_loop(loop)
 
     filename = sys.argv[1]

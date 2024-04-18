@@ -402,7 +402,6 @@ class MultiDataSourceScan(Scan):
 
         dataSets = []
         for dSource in self._dataSources:
-            await asyncio.sleep(1)
             dataSet = await dSource.readDataSet()
             print(dSource.objectName)
             dataSet.dataSource = dSource

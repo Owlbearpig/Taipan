@@ -30,7 +30,7 @@ from common.traits import DataSet as DataSetTrait
 from common.traits import Quantity
 from asyncioext import ensure_weakly_binding_future
 # from pint import Quantity
-from traitlets import Instance, Bool, Enum, Int, List
+from traitlets import Instance, Bool, Enum, Int, List, Unicode
 import warnings
 
 
@@ -39,6 +39,8 @@ class DummyManipulator(Manipulator):
 
     targetValue = Quantity(Q_(0, 'mm'), min=Q_(0, 'mm'), max=Q_(2047, 'mm')).tag(
         name='Target value')
+
+    status_ = Unicode(str(Manipulator.Status.Undefined.name), read_only=True).tag(name="Status")
 
     def __init__(self):
         super().__init__()
@@ -60,7 +62,7 @@ class DummyManipulator(Manipulator):
         val = val.to('mm').magnitude
         curVal = self.value.to('mm').magnitude
 
-        values = np.linspace(curVal, val, 200)
+        values = np.linspace(curVal, val, 20)
 
         dt = abs(np.mean(np.diff(values)) / velocity)
 
@@ -68,10 +70,10 @@ class DummyManipulator(Manipulator):
 
         try:
             for target in values:
-                await asyncio.sleep(dt * 0)  # more realistic
+                await asyncio.sleep(dt)  # more realistic
                 self.set_trait('value', Q_(target, 'mm'))
-            # self._isMovingFuture = asyncio.Future()
-            # await self._isMovingFuture
+            self._isMovingFuture = asyncio.Future()
+            await self._isMovingFuture
         finally:
             self.set_trait('status', Manipulator.Status.Idle)
 
@@ -83,12 +85,14 @@ class DummyManipulator(Manipulator):
 
     async def updateStatus(self):
         while True:
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.2)
             # print(f"hello from {self.objectName}")
             await self.singleUpdate()
 
     async def singleUpdate(self):
         movFut = self._isMovingFuture
+
+        self.set_trait("status_", self.status.name)
 
         if not movFut.done():
             # check if move done
@@ -96,7 +100,7 @@ class DummyManipulator(Manipulator):
 
     async def __aexit__(self, *args):
         await super().__aexit__(*args)
-        self._updateFuture.cancel()
+        # self._updateFuture.cancel()
         await self._isMovingFuture
 
     async def waitForTargetReached(self):
