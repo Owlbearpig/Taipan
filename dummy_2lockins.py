@@ -52,16 +52,19 @@ class AppRoot(MultiDataSourceScan):
 
         self.lockin1 = DummyLockIn(objectName="DS1")
         self.lockin2 = DummyLockIn(objectName="DS2")
+        self.manipulator.register_datasource(self.lockin1)
+        self.manipulator.register_datasource(self.lockin2)
+
         self.registerDataSource(self.lockin1)
         self.registerDataSource(self.lockin2)
 
         self.continuousScan = True
-        self.minimumValue = Q_(840, "ps")
-        self.maximumValue = Q_(860, "ps")
+        self.minimumValue = Q_(40, "ps")
+        self.maximumValue = Q_(160, "ps")
         self.overscan = Q_(1, "ps")
         self.step = Q_(10, "ps")
         self.positioningVelocity = Q_(40, "ps/s")
-        self.scanVelocity = Q_(1000, "ps/s")
+        self.scanVelocity = Q_(10, "ps/s")
         self.retractAtEnd = True
 
         # self.dataSaver.registerManipulator(self.scan_manip, "Position")

@@ -53,6 +53,11 @@ class DummyManipulator(Manipulator):
         self._step = Q_(0.05, 'ps')
         self._isMovingFuture = asyncio.Future()
         self._isMovingFuture.set_result(None)
+        self._triggered_datasources = []
+
+    def register_datasource(self, datasource):
+        # simulated triggering
+        self._triggered_datasources.append(datasource)
 
     async def moveTo(self, val, velocity=None):
         if velocity is None:
@@ -62,7 +67,7 @@ class DummyManipulator(Manipulator):
         val = val.to('mm').magnitude
         curVal = self.value.to('mm').magnitude
 
-        values = np.linspace(curVal, val, 20)
+        values = np.linspace(curVal, val, 200)
 
         dt = abs(np.mean(np.diff(values)) / velocity)
 
@@ -110,6 +115,36 @@ class DummyManipulator(Manipulator):
     async def reference_stage(self):
         await asyncio.sleep(1)
         self.set_trait('isReferenced', True)
+
+    async def _trigger(self):
+        axis = self.axis.to("mm")
+        while True:
+            print(f"triggered {self.value}")
+            await asyncio.sleep(0.1)
+            logging.info(np.any(self.prev_pos <= axis) and np.any(axis <= self.value))
+            """
+            if np.any(self.prev_pos <= self.axis <= self.value):
+                print(f"triggered {self.value}")
+                #for datasource in self._triggered_datasources:
+                #    datasource.takemeasurement()
+            """
+            self.prev_pos = self.value
+
+
+    async def configureTrigger(self, axis):
+        step = np.mean(np.diff(axis))
+        start = axis[0]
+
+        N = len(axis)
+        # let the trigger output end half a step after the last position
+        stop = start + (N - 1) * step + step / 2
+
+        self.prev_pos = self.value
+        self.axis = axis
+
+        self._activetrigger = ensure_weakly_binding_future(self._trigger)
+
+        return axis
 
 
 class DummySimpleDataSource(DataSource):
