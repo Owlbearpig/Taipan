@@ -19,10 +19,9 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 import asyncio
 
-from common import ComponentBase, Scan, action, DataSource, MultiDataSourceScan, DataSet
+from common import ComponentBase, Scan, action, DataSource, MultiDataSourceScan
 from common.save import DataSaver
 from common.units import Q_, ureg
-from common.traits import DataSet as DataSetTrait
 from traitlets import Instance, Float, Bool, Int
 from dummy import DummyManipulator, DummyContinuousDataSource, DummyLockIn
 from pathlib import Path
@@ -35,9 +34,6 @@ Example MultiDataSourceScan
 
 
 class AppRoot(MultiDataSourceScan):
-    currentData = DataSetTrait().tag(name="Current2 measurement",
-                                     data_label="Amplitude",
-                                     axes_labels=["Time"])
 
     dataSaver = Instance(DataSaver)
 
@@ -52,15 +48,16 @@ class AppRoot(MultiDataSourceScan):
 
         self.lockin1 = DummyLockIn(objectName="DS1")
         self.lockin2 = DummyLockIn(objectName="DS2")
-        self.manipulator.register_datasource(self.lockin1)
-        self.manipulator.register_datasource(self.lockin2)
+
+        self.manipulator.connect_trigger(self.lockin1)
+        self.manipulator.connect_trigger(self.lockin2)
 
         self.registerDataSource(self.lockin1)
         self.registerDataSource(self.lockin2)
 
         self.continuousScan = True
-        self.minimumValue = Q_(40, "ps")
-        self.maximumValue = Q_(160, "ps")
+        self.minimumValue = Q_(0, "ps")
+        self.maximumValue = Q_(30, "ps")
         self.overscan = Q_(1, "ps")
         self.step = Q_(10, "ps")
         self.positioningVelocity = Q_(40, "ps/s")
@@ -69,22 +66,24 @@ class AppRoot(MultiDataSourceScan):
 
         # self.dataSaver.registerManipulator(self.scan_manip, "Position")
 
-        # self.dataSaver.fileNameTemplate = "{date}-{name}"
+        self.dataSaver.fileNameTemplate = "{date}-{name}-{dataSource}"
         self.dataSaver.set_trait("path", Path(r""))
 
-        # self.dummy_ds1.addDataSetReadyCallback(self.dataSaverDS1.process)
-        # self.dummy_ds2.addDataSetReadyCallback(self.dataSaverDS2.process)
+        self.addDataSetReadyCallback(self.dataSaver.process)
+
+        self.addDataSetReadyCallback(self.setCurrentData)
 
     @action("Take measurement")
     async def takeMeasurements(self):
         await self.readDataSet()
 
+    def setCurrentData(self, dataSet):
+        self.set_trait("currentData", dataSet)
+
     async def __aenter__(self):
         await super().__aenter__()
-        await self.manipulator.__aenter__()
 
         return self
 
     async def __aexit__(self, *args):
         await super().__aexit__(*args)
-        await self.manipulator.__aexit__(*args)

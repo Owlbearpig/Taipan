@@ -197,7 +197,7 @@ def create_plot_area(component, name, prettyName, trait):
         canvas.dataIsPower = trait.metadata.get('is_power', False)
     else:
         if trait.metadata.get('is_multisource_plot', False):
-            canvas = MPLMSCanvas()
+            canvas = MPLMSCanvas(trait)
         else:
             canvas = MPLCanvas()
 

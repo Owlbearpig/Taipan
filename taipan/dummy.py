@@ -32,6 +32,7 @@ from asyncioext import ensure_weakly_binding_future
 # from pint import Quantity
 from traitlets import Instance, Bool, Enum, Int, List, Unicode
 import warnings
+from functools import partial
 
 
 class DummyManipulator(Manipulator):
@@ -55,7 +56,7 @@ class DummyManipulator(Manipulator):
         self._isMovingFuture.set_result(None)
         self._triggered_datasources = []
 
-    def register_datasource(self, datasource):
+    def connect_trigger(self, datasource):
         # simulated triggering
         self._triggered_datasources.append(datasource)
 
@@ -67,7 +68,7 @@ class DummyManipulator(Manipulator):
         val = val.to('mm').magnitude
         curVal = self.value.to('mm').magnitude
 
-        values = np.linspace(curVal, val, 200)
+        values = np.linspace(curVal, val, 2000)
 
         dt = abs(np.mean(np.diff(values)) / velocity)
 
@@ -91,7 +92,6 @@ class DummyManipulator(Manipulator):
     async def updateStatus(self):
         while True:
             await asyncio.sleep(0.2)
-            # print(f"hello from {self.objectName}")
             await self.singleUpdate()
 
     async def singleUpdate(self):
@@ -105,7 +105,7 @@ class DummyManipulator(Manipulator):
 
     async def __aexit__(self, *args):
         await super().__aexit__(*args)
-        # self._updateFuture.cancel()
+        self._updateFuture.cancel()
         await self._isMovingFuture
 
     async def waitForTargetReached(self):
@@ -116,33 +116,25 @@ class DummyManipulator(Manipulator):
         await asyncio.sleep(1)
         self.set_trait('isReferenced', True)
 
-    async def _trigger(self):
-        axis = self.axis.to("mm")
-        while True:
-            print(f"triggered {self.value}")
-            await asyncio.sleep(0.1)
-            logging.info(np.any(self.prev_pos <= axis) and np.any(axis <= self.value))
-            """
-            if np.any(self.prev_pos <= self.axis <= self.value):
-                print(f"triggered {self.value}")
-                #for datasource in self._triggered_datasources:
-                #    datasource.takemeasurement()
-            """
-            self.prev_pos = self.value
+    async def _trigger(self, axis):
+        axis = axis.to("mm")
 
+        if axis[-1] < axis[0]:
+            axis = axis[::-1]
+
+        while True:
+            await asyncio.sleep(0.01)
+            if axis[0] <= self.value:
+                # logging.info(f"triggered {axis[0]}, {self.value}")
+                axis = axis[1:]
+                for datasource in self._triggered_datasources:
+                    await datasource.acquire_point()
+                if len(axis) == 0:
+                    break
 
     async def configureTrigger(self, axis):
-        step = np.mean(np.diff(axis))
-        start = axis[0]
-
-        N = len(axis)
-        # let the trigger output end half a step after the last position
-        stop = start + (N - 1) * step + step / 2
-
-        self.prev_pos = self.value
-        self.axis = axis
-
-        self._activetrigger = ensure_weakly_binding_future(self._trigger)
+        trigger_inst = partial(self._trigger, axis=axis)
+        asyncio.ensure_future(trigger_inst())
 
         return axis
 
@@ -169,10 +161,6 @@ class DummyLockIn(DataSource):
         ### TODO: support me!
         # Fast = 2
 
-    currentData = DataSetTrait().tag(name="Current measurement",
-                                     data_label="Amplitude",
-                                     axes_labels=["Time"])
-
     samplingMode = Enum(SamplingMode, SamplingMode.Buffered).tag(
         name="Sampling mode")
 
@@ -183,13 +171,14 @@ class DummyLockIn(DataSource):
     pointsInBuffer = Int(default_value=0, read_only=True).tag(name="Points in buffer",
                                                               group='Data Curve Buffer')
 
-    _signal_buffer = []
-    _data_buffer = []
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._signalUpdateFuture = ensure_weakly_binding_future(self.dummy_signal)
         self._updateFuture = ensure_weakly_binding_future(self.update)
+        self._data_buffer = []
+        self._sim_signal_buffer = []
+        self._acquisition_en = False
+        self._trigger_positions = None
 
     async def __aexit__(self, *args):
         await super().__aexit__(*args)
@@ -202,11 +191,15 @@ class DummyLockIn(DataSource):
             self.set_trait("pointsInBuffer", len(self._data_buffer))
 
     async def dummy_signal(self):
+        sampling_period = self.samplePeriod.magnitude
+
         async def signal(time_):
             amp, freq = 1.0, 1.0
+            amp_noise = np.random.random()
+            amp *= amp_noise
 
-            x = amp * np.sin(freq * time_)
-            y = amp * np.sin(freq * time_ + np.pi / 2)
+            x = amp * np.sin(freq * sampling_period * time_)
+            y = amp * np.sin(freq * sampling_period * time_ + np.pi / 2)
             r = x ** 2 + y ** 2
             theta = np.angle(x + 1j * y)
 
@@ -217,17 +210,19 @@ class DummyLockIn(DataSource):
         time_ = 0
         while True:
             await asyncio.sleep(0.1)
+            if not self._acquisition_en:
+                continue
 
-            if len(self._signal_buffer) >= self.bufferLength:
-                self._signal_buffer = []
+            if len(self._sim_signal_buffer) >= self.bufferLength:
+                self._sim_signal_buffer = []
                 time_ = 0
 
             channels = await signal(time_)
-            self._signal_buffer.append(channels)
+            self._sim_signal_buffer.append(channels)
             time_ += 1
 
     async def query(self, cmd):
-        channels = self._signal_buffer[-1]
+        channels = self._sim_signal_buffer[-1]
         if cmd == 'OUTP? 1':
             return channels[0]
         elif cmd == 'OUTP? 2':
@@ -247,31 +242,15 @@ class DummyLockIn(DataSource):
 
         return await self.query('OUTP? %d' % idx)
 
-    async def sampleSignal(self, axis=None):
-        if axis is None:
-            sampling_period = self.samplePeriod.magnitude
-            axis = np.arange(0, self.bufferLength * sampling_period, sampling_period)
-        else:
-            axis = axis.magnitude
-
-        phi0 = 2 * np.pi * np.random.random()
-
-        return np.sin(2 * np.pi * axis + phi0)
+    async def acquire_point(self):
+        self._data_buffer.append(await self.readCurrentOutput())
 
     async def start(self, scanAxis=None):
-        if scanAxis is not None:
-            if self.bufferLength < len(scanAxis):
-                raise ValueError("Buffer (%d) too smol to contain complete scan (%d)"
-                                 % (self.bufferLength, len(scanAxis)))
-
-            data = await self.sampleSignal(axis=scanAxis)
-            self._data_buffer.extend(data)
-        else:
-            data = await self.sampleSignal()
-            self._data_buffer.extend(data)
+        self._acquisition_en = True
+        self._trigger_positions = scanAxis
 
     async def stop(self):
-        pass  # stop never works anyway
+        self._acquisition_en = False
 
     async def read_buffer(self):
         buffer = np.array(self._data_buffer).copy()
@@ -287,9 +266,7 @@ class DummyLockIn(DataSource):
             return dataSet
         elif self.samplingMode == DummyLockIn.SamplingMode.Buffered:
             data = await self.read_buffer()
-            sample_period = self.samplePeriod.magnitude
-            axis = Q_(np.arange(0, len(data) * sample_period, sample_period), 'ps')
-            dataSet = DataSet(Q_(data), [axis])
+            dataSet = DataSet(Q_(data), [self._trigger_positions.to("ps")])
             self._dataSetReady(dataSet)
             return dataSet
 

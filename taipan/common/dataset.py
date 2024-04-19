@@ -23,7 +23,7 @@ from .units import Q_
 
 class DataSet:
 
-    def __init__(self, data=None, axes=None, dataSource=None):
+    def __init__(self, data=None, axes=None, dataSource_inst=None):
         super().__init__()
         if data is None:
             data = Q_(np.array(0.0))
@@ -31,7 +31,7 @@ class DataSet:
             axes = []
         self.data = data
         self.axes = axes
-        self.dataSource = dataSource
+        self.dataSource_inst = dataSource_inst
 
     @property
     def isConsistent(self):

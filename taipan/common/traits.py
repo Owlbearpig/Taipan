@@ -20,6 +20,7 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 
 import traitlets
 from traitlets import TraitError, Undefined, TraitType
+
 if float(traitlets.__version__[0]) <= 4:
     from traitlets import class_of
 else:
@@ -39,11 +40,16 @@ def instance_init(self, obj):
 
 TraitType = type(TraitType.__name__, (TraitType,), {"instance_init": instance_init})
 
+
 class DataSet(TraitType):
     """A trait for a DataSet."""
 
     default_value = DataSetClass()
     info_text = 'a DataSet instance'
+
+    def __init__(self, *args, **kwargs):
+        self.registered_dataSources = []
+        super().__init__(*args, **kwargs)
 
     def validate(self, obj, value):
         if isinstance(value, DataSetClass):

@@ -58,7 +58,8 @@ class DataSaver(DataSink):
                                help="File name template, valid identifiers "
                                     "are:\n"
                                     "{name}: The main file name\n"
-                                    "{date}: The current date and time").tag(
+                                    "{date}: The current date and time\n"
+                                    "{dataSource}: The name of the datasource").tag(
                                name="File name template")
     mainFileName = Unicode('data').tag(name="Main file name")
 
@@ -66,6 +67,7 @@ class DataSaver(DataSink):
                          name="Enabled")
 
     _manipulators = {}
+    _datasources = {}
     _attributes = {}
 
     # from https://msdn.microsoft.com/en-us/library/aa365247
@@ -101,7 +103,6 @@ class DataSaver(DataSink):
             trait.metadata['help'] += additionalHelpString
         self.add_traits(fileNameTemplate=trait)
 
-
     def _getFileName(self):
         date = datetime.now().isoformat().replace(':', '-')
 
@@ -130,9 +131,6 @@ class DataSaver(DataSink):
         if self.textFileWithHeaders:
             header = '{:C} {:C}'.format(data.axes[0].units, data.data.units)
         filename = self._getFileName()
-        ds = str(data.dataSource.objectName)
-        print(ds)
-        filename = str(filename.parents[0] / (ds + str(filename.name)))
         np.savetxt(filename, toSave, header=header)
         return filename
 
@@ -153,6 +151,9 @@ class DataSaver(DataSink):
         if not self.enabled:
             logging.info("Data storage is disabled, not saving data.")
             return
+
+        if dataset.dataSource_inst:
+            self._attributes["dataSource"] = (dataset.dataSource_inst, "objectName")
 
         filename = None
         if self.fileFormat == self.Formats.Text:

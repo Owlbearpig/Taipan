@@ -309,26 +309,50 @@ class MPLMSCanvas(MPLCanvas):
     prevDataSetDict = {}
     _linesDict = {}
     _ftlinesDict = {}
+    colors = ["b", "g", "r", "c", "m", "y", "k", "w"]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, trait, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def drawDataSet(self, newDataSet, axes_labels, data_label):
-        dataSource = newDataSet.dataSource
-        if dataSource not in self._dataSources:
-            self._dataSources.append(dataSource)
+        self.mpl_toolbar.addSeparator()
+
+        self._dataSources = trait.registered_dataSources
+
+        self.mpl_toolbar.addWidget(QtWidgets.QLabel("Show datasource: "))
+        self.datasourceComboBox = QtWidgets.QComboBox(self.mpl_toolbar)
+        self.datasourceComboBox.addItem("All", 0)
+        for i, ds in enumerate(self._dataSources):
+            self.datasourceComboBox.addItem(ds.objectName, i+1)
+        self.mpl_toolbar.addWidget(self.datasourceComboBox)
+        self.datasourceComboBox.currentIndexChanged.connect(self._replot)
+
+        for i, dataSource in enumerate(self._dataSources):
             self._lastPlotTime[dataSource] = 0
             self._isLiveDataDict[dataSource] = False
             self.prevDataSetDict[dataSource] = None
             self._linesDict[dataSource] = []
             self._ftlinesDict[dataSource] = []
-            self._linesDict[dataSource].extend(self.axes.plot([], [], [], [], animated=True, c="red"))
+
+            c = self.colors[i]
+            self._linesDict[dataSource].extend(
+                self.axes.plot([], [], animated=True, c=c, label=dataSource.objectName + " previous"))
+            self._linesDict[dataSource].extend(
+                self.axes.plot([], [], animated=True, c=c, label=dataSource.objectName))
             self._linesDict[dataSource][0].set_alpha(0.25)
-            self._ftlinesDict[dataSource].extend(self.ft_axes.plot([], [], [], [], animated=True))
+
+            self._ftlinesDict[dataSource].extend(
+                self.ft_axes.plot([], [], animated=True, c=c, label=dataSource.objectName + " previous"))
+            self._ftlinesDict[dataSource].extend(
+                self.ft_axes.plot([], [], animated=True, c=c, label=dataSource.objectName))
             self._ftlinesDict[dataSource][0].set_alpha(0.25)
-            self._redraw()
-            # self.axes.legend(['Previous', 'Current'])
-            # self.ft_axes.legend(['Previous', 'Current'])
+
+        self.axes.legend()
+        self.ft_axes.legend()
+
+        self._redraw()
+
+    def drawDataSet(self, newDataSet, axes_labels, data_label):
+        dataSource = newDataSet.dataSource_inst
 
         self._lines = self._linesDict[dataSource]
         self._ftlines = self._ftlinesDict[dataSource]
