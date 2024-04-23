@@ -37,6 +37,10 @@ class AppRoot(MultiDataSourceScan):
 
     dataSaver = Instance(DataSaver)
 
+    nMeasurements = Int(1, min=1).tag(name="Number of measurements", priority=99)
+
+    progress = Float(0, min=0, max=1, read_only=True).tag(name="Progress")
+
     def __init__(self, loop=None):
         super().__init__(objectName="Example scan application", loop=loop)
         self.dataSaver = DataSaver(objectName="Data Saver")
@@ -59,7 +63,7 @@ class AppRoot(MultiDataSourceScan):
         self.minimumValue = Q_(0, "ps")
         self.maximumValue = Q_(30, "ps")
         self.overscan = Q_(1, "ps")
-        self.step = Q_(10, "ps")
+        self.step = Q_(1, "ps")
         self.positioningVelocity = Q_(40, "ps/s")
         self.scanVelocity = Q_(10, "ps/s")
         self.retractAtEnd = True
@@ -73,9 +77,13 @@ class AppRoot(MultiDataSourceScan):
 
         self.addDataSetReadyCallback(self.setCurrentData)
 
-    @action("Take measurement")
-    async def takeMeasurements(self):
-        await self.readDataSet()
+    @action("Take number of measurements")
+    async def takeMultipleMeasurements(self):
+        self.set_trait("progress", 0.0)
+        for i in range(self.nMeasurements):
+            await self.readDataSet()
+            val = (i+1) / self.nMeasurements
+            self.set_trait("progress", val)
 
     def setCurrentData(self, dataSet):
         self.set_trait("currentData", dataSet)

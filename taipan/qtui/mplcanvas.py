@@ -17,6 +17,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
+import logging
 import os
 
 from PyQt5 import QtCore, QtWidgets, QtGui
@@ -220,7 +221,6 @@ class MPLCanvas(QtWidgets.QGroupBox):
             self._dataSetToLines(self.prevDataSet, self._lines[0],
                                  self._ftlines[0])
         self._dataSetToLines(self.dataSet, self._lines[1], self._ftlines[1])
-
         if self._axesLabels and redraw_axes_labels:
             self.axes.set_xlabel('{} [{:C~}]'.format(
                 self._axesLabels[0],
@@ -241,7 +241,7 @@ class MPLCanvas(QtWidgets.QGroupBox):
             self.ft_axes.set_ylabel('Power [dB-({:C~})]'.format(ftUnits))
 
         axis_limits_changed = False
-        if (self.autoscaleAction.isChecked()):
+        if self.autoscaleAction.isChecked():
             axis_limits_changed = self._autoscale(redraw=False)
 
         # check whether a full redraw is necessary or if simply redrawing
@@ -307,6 +307,7 @@ class MPLMSCanvas(MPLCanvas):
     _lastPlotTime = {}
     _isLiveDataDict = {}
     prevDataSetDict = {}
+    currDataSetDict = {}
     _linesDict = {}
     _ftlinesDict = {}
     colors = ["b", "g", "r", "c", "m", "y", "k", "w"]
@@ -324,11 +325,12 @@ class MPLMSCanvas(MPLCanvas):
         for i, ds in enumerate(self._dataSources):
             self.datasourceComboBox.addItem(ds.objectName, i+1)
         self.mpl_toolbar.addWidget(self.datasourceComboBox)
-        self.datasourceComboBox.currentIndexChanged.connect(self._replot)
+        self.datasourceComboBox.currentIndexChanged.connect(self._multi_replot)
 
         for i, dataSource in enumerate(self._dataSources):
             self._lastPlotTime[dataSource] = 0
             self._isLiveDataDict[dataSource] = False
+            self.currDataSetDict[dataSource] = None
             self.prevDataSetDict[dataSource] = None
             self._linesDict[dataSource] = []
             self._ftlinesDict[dataSource] = []
@@ -379,8 +381,9 @@ class MPLMSCanvas(MPLCanvas):
 
         self.prevDataSet = self.prevDataSetDict[dataSource]
 
+        self.prevDataSetDict[dataSource] = self.currDataSetDict[dataSource]
         self.dataSet = newDataSet
-        self.prevDataSetDict[dataSource] = self.dataSet
+        self.currDataSetDict[dataSource] = self.dataSet
 
         redraw_axes = (self.prevDataSet is None or
                        len(self.prevDataSet.axes) != len(self.dataSet.axes))
@@ -403,6 +406,7 @@ class MPLMSCanvas(MPLCanvas):
         self._dataLabel = data_label
 
         self._replot(redraw_axes, redraw_axes_labels, redraw_data_label)
+        self._multi_replot()
 
     def _redraw_artists(self, *args):
         for dsource in self._dataSources:
@@ -413,3 +417,21 @@ class MPLMSCanvas(MPLCanvas):
                 self.ft_axes.draw_artist(ftlines[0])
             self.axes.draw_artist(lines[1])
             self.ft_axes.draw_artist(ftlines[1])
+
+    def _multi_replot(self):
+        selected_ds_idx = self.datasourceComboBox.currentData()
+
+        for dsource in self._dataSources:
+            self.dataSet = self.currDataSetDict[dsource]
+            self.prevDataSet = self.prevDataSetDict[dsource]
+            self._lines, self._ftlines = self._linesDict[dsource], self._ftlinesDict[dsource]
+            self._isLiveData = self._isLiveDataDict[dsource]
+
+            if selected_ds_idx == 0:
+                pass
+            elif dsource != self._dataSources[selected_ds_idx - 1]:
+                self.dataSet = None
+                self.prevDataSet = None
+
+            self._replot()
+        self._redraw()
