@@ -166,7 +166,7 @@ class DummyLockIn(DataSource):
 
     samplePeriod = Quantity(Q_(0.2, "ps")).tag(name="Sampling period")
 
-    bufferLength = Int(default_value=2000).tag(name="Buffer Length",
+    bufferLength = Int(default_value=20000).tag(name="Buffer Length",
                                                group='Data Curve Buffer')
     pointsInBuffer = Int(default_value=0, read_only=True).tag(name="Points in buffer",
                                                               group='Data Curve Buffer')

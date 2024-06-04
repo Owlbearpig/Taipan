@@ -9,7 +9,38 @@ from threading import Lock
 import logging
 import asyncio
 import enum
+from thirdparty.aioserial.aioserial import create_serial_connection
+from serial.threaded import Packetizer, LineReader
 
+
+class PulseReader(Packetizer):
+    TERMINATOR = b'\r'
+
+    pulse = b''
+
+    def __init__(self, q):
+        super().__init__()
+        self.q = q
+
+    def handle_packet(self, packet):
+        self.pulse += packet
+        if self.pulse.endswith(b'X') or self.pulse.endswith(b'Y'):
+            self.handle_hex_pulse(self.pulse[:-1])
+            self.pulse = b''
+
+    def handle_hex_pulse(self, hexPulse):
+        rawPulse = binascii.a2b_hex(hexPulse)
+        pulse = struct.unpack('>{}h'.format(int(len(rawPulse) / 2)), rawPulse)
+        pulse = np.array(pulse, dtype=float)
+        self.q.put(pulse)
+
+
+def read_pulse_data(port, q):
+    loop = asyncio.new_event_loop()
+    coro = create_serial_connection(loop, lambda: PulseReader(q),
+                                              port, baudrate=115200)
+    loop.run_until_complete(coro)
+    loop.run_forever()
 
 
 class SiRadR4(DataSource):
