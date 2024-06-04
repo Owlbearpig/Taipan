@@ -50,8 +50,8 @@ class AppRoot(MultiDataSourceScan):
         manipulator.objectName = "PI C-863"
         self.manipulator = manipulator
 
-        self.lockin1 = DummyLockIn(objectName="DS1")
-        self.lockin2 = DummyLockIn(objectName="DS2")
+        self.lockin1 = DummyLockIn(objectName="Monkey")
+        self.lockin2 = DummyLockIn(objectName="Donkey")
 
         self.manipulator.connect_trigger(self.lockin1)
         self.manipulator.connect_trigger(self.lockin2)
