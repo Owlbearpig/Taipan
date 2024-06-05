@@ -1,46 +1,91 @@
+import time
+
 from common import DataSource, action
 from common.traits import DataSet as DataSetTrait
 from common.traits import Quantity, Q_
 from traitlets import Unicode, Integer, Bool, Enum
 from asyncioext import threaded_async, ensure_weakly_binding_future
-import serial
 from serial import Serial
 from threading import Lock
 import logging
 import asyncio
 import enum
-from thirdparty.aioserial.aioserial import create_serial_connection
-from serial.threaded import Packetizer, LineReader
+from multiprocessing import Process, Queue
 
 
-class PulseReader(Packetizer):
-    TERMINATOR = b'\r'
+class SerialConnection:
+    def __init__(self, port, baudrate, enableDebug=True):
+        self.serial = Serial()
+        self.port = port
+        self.baudrate = baudrate
+        self.timeout = None
+        self._lock = Lock()
+        self.enableDebug = enableDebug
 
-    pulse = b''
+    def open(self):
+        """ Opens the Connection, potentially closing an old Connection
+        """
+        self.close()
+        self.serial.port = self.port
+        self.serial.baudrate = self.baudrate
+        self.serial.timeout = self.timeout
+        self.serial.open()
 
-    def __init__(self, q):
-        super().__init__()
-        self.q = q
+    def close(self):
+        """ Closes the Connection.
+        """
+        if self.serial.isOpen():
+            self.serial.close()
 
-    def handle_packet(self, packet):
-        self.pulse += packet
-        if self.pulse.endswith(b'X') or self.pulse.endswith(b'Y'):
-            self.handle_hex_pulse(self.pulse[:-1])
-            self.pulse = b''
+    def send(self, command, *args):
+        with self._lock:
+            # convert `command` to a bytearray
+            if isinstance(command, str):
+                command = bytearray(command, 'ascii')
+            else:
+                command = bytearray(command)
 
-    def handle_hex_pulse(self, hexPulse):
-        rawPulse = binascii.a2b_hex(hexPulse)
-        pulse = struct.unpack('>{}h'.format(int(len(rawPulse) / 2)), rawPulse)
-        pulse = np.array(pulse, dtype=float)
-        self.q.put(pulse)
+            for arg in args:
+                if isinstance(arg, float):
+                    command += b' %.6f' % arg
+                else:
+                    command += b' %a' % arg
+
+            command += b'\r\n'
+
+            if self.enableDebug:
+                logging.info(str(command))
+
+            self.serial.write(command)
+
+    def read(self, bytes_=None):
+        if bytes_:
+            return self.serial.read(bytes_)
+
+        return self.serial.readline()
+
+    def flush(self):
+        self.serial.flush()
 
 
-def read_pulse_data(port, q):
-    loop = asyncio.new_event_loop()
-    coro = create_serial_connection(loop, lambda: PulseReader(q),
-                                              port, baudrate=115200)
-    loop.run_until_complete(coro)
-    loop.run_forever()
+def device_interface(frame_queue, command_queue, port, baudrate):
+    serial_connection = SerialConnection(port, baudrate)
+    serial_connection.timeout = 0.01
+    serial_connection.open()
+
+    while True:
+        while not command_queue.empty():
+            new_command = command_queue.get()
+            serial_connection.send(new_command)
+
+        frame = b''
+        while True:
+            if frame[-2:] == b'\r\n':
+                frame_queue.put(frame)
+                break
+            frame += serial_connection.read(1)
+            if not frame:
+                break
 
 
 class SiRadR4(DataSource):
@@ -53,7 +98,6 @@ class SiRadR4(DataSource):
         SelfTrigDelay_64ms = 5
         SelfTrigDelay_128ms = 6
         SelfTrigDelay_256ms = 7
-
 
     class ErrorBits(enum.Enum):
         CRC = 0x1
@@ -101,31 +145,55 @@ class SiRadR4(DataSource):
 
     error_value = Unicode("", read_only=True).tag(name="Error Value", group="ERROR")
 
-    def __init__(self, port=None, baudrate=230400, enableDebug=False, objectName=None, loop=None):
+    acq_on = Bool(False, read_only=True).tag(name="Acquistion active")
+
+    def __init__(self, port=None, baudrate=230400, objectName=None, loop=None):
         super().__init__(objectName, loop)
         self.port = port
         self.baudrate = baudrate
-        self.serial = Serial()
-        self._lock = Lock()
-        self.enableDebug = enableDebug  # does logging.info(str(command)) before serial.write(command)
-        self._statusUpdateFuture = ensure_weakly_binding_future(self.contStatusUpdate)
 
+        self.single_update = True
 
     async def __aenter__(self):
         await super().__aenter__()
-        self.open()
-
-        await asyncio.create_task(self.send("!P00004E20"))  # p_config
-        await asyncio.create_task(self.send("!BA453C013"))  # b_config
-        # await asyncio.create_task(self.send("!S00013A08"))  # s_config
-        # await asyncio.create_task(self.send("!F0201DC90"))
-        await asyncio.create_task(self.send("!S01016F80"))  # s_config
+        await self.device_init()
 
         return self
 
     async def __aexit__(self, *args):
         await super().__aexit__(*args)
-        self.close()
+        self.connectionProcess.terminate()
+        self.frameReader.cancel()
+
+    async def device_init(self):
+        self.frameQueue = Queue()
+        self.commandQueue = Queue()
+        self.connectionProcess = Process(target=device_interface, args=(self.frameQueue, self.commandQueue,
+                                                                        self.port, self.baudrate))
+        self.connectionProcess.start()
+
+        self.frameReader = ensure_weakly_binding_future(self.readFrameFromQueue)
+
+        await asyncio.create_task(self.send_command("!P00004E20"))  # p_config
+        await asyncio.create_task(self.send_command("!BA453C013"))  # b_config
+        # await asyncio.create_task(self.send("!S00013A08"))  # s_config
+        # await asyncio.create_task(self.send("!F0201DC90"))
+        # await asyncio.create_task(self.send_command("!S01016F80"))  # s_config # ext trig
+        await asyncio.create_task(self.send_command("!S01016F82"))  # s_config # self trig
+
+        await asyncio.create_task(self.send_command("!J"))  # auto detect frequency
+
+    # observe traits -> on change assemble new config commands and put in queue
+
+    async def readFrameFromQueue(self):
+        while True:
+            # yield control to the event loop once
+            await asyncio.sleep(0)
+
+            while not self.frameQueue.empty():
+                # await asyncio.sleep(1)
+                frame = self.frameQueue.get()
+                print(frame, self.frameQueue.qsize())
 
     def handle_error_frame(self, error_frame):
         pass
@@ -133,96 +201,27 @@ class SiRadR4(DataSource):
     def distribute_frames(self, frame):
         pass
 
-    def open(self):
-        """ Opens the Connection, potentially closing an old Connection
-        """
-        self.close()
-        self.serial.port = self.port
-        self.serial.baudrate = self.baudrate
-        self.serial.stopbits = serial.STOPBITS_ONE
-        self.serial.open()
-
-    def close(self):
-        """ Closes the Connection.
-        """
-        if self.serial.isOpen():
-            self.serial.close()
-
-    async def statusUpdate(self):
-        # self.serial.flush()
-        # status = int(await self.query('*STB?'))
-        ret = self.serial.readline()
-        return ret
+    async def send_command(self, command):
+        self.commandQueue.put(command)
 
     def error_occured(self, error):
         for b in SiRadR4.ErrorBits:
             if bool(error & b.value):
                 logging.info(SiRadR4.error_messages[b.value])
 
-    @threaded_async
-    def read(self):
-        return self.serial.readline()
-
-    async def contStatusUpdate(self):
-        while True:
-            await asyncio.sleep(0.01)
-            ret = self.serial.readline()
-            print(ret)
-
     def parse_frame(self, frame):
         ident = frame[1]
         data = frame[2:]
 
-    @threaded_async
-    def send(self, command, *args):
-        """ Send a command over the Connection. If the command is a request,
-        returns the reply.
-
-        Parameters
-        ----------
-        command (convertible to bytearray) : The command to be sent.
-
-        *args : Arguments to the command.
-        """
-
-        with self._lock:
-            # convert `command` to a bytearray
-            if isinstance(command, str):
-                command = bytearray(command, 'ascii')
-            else:
-                command = bytearray(command)
-
-            isRequest = command[-1] == ord(b'?')
-
-            for arg in args:
-                if isinstance(arg, float):
-                    command += b' %.6f' % arg
-                else:
-                    command += b' %a' % arg
-
-            command += b'\r\n'
-
-            if self.enableDebug:
-                logging.info(str(command))
-
-            self.serial.write(command)
-
-            # no request -> no reply. just return.
-            if not isRequest:
-                return
-
-            # read reply. lines ending with ' \n' are part of a multiline
-            # reply.
-            replyLines = []
-            while len(replyLines) == 0 or replyLines[-1][-2:] == ' \n':
-                replyLines.append(self.serial.readline())
-
-            return b''.join(replyLines)
-
     @action("Start acquisition")
     def start_acq(self):
-        pass
+        self.set_trait("acq_on", True)
+        asyncio.create_task(self.send_command("!S01016F80"))  # s_config # ext trig
 
     @action("Stop acquisition")
     def stop_acq(self):
-        pass
+        self.set_trait("acq_on", False)
+
+    @action("Trigger")
+    def trigger(self):
+        asyncio.create_task(self.send_command("!M"))
