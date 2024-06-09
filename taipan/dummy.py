@@ -35,6 +35,30 @@ import warnings
 from functools import partial
 
 
+class DummySerial:
+    # does nothing
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def isOpen(self, *args):
+        return
+
+    def open(self, *args):
+        return
+
+    def close(self, *args):
+        return
+
+    def write(self, message):
+        print(message)
+
+    def readline(self, *args):
+        return b""
+
+    def read(self, *args):
+        return b""
+
+
 class DummyManipulator(Manipulator):
     isReferenced = Bool(False, read_only=True).tag(name="Is referenced")
 
@@ -167,7 +191,7 @@ class DummyLockIn(DataSource):
     samplePeriod = Quantity(Q_(0.2, "ps")).tag(name="Sampling period")
 
     bufferLength = Int(default_value=20000).tag(name="Buffer Length",
-                                               group='Data Curve Buffer')
+                                                group='Data Curve Buffer')
     pointsInBuffer = Int(default_value=0, read_only=True).tag(name="Points in buffer",
                                                               group='Data Curve Buffer')
 
