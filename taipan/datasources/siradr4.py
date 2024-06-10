@@ -1,8 +1,9 @@
 import time
 
+import numpy as np
 import traitlets
-
-from common import DataSource, action, ComponentBase
+import struct
+from common import DataSource, action, ComponentBase, DataSet
 from common.traits import DataSet as DataSetTrait, Quantity, Q_
 from traitlets import Unicode, Integer, Bool, Enum, observe, Instance, All, Float
 from asyncioext import threaded_async, ensure_weakly_binding_future
@@ -25,7 +26,8 @@ from dummy import DummySerial
 
 class SerialConnection:
     def __init__(self, port, baudrate, enableDebug=True):
-        self.serial = DummySerial()
+        # self.serial = DummySerial()
+        self.serial = Serial()
         self.port = port
         self.baudrate = baudrate
         self.timeout = None
@@ -82,6 +84,7 @@ def device_interface(frame_queue, command_queue, port, baudrate):
     serial_connection = SerialConnection(port, baudrate)
     serial_connection.timeout = 0.01
     serial_connection.open()
+    serial_connection.flush()
 
     while True:
         while not command_queue.empty():
@@ -102,16 +105,31 @@ def bin_str(x, zfill=0):
     return bin(x)[2:].zfill(zfill)
 
 
+def bin_hex(b_, fix_len=8):
+    return format(b_, '0' + str(fix_len) + 'X')
+
+
+def twos_compl_hex_int(hex_str, str_len=4):
+    number = int(hex_str, 16)
+
+    # Check if the number is negative (if the most significant bit is 1)
+    if number & (1 << (str_len * 4 - 1)):
+        # Calculate the negative value using two's complement
+        number = number - (1 << str_len * 4)
+
+    return number
+
+
 class SiRadBackend(ComponentBase):
     class SelfTrigDelay(enum.Enum):
-        SelfTrigDelay_2ms = 0
-        SelfTrigDelay_4ms = 1
-        SelfTrigDelay_8ms = 2
-        SelfTrigDelay_16ms = 3
-        SelfTrigDelay_32ms = 4
-        SelfTrigDelay_64ms = 5
-        SelfTrigDelay_128ms = 6
-        SelfTrigDelay_256ms = 7
+        SelfTrigDelay_0ms = 0
+        SelfTrigDelay_2ms = 1
+        SelfTrigDelay_4ms = 2
+        SelfTrigDelay_8ms = 3
+        SelfTrigDelay_16ms = 4
+        SelfTrigDelay_32ms = 5
+        SelfTrigDelay_64ms = 6
+        SelfTrigDelay_128ms = 7
 
     class CL(enum.Enum):
         DC_coupling = 0
@@ -230,7 +248,7 @@ class SiRadBackend(ComponentBase):
 
     class Samples(enum.Enum):
         Samples_32 = 0
-        Samples_62 = 1
+        Samples_64 = 1
         Samples_128 = 2
         Samples_256 = 3
         Samples_512 = 4
@@ -242,21 +260,21 @@ class SiRadBackend(ComponentBase):
         ADC_ClkDiv_1000kSHz = 1
         ADC_ClkDiv_675kSHz = 2
         ADC_ClkDiv_397kSHz = 3
-        ADC_ClkDiv_281pt25kSHz = 4
+        ADC_ClkDiv_281_25kSHz = 4
         ADC_ClkDiv_218kSHz = 5
         ADC_ClkDiv_173kSHz = 6
         ADC_ClkDiv_55kSHz = 7
 
-    error_messages = {0x1: 'Fbase low',
-                      0x2: 'Fbase high',
-                      0x4: 'BW underrun',
-                      0x8: 'BW overrun',
-                      0x20: 'RFE out of spec',
-                      0x100: 'Fmin not found',
-                      0x200: "Fmax not found",
+    error_messages = {0x1: 'Base frequency too low',
+                      0x2: 'Base frequency too high',
+                      0x4: 'Bandwith exceeds min frequency',
+                      0x8: 'Bandwith exceeds max frequency',
+                      0x20: 'Front end out of specification',
+                      0x100: 'Minimum RF frequency not found',
+                      0x200: "Maximum RF frequency not found",
                       0x400: "Lock loss",
-                      0x1000: "Saturation",
-                      0x10000: "Sample overrun",
+                      0x1000: "Amplifier saturated",
+                      0x10000: "Too many samples",
                       0x20000: "DC error",
                       }
 
@@ -279,7 +297,7 @@ class SiRadBackend(ComponentBase):
     rfe_maxfreq = Quantity(Q_(0, "GHz"), read_only=True)
     rfe_maxfreq.tag(name="RFE max frequency", group="System information", priority=7)
 
-    baseboard_id = Unicode(read_only=True).tag(name="Baseboard identifier", group="System information")
+    baseboard_id = Unicode(read_only=True, help="hallo").tag(name="Baseboard identifier", group="System information")
     ppl_chip_id = Unicode(read_only=True).tag(name="PPL chip identifier", group="System information")
     clk_chip_identifier = Unicode(read_only=True).tag(name="CLK chip identifier", group="System information")
     adc_operating_mode = Unicode(read_only=True).tag(name="ADC operating mode", group="System information")
@@ -287,26 +305,27 @@ class SiRadBackend(ComponentBase):
     firmware_version = Unicode(read_only=True).tag(name="Firmware version", group="System information")
     protocol_version = Unicode(read_only=True).tag(name="Protocol version", group="System information")
 
-    format_ = Integer(read_only=True).tag(name="Format", group="Status information")
+    format_ = Enum(FMT, FMT.TL_mm_dist, read_only=True).tag(name="Format", group="Status information")
     gain = Quantity(Q_(0, "dB"), read_only=True).tag(name="Gain", group="Status information")
     accuracy = Quantity(Q_(0, "mm"), read_only=True).tag(name="Accuracy", group="Status information")
-    max_range = Quantity(Q_(0, "MHz"), read_only=True).tag(name="Max range", group="Status information")
+    max_range = Quantity(Q_(0, "mm"), read_only=True).tag(name="Max range", group="Status information")
     ramp_time = Quantity(Q_(0, "us"), read_only=True).tag(name="Ramp time", group="Status information")
     bandwidth = Quantity(Q_(0, "GHz"), read_only=True).tag(name="Bandwidth", group="Status information")
     time_diff = Quantity(Q_(0, "ms"), read_only=True).tag(name="Time difference", group="Status information")
+    widener = Unicode(read_only=True, default_value=14 * "_").tag(name="", group="Status information")
 
     # system config traits
-    self_trig_delay = Enum(SelfTrigDelay, SelfTrigDelay.SelfTrigDelay_8ms)
+    self_trig_delay = Enum(SelfTrigDelay, SelfTrigDelay.SelfTrigDelay_0ms)
     self_trig_delay.tag(name="Self trigger delay", group="System config")
     log_magnitude = Enum(LOG, LOG.log_mag).tag(name="Log magnitude", group="System config")
     led_toggle = Enum(LED, LED.first_target).tag(name="LED toggle", group="System config")
     data_fmt = Enum(FMT, FMT.TL_mm_dist).tag(name="Output data unit", group="System config")
-    baseband_amp_coupling = Enum(CL, CL.AC_coupling).tag(name="Baseband amplifier coupling", group="System config")
+    baseband_amp_coupling = Enum(CL, CL.DC_coupling).tag(name="Baseband amplifier coupling", group="System config")
     auto_gain_control = Bool(False).tag(name="Auto gain enabled", group="System config")
-    protocol = Enum(Protocol, Protocol.webGUI).tag(name="Data protocol type", group="System config")
+    protocol = Enum(Protocol, Protocol.webGUI, read_only=True).tag(name="Data protocol type", group="System config")
     ser1_en = Bool(False).tag(name="Enable 1x UART", group="System config")
     ser2_en = Bool(True).tag(name="Enable 2x UART", group="System config")
-    manual_gain = Enum(Gain, Gain.four).tag(name="Manual gain setting", group="System config")
+    manual_gain = Enum(Gain, Gain.five).tag(name="Gain setting", group="System config")
     trigger_mode = Enum(SLF, SLF.standard_mode).tag(name="Trigger mode", group="System config")
     pre_trigger_en = Bool(False).tag(name="Enable pre-trigger", group="System config")
 
@@ -314,43 +333,46 @@ class SiRadBackend(ComponentBase):
     cpl_df = Bool(False).tag(name="Complex FFT", group="Enabled data frames")
     p_df = Bool(False).tag(name="Phase", group="Enabled data frames")
     r_df = Bool(True).tag(name="Magnitude", group="Enabled data frames")
-    c_df = Bool(False).tag(name="CFAR", group="Enabled data frames")
-    tl_df = Bool(False).tag(name="Target list", group="Enabled data frames")
-    st_df = Bool(False).tag(name="Status", group="Enabled data frames")
+    c_df = Bool(True).tag(name="CFAR", group="Enabled data frames")
+    tl_df = Bool(True).tag(name="Target list", group="Enabled data frames")
+    st_df = Bool(True).tag(name="Status", group="Enabled data frames")
     err_df = Bool(True).tag(name="Error", group="Enabled data frames")
 
     # radar front end traits
-    frontend_base_freq = Quantity(Q_(300, "GHz"), min=Q_(0, "GHz"), max=Q_(int(2.5e-4 * 2 ** 21), "GHz"))
-    frontend_base_freq.tag(name="Base frequency", group="Front end configuration")
+    frontend_base_freq = Quantity(Q_(300, "GHz"), min=Q_(0, "GHz"), max=Q_(int(2.5e-4 * 2 ** 21), "GHz"), priority=1)
+    frontend_base_freq.tag(name="Base frequency", group="PLL and front end configuration")
 
     # PLL configuration
-    frontend_bandwidth = Quantity(Q_(30, "GHz"), min=Q_(-2 ** (16 - 1) * 2e-3, "GHz"),
-                                  max=Q_(2 ** (16 - 1) * 2e-3, "GHz"))
-    frontend_bandwidth.tag(name="Bandwidth", group="PLL configuration")
+    frontend_bandwidth = Quantity(Q_(22, "GHz"), min=Q_(-2 ** (16 - 1) * 2e-3, "GHz"),
+                                  max=Q_(2 ** (16 - 1) * 2e-3, "GHz"), help="Is added to base frequency",
+                                  priority=2)
+    frontend_bandwidth.tag(name="Bandwidth", group="PLL and front end configuration")
 
     # Baseband and processing configuration
-    windowing_en = Bool(False).tag(name="Windowing enabled", group="Baseband configuration")
+    windowing_en = Bool(True).tag(name="Windowing enabled", group="Baseband configuration")
     fir_filter_en = Bool(False).tag(name="FIR filter enabled", group="Baseband configuration")
-    dc_cancellation_en = Bool(False).tag(name="DC cancellation enabled", group="Baseband configuration")
+    dc_cancellation_en = Bool(True).tag(name="DC cancellation enabled", group="Baseband configuration")
     cfar_operator = Enum(CFAR, CFAR.CA_CFAR).tag(name="CFAR operator", group="Baseband configuration")
-    cfar_threshold = Enum(CFAR_Threshold, CFAR_Threshold.CFAR_Threshold_0dB)
+    cfar_threshold = Enum(CFAR_Threshold, CFAR_Threshold.CFAR_Threshold_16dB)
     cfar_threshold.tag(name="CFAR Threshold", group="Baseband configuration")
     cfar_size = Enum(CFAR_Size, CFAR_Size.CFAR_Size_10)
     cfar_size.tag(name="CFAR Size", group="Baseband configuration")
-    cfar_guard = Enum(CFAR_GRD, CFAR_GRD.CFAR_GRD_0)
+    cfar_guard = Enum(CFAR_GRD, CFAR_GRD.CFAR_GRD_1)
     cfar_guard.tag(name="CFAR Guard", group="Baseband configuration")
-    fft_size = Enum(FFT_Size, FFT_Size.FFT_Size_1024)
+    fft_size = Enum(FFT_Size, FFT_Size.FFT_Size_512)
     fft_size.tag(name="FFT points", group="Baseband configuration")
-    downsampling = Enum(DownSampling, DownSampling.DownSampling_1)
+    downsampling = Enum(DownSampling, DownSampling.DownSampling_0)
     downsampling.tag(name="Down sampling factor", group="Baseband configuration")
-    ramp_count = Enum(RampCount, RampCount.RampCount_32)
+    ramp_count = Enum(RampCount, RampCount.RampCount_1)
     ramp_count.tag(name="Number of ramps", group="Baseband configuration")
-    sample_count = Enum(Samples, Samples.Samples_32)
+    sample_count = Enum(Samples, Samples.Samples_128)
     sample_count.tag(name="Number of samples", group="Baseband configuration")
-    average_n = Enum(Average_number, Average_number.Average_number_0)
+    average_n = Enum(Average_number, Average_number.Average_number_3)
     average_n.tag(name="FFT averages", group="Baseband configuration")
-    adc_clkdiv = Enum(ADC_ClkDiv, ADC_ClkDiv.ADC_ClkDiv_1000kSHz)
+    adc_clkdiv = Enum(ADC_ClkDiv, ADC_ClkDiv.ADC_ClkDiv_397kSHz)
     adc_clkdiv.tag(name="ADC ClkDiv", group="Baseband configuration")
+
+    current_dataset = None
 
     def __init__(self, port, baudrate, loop):
         super().__init__("Config", loop)
@@ -359,6 +381,7 @@ class SiRadBackend(ComponentBase):
 
         self.s_config_trait_groups = ["System config", "Enabled data frames"]
         self.config_observers()
+        self.cntr = 0
 
     async def __aenter__(self):
         await super().__aenter__()
@@ -378,11 +401,8 @@ class SiRadBackend(ComponentBase):
 
         self.observe(self.update_s_config, s_config_traits)
 
-        f_config_traits = list(self.traits(group="Front end configuration").keys())
-        self.observe(self.update_f_config, f_config_traits)
-
-        p_config_traits = list(self.traits(group="PLL configuration").keys())
-        self.observe(self.update_p_config, p_config_traits)
+        pll_rfe_config_traits = list(self.traits(group="PLL and front end configuration").keys())
+        self.observe(self.update_pf_config, pll_rfe_config_traits)
 
         b_config_traits = list(self.traits(group="Baseband configuration").keys())
         self.observe(self.update_b_config, b_config_traits)
@@ -396,22 +416,19 @@ class SiRadBackend(ComponentBase):
 
         self.frameReader = ensure_weakly_binding_future(self.read_frame_from_queue)
 
-        await asyncio.create_task(self.send_command("!P00004E20"))  # p_config
-        await asyncio.create_task(self.send_command("!BA453C013"))  # b_config
+        # await asyncio.create_task(self.send_command("!P00004E20"))  # p_config
+        # await asyncio.create_task(self.send_command("!BA453C013"))  # b_config
         # await asyncio.create_task(self.send("!S00013A08"))  # s_config
-        # await asyncio.create_task(self.send("!F0201DC90"))
         # await asyncio.create_task(self.send_command("!S01016F80"))  # s_config # ext trig
-        await asyncio.create_task(self.send_command("!S01016F82"))  # s_config # self trig
+        # await asyncio.create_task(self.send_command("!S01016F82"))  # s_config # self trig
 
-        await asyncio.create_task(self.send_command("!J"))  # auto detect frequency
+        # await asyncio.create_task(self.send_command("!J"))  # auto detect frequency
+        # await asyncio.create_task(self.send_command("!K"))  # Set to max bandwidth
+        self.update_s_config()
+        self.update_pf_config()
+        self.update_b_config()
 
-    def update_s_config(self, change):
-        trait = self.traits().get(change['name'])
-
-        # should not be necessary, since only system config traits are observed
-        if trait.metadata.get("group") not in self.s_config_trait_groups:
-            return
-
+    def update_s_config(self, change=None):
         df_traits = [self.err_df, self.st_df, self.tl_df, self.c_df,
                      self.r_df, self.p_df, self.cpl_df, self.raw_df]
 
@@ -428,21 +445,22 @@ class SiRadBackend(ComponentBase):
         config_str += "".join([bin_str(df_trait) for df_trait in df_traits]) + 2 * "0"
         config_str += bin_str(self.trigger_mode.value) + bin_str(self.pre_trigger_en)
 
-        config_str = hex(int(config_str, 2))[2:]
+        config_str = bin_hex(int(config_str, 2))
 
         asyncio.create_task(self.send_command("!S" + config_str))
 
-    def update_f_config(self, change):
+    def update_pf_config(self, change=None):
+        # applies both configs on each call
+        # f config
         config_str = 4 * "0" + "1" + 7 * "0"  # 120 GHz TODO value unclear of "reserved" part for 300 GHz system
         config_str += bin_str(int(self.frontend_base_freq.magnitude * 1e6 / 250), zfill=21)
 
-        config_str = hex(int(config_str, 2))[2:]
+        config_str = bin_hex(int(config_str, 2))
 
         asyncio.create_task(self.send_command("!F" + config_str))
 
-    def update_p_config(self, change):
+        # p config
         val = int(self.frontend_bandwidth.magnitude * 1e3 / 2)
-
         config_str = 16 * "0"
         if val < 0:
             val = (1 << 16) + val
@@ -451,17 +469,11 @@ class SiRadBackend(ComponentBase):
             bin_str_ = bin_str(val, zfill=16)
         config_str += bin_str_
 
-        config_str = hex(int(config_str, 2))[2:]
+        config_str = bin_hex(int(config_str, 2))
 
         asyncio.create_task(self.send_command("!P" + config_str))
 
-    def update_b_config(self, change):
-        trait = self.traits().get(change['name'])
-
-        # should not be necessary, since only system config traits are observed
-        if trait.metadata.get("group") != "Baseband configuration":
-            return
-
+    def update_b_config(self, change=None):
         config_str = ""
         config_str += bin_str(self.windowing_en)
         config_str += bin_str(self.fir_filter_en)
@@ -477,7 +489,7 @@ class SiRadBackend(ComponentBase):
         config_str += bin_str(self.sample_count.value, zfill=3)
         config_str += bin_str(self.adc_clkdiv.value, zfill=3)
 
-        config_str = hex(int(config_str, 2))[2:]
+        config_str = bin_hex(int(config_str, 2))
 
         asyncio.create_task(self.send_command("!B" + config_str))
 
@@ -494,12 +506,15 @@ class SiRadBackend(ComponentBase):
         while True:
             # yield control to the event loop once
             await asyncio.sleep(0)
-
             while not self.frameQueue.empty():
                 frame = self.frameQueue.get()
                 frame_identifier = frame[1:2]
-                frame_handler_map[frame_identifier](frame)
-                print(frame, self.frameQueue.qsize(), "in frame queue")
+                if frame_identifier in frame_handler_map:
+                    try:
+                        frame_handler_map[frame_identifier](frame)
+                    except Exception as e:
+                        logging.info(e)
+                    # print(frame, self.frameQueue.qsize(), "in frame queue")
 
     def parse_version_frame(self, frame):
         def dict_lookup(dict_, key):
@@ -512,9 +527,9 @@ class SiRadBackend(ComponentBase):
         frame_parts = []
         for i in range(8):
             chunk_len = int(frame[i0:i1], 16)
-            section_end = i1+chunk_len
+            section_end = i1 + chunk_len
             frame_parts.append(frame[i1:section_end])
-            i0, i1 = section_end+1, section_end+3
+            i0, i1 = section_end + 1, section_end + 3
 
         baseboards = {b'EA': "SiRad Easy"}
         pll_chips = {b'59': "ADF4159"}
@@ -542,8 +557,10 @@ class SiRadBackend(ComponentBase):
 
     def parse_error_frame(self, frame):
         is_detailed = len(frame) > 8
-        error_flags = frame[2:len(frame)-2]
+        error_flags = frame[2:len(frame) - 2]
         error_code = int(error_flags, 16)
+        if not error_code:
+            self.set_trait("error_value", "")
 
         if not is_detailed:
             self.set_trait("crc_error", bool(error_code & (1 << 0)))
@@ -560,18 +577,18 @@ class SiRadBackend(ComponentBase):
                     self.set_trait("error_value", msg)
             if error_code:
                 s = bin_str(error_code, zfill=32)
-                logging.info("Error code: " + " ".join([s[4*i:4*(i+1)] for i in range(32)]))
+                logging.info("Error code: " + " ".join([s[4 * i:4 * (i + 1)] for i in range(32)]))
 
     def parse_update_frame(self, frame):
         format_field = int(frame[2:3], 16)
         gain = Q_(-140 + ord(frame[3:4]), "dB")
-        accuracy = Q_(0.1*int(frame[4:8], 16), "mm")
-        max_range = Q_(int(frame[8:12], 16), "MHz")  # TODO check unit
+        accuracy = Q_(0.1 * int(frame[4:8], 16), "mm")
+        max_range = Q_(int(frame[8:12], 16), "mm")  # TODO check unit
         ramp_time = Q_(int(frame[12:16], 16), "us")
-        bandwidth = Q_(2e-3*(-2**15 + int(frame[16:20], 16)), "GHz")
-        time_diff = Q_(0.01*int(frame[20:24], 16), "ms")
+        bandwidth = Q_(2e-3 * twos_compl_hex_int(frame[16:20]), "GHz")
+        time_diff = Q_(0.01 * int(frame[20:24], 16), "ms")
 
-        self.set_trait("format_", format_field)
+        self.set_trait("format_", SiRadBackend.FMT(format_field))
         self.set_trait("gain", gain)
         self.set_trait("accuracy", accuracy)
         self.set_trait("max_range", max_range)
@@ -583,23 +600,88 @@ class SiRadBackend(ComponentBase):
         pass
 
     def parse_data_frame(self, frame):
-        pass
+        if not self.acq_on:
+            return
+
+        self.cntr += 1
+        frame_id = frame[1:2]
+        if not (frame_id == b'R' or frame_id == b'P'):
+            return
+
+        size = int(frame[2:6], 16)
+
+        # data = [-140+c for c in frame[14:14+size]]
+        data_part = frame[14:14 + size]
+        format_str = 'B' * size
+
+        if frame_id == b'R':
+            data_arr = np.array(struct.unpack(format_str, data_part)) - 173
+            data = Q_(data_arr, "dB")
+        else:
+            data_arr = np.pi*(np.array(struct.unpack(format_str, data_part)) - 143)/110
+            data = Q_(data_arr, "rad")
+
+        freq = self.frontend_base_freq.magnitude
+        freqbandwidth = self.frontend_bandwidth.magnitude
+
+        freqarr = Q_(np.linspace(freq, freq + freqbandwidth, size), "GHz")
+
+        print(self.cntr)
+        if self.cntr % 100 == 0:
+            self.cntr = 0
+
+        self.current_dataset = DataSet(data, [freqarr])
 
     async def send_command(self, command):
         self.commandQueue.put(command)
+
+    @action("Detailed error report", group="Special functions")
+    def error_report(self):
+        asyncio.create_task(self.send_command("!E"))
+
+    @action("Get system info", group="Special functions")
+    def system_info(self):
+        asyncio.create_task(self.send_command("!I"))
+
+    @action("Frequency scan", group="Special functions")
+    def freq_scan(self):
+        asyncio.create_task(self.send_command("!J"))
+
+    @action("Set to max bandwidth", group="Special functions")
+    def set_to_max_bandwidth(self):
+        asyncio.create_task(self.send_command("!K"))
+
+    @action("Get version", group="Special functions")
+    def get_version(self):
+        asyncio.create_task(self.send_command("!V"))
+
+    @action("Send pre-trigger", group="Triggering")
+    def pre_trigger(self):
+        asyncio.create_task(self.send_command("!L"))
+
+    @action("Send main trigger", group="Triggering")
+    def main_trigger(self):
+        asyncio.create_task(self.send_command("!M"))
+
+    @action("Send both triggers", group="Triggering")
+    def both_triggers(self):
+        asyncio.create_task(self.send_command("!N"))
 
 
 class SiRadR4(DataSource):
     currentData = DataSetTrait(read_only=True).tag(name="Live data",
                                                    data_label="Amplitude",
-                                                   axes_labels=["Time"])
+                                                   axes_labels=["Frequency"])
 
     backend = Instance(SiRadBackend)
+
+    acq_on = Bool(False, read_only=True).tag(name="Acquistion active")
 
     def __init__(self, port=None, baudrate=230400, objectName=None, loop=None):
         super().__init__(objectName, loop)
 
         self.backend = SiRadBackend(port, baudrate, loop)
+        self.dataset_checker = ensure_weakly_binding_future(self.get_dataset)
 
     async def __aenter__(self):
         await super().__aenter__()
@@ -609,46 +691,25 @@ class SiRadR4(DataSource):
     async def __aexit__(self, *args):
         await super().__aexit__(*args)
 
-    @action("Detailed error report", group="Special functions")
-    def error_report(self):
-        asyncio.create_task(self.backend.send_command("!E"))
-
-    @action("Get system info", group="Special functions")
-    def system_info(self):
-        asyncio.create_task(self.backend.send_command("!I"))
-
-    @action("Frequency scan", group="Special functions")
-    def freq_scan(self):
-        asyncio.create_task(self.backend.send_command("!J"))
-
-    @action("Set to max bandwidth", group="Special functions")
-    def set_to_max_bandwidth(self):
-        asyncio.create_task(self.backend.send_command("!K"))
-
-    @action("Get version", group="Special functions")
-    def get_version(self):
-        asyncio.create_task(self.backend.send_command("!V"))
-
-    @action("Send pre-trigger", group="Triggering")
-    def pre_trigger(self):
-        asyncio.create_task(self.backend.send_command("!L"))
-
-    @action("Send main trigger", group="Triggering")
-    def main_trigger(self):
-        asyncio.create_task(self.backend.send_command("!M"))
-
-    @action("Send both triggers", group="Triggering")
-    def both_triggers(self):
-        asyncio.create_task(self.backend.send_command("!N"))
+    async def get_dataset(self):
+        while True:
+            await asyncio.sleep(0)
+            if not self.backend.acq_on:
+                continue
+            else:
+                dataset = self.backend.current_dataset
+                if dataset:
+                    self.set_trait("currentData", dataset)
 
     @action("Start acquisition")
     def start_acq(self):
         self.set_trait("acq_on", True)
-        asyncio.create_task(self.backend.send_command("!S01016F80"))  # s_config # ext trig
+        self.backend.set_trait("acq_on", True)
 
     @action("Stop acquisition")
     def stop_acq(self):
         self.set_trait("acq_on", False)
+        self.backend.set_trait("acq_on", False)
 
     # TODO implement # slow while loop
     @action("Trigger every n seconds")
@@ -659,3 +720,4 @@ class SiRadR4(DataSource):
     @action("Take n measurements")
     def take_n_measurements(self):
         pass
+

@@ -33,7 +33,7 @@ import os
 if os.name == "nt":
     comport = "COM5"
 elif os.name == "posix":
-    comport = "/dev/ttyUSB0"
+    comport = "/dev/ttyUSB4"
 else:
     comport = None
 

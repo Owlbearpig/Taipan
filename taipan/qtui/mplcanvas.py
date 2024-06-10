@@ -435,3 +435,5 @@ class MPLMSCanvas(MPLCanvas):
 
             self._replot()
         self._redraw()
+
+

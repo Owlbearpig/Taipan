@@ -69,6 +69,11 @@ def create_spinbox_entry(component, name, trait):
     layout = QtWidgets.QHBoxLayout()
     spinbox = ChangeIndicatorSpinBox(is_double_spinbox=not is_integer,
                                      actual_value_getter=get_value)
+
+    if not is_integer:
+        prec = trait.get_metadata("precision")  # changed
+        spinbox.setDecimals(prec if prec else 3)
+
     spinbox.setToolTip(trait.help)
 
     if is_integer:
