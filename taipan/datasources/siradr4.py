@@ -26,8 +26,8 @@ from dummy import DummySerial
 
 class SerialConnection:
     def __init__(self, port, baudrate, enableDebug=True):
-        # self.serial = DummySerial()
-        self.serial = Serial()
+        self.serial = DummySerial()
+        # self.serial = Serial()
         self.port = port
         self.baudrate = baudrate
         self.timeout = None
@@ -372,8 +372,6 @@ class SiRadBackend(ComponentBase):
     adc_clkdiv = Enum(ADC_ClkDiv, ADC_ClkDiv.ADC_ClkDiv_397kSHz)
     adc_clkdiv.tag(name="ADC ClkDiv", group="Baseband configuration")
 
-    current_dataset = None
-
     def __init__(self, port, baudrate, loop):
         super().__init__("Config", loop)
         self.port = port
@@ -381,7 +379,7 @@ class SiRadBackend(ComponentBase):
 
         self.s_config_trait_groups = ["System config", "Enabled data frames"]
         self.config_observers()
-        self.cntr = 0
+        self.datasetQueue = Queue()
 
     async def __aenter__(self):
         await super().__aenter__()
@@ -416,14 +414,6 @@ class SiRadBackend(ComponentBase):
 
         self.frameReader = ensure_weakly_binding_future(self.read_frame_from_queue)
 
-        # await asyncio.create_task(self.send_command("!P00004E20"))  # p_config
-        # await asyncio.create_task(self.send_command("!BA453C013"))  # b_config
-        # await asyncio.create_task(self.send("!S00013A08"))  # s_config
-        # await asyncio.create_task(self.send_command("!S01016F80"))  # s_config # ext trig
-        # await asyncio.create_task(self.send_command("!S01016F82"))  # s_config # self trig
-
-        # await asyncio.create_task(self.send_command("!J"))  # auto detect frequency
-        # await asyncio.create_task(self.send_command("!K"))  # Set to max bandwidth
         self.update_s_config()
         self.update_pf_config()
         self.update_b_config()
@@ -603,14 +593,12 @@ class SiRadBackend(ComponentBase):
         if not self.acq_on:
             return
 
-        self.cntr += 1
         frame_id = frame[1:2]
         if not (frame_id == b'R' or frame_id == b'P'):
             return
 
         size = int(frame[2:6], 16)
 
-        # data = [-140+c for c in frame[14:14+size]]
         data_part = frame[14:14 + size]
         format_str = 'B' * size
 
@@ -618,7 +606,7 @@ class SiRadBackend(ComponentBase):
             data_arr = np.array(struct.unpack(format_str, data_part)) - 173
             data = Q_(data_arr, "dB")
         else:
-            data_arr = np.pi*(np.array(struct.unpack(format_str, data_part)) - 143)/110
+            data_arr = np.pi * (np.array(struct.unpack(format_str, data_part)) - 143) / 110
             data = Q_(data_arr, "rad")
 
         freq = self.frontend_base_freq.magnitude
@@ -626,11 +614,8 @@ class SiRadBackend(ComponentBase):
 
         freqarr = Q_(np.linspace(freq, freq + freqbandwidth, size), "GHz")
 
-        print(self.cntr)
-        if self.cntr % 100 == 0:
-            self.cntr = 0
-
-        self.current_dataset = DataSet(data, [freqarr])
+        dataset = DataSet(data, [freqarr])
+        self.datasetQueue.put((frame_id, dataset))
 
     async def send_command(self, command):
         self.commandQueue.put(command)
@@ -671,8 +656,13 @@ class SiRadBackend(ComponentBase):
 class SiRadR4(DataSource):
     currentData = DataSetTrait(read_only=True).tag(name="Live data",
                                                    data_label="Amplitude",
-                                                   axes_labels=["Frequency"])
+                                                   axes_labels=["Frequency"],
+                                                    simple_plot=True)
 
+    currentData2 = DataSetTrait(read_only=True).tag(name="Live data",
+                                                    data_label="Phase",
+                                                    axes_labels=["Frequency"],
+                                                    simple_plot=True)
     backend = Instance(SiRadBackend)
 
     acq_on = Bool(False, read_only=True).tag(name="Acquistion active")
@@ -690,16 +680,19 @@ class SiRadR4(DataSource):
 
     async def __aexit__(self, *args):
         await super().__aexit__(*args)
+        self.dataset_checker.cancel()
 
     async def get_dataset(self):
         while True:
             await asyncio.sleep(0)
             if not self.backend.acq_on:
                 continue
-            else:
-                dataset = self.backend.current_dataset
-                if dataset:
+            if not self.backend.datasetQueue.empty():
+                frame_id, dataset = self.backend.datasetQueue.get()
+                if frame_id == b'R':
                     self.set_trait("currentData", dataset)
+                elif frame_id == b'P':
+                    self.set_trait("currentData2", dataset)
 
     @action("Start acquisition")
     def start_acq(self):
@@ -720,4 +713,3 @@ class SiRadR4(DataSource):
     @action("Take n measurements")
     def take_n_measurements(self):
         pass
-

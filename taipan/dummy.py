@@ -58,6 +58,8 @@ class DummySerial:
     def read(self, *args):
         return b""
 
+    def flush(self, *args):
+        pass
 
 class DummyManipulator(Manipulator):
     isReferenced = Bool(False, read_only=True).tag(name="Is referenced")

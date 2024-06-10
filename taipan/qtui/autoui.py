@@ -27,7 +27,7 @@ try:
     from .pyqtgraphplotter import PyQtGraphPlotter
     usePyQtGraph = True
 except:
-    from .mplcanvas import MPLCanvas, MPLMSCanvas
+    from .mplcanvas import MPLCanvas, MPLMSCanvas, SimpleMPLMSCanvas
     usePyQtGraph = False
 
 import asyncio
@@ -203,6 +203,8 @@ def create_plot_area(component, name, prettyName, trait):
     else:
         if trait.metadata.get('is_multisource_plot', False):
             canvas = MPLMSCanvas(trait)
+        elif trait.metadata.get('simple_plot', False):
+            canvas = SimpleMPLMSCanvas()
         else:
             canvas = MPLCanvas()
 
