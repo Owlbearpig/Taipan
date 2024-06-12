@@ -511,7 +511,7 @@ class SimpleMPLMSCanvas(QtWidgets.QGroupBox):
     def _redraw(self):
         self.fig.tight_layout()
         self.canvas.draw()
-        self.backgrounds = self.fig.canvas.copy_from_bbox(self.axes.bbox)
+        self.background = self.fig.canvas.copy_from_bbox(self.axes.bbox)
         self._redraw_artists()
 
     def showEvent(self, e):
@@ -570,8 +570,7 @@ class SimpleMPLMSCanvas(QtWidgets.QGroupBox):
                 redraw_data_label or axis_limits_changed):
             self._redraw()
         else:
-            for bg in self.backgrounds:
-                self.canvas.restore_region(bg)
+            self.canvas.restore_region(self.background)
             self._redraw_artists()
             self.canvas.blit(self.axes.bbox)
 

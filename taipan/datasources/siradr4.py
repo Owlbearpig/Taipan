@@ -26,8 +26,8 @@ from dummy import DummySerial
 
 class SerialConnection:
     def __init__(self, port, baudrate, enableDebug=True):
-        self.serial = DummySerial()
-        # self.serial = Serial()
+        # self.serial = DummySerial()
+        self.serial = Serial()
         self.port = port
         self.baudrate = baudrate
         self.timeout = None
@@ -329,8 +329,10 @@ class SiRadBackend(ComponentBase):
     trigger_mode = Enum(SLF, SLF.standard_mode).tag(name="Trigger mode", group="System config")
     pre_trigger_en = Bool(False).tag(name="Enable pre-trigger", group="System config")
 
-    raw_df = Bool(False).tag(name="Raw ADC", group="Enabled data frames")
-    cpl_df = Bool(False).tag(name="Complex FFT", group="Enabled data frames")
+    # not in WebGUI protocol
+    raw_df = Bool(False, read_only=True).tag(name="Raw ADC", group="Enabled data frames")
+    cpl_df = Bool(False, read_only=True).tag(name="Complex FFT", group="Enabled data frames")
+
     p_df = Bool(False).tag(name="Phase", group="Enabled data frames")
     r_df = Bool(True).tag(name="Magnitude", group="Enabled data frames")
     c_df = Bool(True).tag(name="CFAR", group="Enabled data frames")
@@ -380,6 +382,7 @@ class SiRadBackend(ComponentBase):
         self.s_config_trait_groups = ["System config", "Enabled data frames"]
         self.config_observers()
         self.datasetQueue = Queue()
+        self.config_changed = False
 
     async def __aenter__(self):
         await super().__aenter__()
@@ -419,8 +422,9 @@ class SiRadBackend(ComponentBase):
         self.update_b_config()
 
     def update_s_config(self, change=None):
+        self.config_changed = True
         df_traits = [self.err_df, self.st_df, self.tl_df, self.c_df,
-                     self.r_df, self.p_df, self.cpl_df, self.raw_df]
+                     self.r_df, self.p_df, self.raw_df, self.cpl_df]
 
         config_str = ""
         config_str += bin_str(self.self_trig_delay.value, zfill=3)
@@ -440,6 +444,7 @@ class SiRadBackend(ComponentBase):
         asyncio.create_task(self.send_command("!S" + config_str))
 
     def update_pf_config(self, change=None):
+        self.config_changed = True
         # applies both configs on each call
         # f config
         config_str = 4 * "0" + "1" + 7 * "0"  # 120 GHz TODO value unclear of "reserved" part for 300 GHz system
@@ -464,6 +469,7 @@ class SiRadBackend(ComponentBase):
         asyncio.create_task(self.send_command("!P" + config_str))
 
     def update_b_config(self, change=None):
+        self.config_changed = True
         config_str = ""
         config_str += bin_str(self.windowing_en)
         config_str += bin_str(self.fir_filter_en)
@@ -654,24 +660,31 @@ class SiRadBackend(ComponentBase):
 
 
 class SiRadR4(DataSource):
-    currentData = DataSetTrait(read_only=True).tag(name="Live data",
-                                                   data_label="Amplitude",
-                                                   axes_labels=["Frequency"],
-                                                    simple_plot=True)
+    current_amp_data = DataSetTrait(read_only=True).tag(name="Live amplitude data",
+                                                        data_label="Amplitude",
+                                                        axes_labels=["Frequency"],
+                                                        simple_plot=True)
 
-    currentData2 = DataSetTrait(read_only=True).tag(name="Live data",
-                                                    data_label="Phase",
-                                                    axes_labels=["Frequency"],
-                                                    simple_plot=True)
+    current_phi_data = DataSetTrait(read_only=True).tag(name="Live phase data",
+                                                        data_label="Phase",
+                                                        axes_labels=["Frequency"],
+                                                        simple_plot=True)
     backend = Instance(SiRadBackend)
 
     acq_on = Bool(False, read_only=True).tag(name="Acquistion active")
+
+    acq_avg = Integer(100, min=1, max=30000).tag(name="Averages", priority=2)
+    acq_current_avg = Integer(0, read_only=True).tag(name="Current averages", priority=3)
 
     def __init__(self, port=None, baudrate=230400, objectName=None, loop=None):
         super().__init__(objectName, loop)
 
         self.backend = SiRadBackend(port, baudrate, loop)
         self.dataset_checker = ensure_weakly_binding_future(self.get_dataset)
+        self._setAveragesReachedFuture = asyncio.Future()
+        self.dataset_amp_buffer = []
+        self.dataset_phi_buffer = []
+        self.dataset_buffer = {b'R': [], b'P': []}
 
     async def __aenter__(self):
         await super().__aenter__()
@@ -679,20 +692,86 @@ class SiRadR4(DataSource):
         return self
 
     async def __aexit__(self, *args):
-        await super().__aexit__(*args)
         self.dataset_checker.cancel()
+        await super().__aexit__(*args)
 
     async def get_dataset(self):
-        while True:
-            await asyncio.sleep(0)
-            if not self.backend.acq_on:
-                continue
-            if not self.backend.datasetQueue.empty():
-                frame_id, dataset = self.backend.datasetQueue.get()
-                if frame_id == b'R':
-                    self.set_trait("currentData", dataset)
-                elif frame_id == b'P':
-                    self.set_trait("currentData2", dataset)
+        try:
+            while True:
+                await asyncio.sleep(0)
+                if not self.backend.acq_on:
+                    continue
+
+                if self.backend.config_changed:
+                    await self.reset_avg()
+                    self.backend.config_changed = False
+
+                if not self.backend.datasetQueue.empty():
+                    frame_id, new_dataset = self.backend.datasetQueue.get()
+                    buffer = self.dataset_buffer[frame_id]
+                    buffer.append(new_dataset.data.magnitude)
+
+                    # maybe faster with this extra delete of only the first element
+                    if len(buffer) > self.acq_avg:
+                        del buffer[0]
+                    # reduce buffer to set avg size (important when average size is reduced by hand)
+                    if len(buffer) > self.acq_avg + 1:
+                        del buffer[:-self.acq_avg]
+
+                    dataset_average = sum(buffer) / len(buffer)
+
+                    unit = new_dataset.data.units
+                    new_dataset.data = Q_(dataset_average, unit)
+                    if frame_id == b'R':
+                        self.set_trait("current_amp_data", new_dataset)
+                    elif frame_id == b'P':
+                        self.set_trait("current_phi_data", new_dataset)
+                    elif frame_id == b'T':
+                        pass
+                    elif frame_id == b'C':
+                        pass
+                    else:
+                        pass
+
+                    """
+                    if frame_id == b'R':
+                        buffer = self.dataset_buffer[frame_id]
+                        self.dataset_amp_buffer.append(new_dataset.data.magnitude)
+
+                        # maybe faster with this extra delete of only the first element
+                        if len(self.dataset_amp_buffer) > self.acq_avg:
+                            del self.dataset_amp_buffer[0]
+                        # reduce buffer to set avg size (important when average size is reduced by hand)
+                        if len(self.dataset_amp_buffer) > self.acq_avg+1:
+                            del self.dataset_amp_buffer[:-self.acq_avg]
+
+                        dataset_average=sum(self.dataset_amp_buffer)/len(self.dataset_amp_buffer)
+                        unit = self.current_amp_data.data.units
+                        new_dataset.data = Q_(dataset_average, unit)
+                        self.set_trait("current_amp_data", new_dataset)
+
+                    elif frame_id == b'P':
+                        self.dataset_phi_buffer.append(new_dataset.data.magnitude)
+
+                        if len(self.dataset_phi_buffer) > self.acq_avg:
+                            del self.dataset_phi_buffer[0]
+                        if len(self.dataset_phi_buffer) > self.acq_avg + 1:
+                            del self.dataset_phi_buffer[:-self.acq_avg]
+
+                        dataset_average = sum(self.dataset_phi_buffer) / len(self.dataset_phi_buffer)
+                        unit = self.current_phi_data.data.units
+                        new_dataset.data = Q_(dataset_average, unit)
+                        self.set_trait("current_phi_data", new_dataset)
+                    """
+
+                    self.set_trait('acq_current_avg', min(self.acq_current_avg + 1,
+                                                          self.acq_avg))
+                    if (not self._setAveragesReachedFuture.done() and
+                            self.acq_current_avg >= self.acq_avg):
+                        self._setAveragesReachedFuture.set_result(True)
+
+        except Exception as e:
+            logging.info(e)
 
     @action("Start acquisition")
     def start_acq(self):
@@ -703,6 +782,29 @@ class SiRadR4(DataSource):
     def stop_acq(self):
         self.set_trait("acq_on", False)
         self.backend.set_trait("acq_on", False)
+
+    async def readDataSet(self):
+        if not self.acq_on:
+            raise Exception("Trying to read data but acquisition is "
+                            "turned off!")
+
+        await self.reset_avg()
+        success = await self._setAveragesReachedFuture
+        if not success:
+            raise Exception("Failed to reach the target averages value!")
+
+        self._dataSetReady(self.current_amp_data)
+
+        return self.current_amp_data
+
+    @action("Reset average")
+    async def reset_avg(self):
+        self.set_trait('acq_current_avg', 0)
+        if self._setAveragesReachedFuture.done():
+            self._setAveragesReachedFuture = asyncio.Future()
+        self.dataset_amp_buffer = []
+        self.dataset_phi_buffer = []
+        self.dataset_buffer = {b'R': [], b'P': []}
 
     # TODO implement # slow while loop
     @action("Trigger every n seconds")
