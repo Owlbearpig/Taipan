@@ -323,25 +323,29 @@ class SiRadBackend(ComponentBase):
     baseband_amp_coupling = Enum(CL, CL.DC_coupling).tag(name="Baseband amplifier coupling", group="System config")
     auto_gain_control = Bool(False).tag(name="Auto gain enabled", group="System config")
     protocol = Enum(Protocol, Protocol.webGUI, read_only=True).tag(name="Data protocol type", group="System config")
-    ser1_en = Bool(False).tag(name="Enable 1x UART", group="System config")
-    ser2_en = Bool(True).tag(name="Enable 2x UART", group="System config")
     manual_gain = Enum(Gain, Gain.five).tag(name="Gain setting", group="System config")
     trigger_mode = Enum(SLF, SLF.standard_mode).tag(name="Trigger mode", group="System config")
     pre_trigger_en = Bool(False).tag(name="Enable pre-trigger", group="System config")
+
+    # connection should not be changed while in use
+    ser1_en = Bool(False, read_only=True).tag(name="Enable 1x UART", group="System config")
+    ser2_en = Bool(True, read_only=True).tag(name="Enable 2x UART", group="System config")
 
     # not in WebGUI protocol
     raw_df = Bool(False, read_only=True).tag(name="Raw ADC", group="Enabled data frames")
     cpl_df = Bool(False, read_only=True).tag(name="Complex FFT", group="Enabled data frames")
 
-    p_df = Bool(False).tag(name="Phase", group="Enabled data frames")
+    p_df = Bool(True).tag(name="Phase", group="Enabled data frames")
     r_df = Bool(True).tag(name="Magnitude", group="Enabled data frames")
     c_df = Bool(True).tag(name="CFAR", group="Enabled data frames")
-    tl_df = Bool(True).tag(name="Target list", group="Enabled data frames")
     st_df = Bool(True).tag(name="Status", group="Enabled data frames")
     err_df = Bool(True).tag(name="Error", group="Enabled data frames")
 
+    # data acquisition for target list frames not implemented
+    tl_df = Bool(False, read_only=True).tag(name="Target list", group="Enabled data frames")
+
     # radar front end traits
-    frontend_base_freq = Quantity(Q_(300, "GHz"), min=Q_(0, "GHz"), max=Q_(int(2.5e-4 * 2 ** 21), "GHz"), priority=1)
+    frontend_base_freq = Quantity(Q_(295, "GHz"), min=Q_(0, "GHz"), max=Q_(int(2.5e-4 * 2 ** 21), "GHz"), priority=1)
     frontend_base_freq.tag(name="Base frequency", group="PLL and front end configuration")
 
     # PLL configuration
@@ -493,12 +497,12 @@ class SiRadBackend(ComponentBase):
         frame_handler_map = {b"R": self.parse_data_frame,
                              b"P": self.parse_data_frame,
                              b"C": self.parse_data_frame,
-                             b"T": self.parse_target_list_frame,
+                             b"T": self.parse_target_list_frame,  # TODO implement
                              b"U": self.parse_update_frame,
                              b"V": self.parse_version_frame,
                              b"I": self.parse_info_frame,
                              b"E": self.parse_error_frame}
-        # TODO can put time filter here if updates slow down the application
+
         while True:
             # yield control to the event loop once
             await asyncio.sleep(0)
@@ -600,7 +604,7 @@ class SiRadBackend(ComponentBase):
             return
 
         frame_id = frame[1:2]
-        if not (frame_id == b'R' or frame_id == b'P'):
+        if frame_id not in [b'R', b'C', b'P']:
             return
 
         size = int(frame[2:6], 16)
@@ -608,7 +612,7 @@ class SiRadBackend(ComponentBase):
         data_part = frame[14:14 + size]
         format_str = 'B' * size
 
-        if frame_id == b'R':
+        if frame_id in [b'R', b'C']:
             data_arr = np.array(struct.unpack(format_str, data_part)) - 173
             data = Q_(data_arr, "dB")
         else:
@@ -664,11 +668,14 @@ class SiRadR4(DataSource):
                                                         data_label="Amplitude",
                                                         axes_labels=["Frequency"],
                                                         simple_plot=True)
-
     current_phi_data = DataSetTrait(read_only=True).tag(name="Live phase data",
                                                         data_label="Phase",
                                                         axes_labels=["Frequency"],
                                                         simple_plot=True)
+    current_cfar_data = DataSetTrait(read_only=True).tag(name="Live CFAR data",
+                                                         data_label="CFAR",
+                                                         axes_labels=["Frequency"],
+                                                         simple_plot=True)
     backend = Instance(SiRadBackend)
 
     acq_on = Bool(False, read_only=True).tag(name="Acquistion active")
@@ -682,9 +689,7 @@ class SiRadR4(DataSource):
         self.backend = SiRadBackend(port, baudrate, loop)
         self.dataset_checker = ensure_weakly_binding_future(self.get_dataset)
         self._setAveragesReachedFuture = asyncio.Future()
-        self.dataset_amp_buffer = []
-        self.dataset_phi_buffer = []
-        self.dataset_buffer = {b'R': [], b'P': []}
+        self.dataset_buffer = {b'R': [], b'P': [], b'C': []}
 
     async def __aenter__(self):
         await super().__aenter__()
@@ -705,7 +710,6 @@ class SiRadR4(DataSource):
                 if self.backend.config_changed:
                     await self.reset_avg()
                     self.backend.config_changed = False
-
                 if not self.backend.datasetQueue.empty():
                     frame_id, new_dataset = self.backend.datasetQueue.get()
                     buffer = self.dataset_buffer[frame_id]
@@ -722,54 +726,22 @@ class SiRadR4(DataSource):
 
                     unit = new_dataset.data.units
                     new_dataset.data = Q_(dataset_average, unit)
+                    new_dataset.dataType = chr(frame_id[0])
                     if frame_id == b'R':
                         self.set_trait("current_amp_data", new_dataset)
                     elif frame_id == b'P':
                         self.set_trait("current_phi_data", new_dataset)
-                    elif frame_id == b'T':
-                        pass
                     elif frame_id == b'C':
+                        self.set_trait("current_cfar_data", new_dataset)
+                    elif frame_id == b'T':
                         pass
                     else:
                         pass
 
-                    """
-                    if frame_id == b'R':
-                        buffer = self.dataset_buffer[frame_id]
-                        self.dataset_amp_buffer.append(new_dataset.data.magnitude)
-
-                        # maybe faster with this extra delete of only the first element
-                        if len(self.dataset_amp_buffer) > self.acq_avg:
-                            del self.dataset_amp_buffer[0]
-                        # reduce buffer to set avg size (important when average size is reduced by hand)
-                        if len(self.dataset_amp_buffer) > self.acq_avg+1:
-                            del self.dataset_amp_buffer[:-self.acq_avg]
-
-                        dataset_average=sum(self.dataset_amp_buffer)/len(self.dataset_amp_buffer)
-                        unit = self.current_amp_data.data.units
-                        new_dataset.data = Q_(dataset_average, unit)
-                        self.set_trait("current_amp_data", new_dataset)
-
-                    elif frame_id == b'P':
-                        self.dataset_phi_buffer.append(new_dataset.data.magnitude)
-
-                        if len(self.dataset_phi_buffer) > self.acq_avg:
-                            del self.dataset_phi_buffer[0]
-                        if len(self.dataset_phi_buffer) > self.acq_avg + 1:
-                            del self.dataset_phi_buffer[:-self.acq_avg]
-
-                        dataset_average = sum(self.dataset_phi_buffer) / len(self.dataset_phi_buffer)
-                        unit = self.current_phi_data.data.units
-                        new_dataset.data = Q_(dataset_average, unit)
-                        self.set_trait("current_phi_data", new_dataset)
-                    """
-
-                    self.set_trait('acq_current_avg', min(self.acq_current_avg + 1,
-                                                          self.acq_avg))
+                    self.set_trait('acq_current_avg', len(buffer))
                     if (not self._setAveragesReachedFuture.done() and
                             self.acq_current_avg >= self.acq_avg):
                         self._setAveragesReachedFuture.set_result(True)
-
         except Exception as e:
             logging.info(e)
 
@@ -793,25 +765,23 @@ class SiRadR4(DataSource):
         if not success:
             raise Exception("Failed to reach the target averages value!")
 
-        self._dataSetReady(self.current_amp_data)
+        active_datasets = []
+        if self.backend.r_df:
+            active_datasets.append(self.current_amp_data)
+        if self.backend.p_df:
+            active_datasets.append(self.current_phi_data)
+        if self.backend.c_df:
+            active_datasets.append(self.current_cfar_data)
 
-        return self.current_amp_data
+        for ds in active_datasets:
+            self._dataSetReady(ds)
+
+        return active_datasets
 
     @action("Reset average")
     async def reset_avg(self):
         self.set_trait('acq_current_avg', 0)
         if self._setAveragesReachedFuture.done():
             self._setAveragesReachedFuture = asyncio.Future()
-        self.dataset_amp_buffer = []
-        self.dataset_phi_buffer = []
-        self.dataset_buffer = {b'R': [], b'P': []}
+        self.dataset_buffer = {b'R': [], b'P': [], b'C': []}
 
-    # TODO implement # slow while loop
-    @action("Trigger every n seconds")
-    def software_trigger(self):
-        pass
-
-    # TODO implement # (trigger -> wait) n times
-    @action("Take n measurements")
-    def take_n_measurements(self):
-        pass
