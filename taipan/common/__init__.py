@@ -23,7 +23,7 @@ from .dataset import DataSet
 from .scan import Scan, MultiDataSourceScan
 from .table import TabularMeasurements
 from .table_2m import TabularMeasurements2M
-from .table_siradr4_2m import TabularMeasurementsSiradr4_2M
+from .table_3m import TabularMeasurements3M
 from .units import ureg, Q_
 from .multiDataSource import MultiDataSource
 

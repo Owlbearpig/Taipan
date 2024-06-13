@@ -218,22 +218,39 @@ class Scan(DataSource):
         return dataSet, axis
 
     async def _doSteppedScan(self, axis):
-        accumulator = []
+        accumulator_dict = {}
         await self.dataSource.start()
         updater = self.updateProgress(axis)
         self.manipulator.observe(updater, 'value')
         for position in axis:
             await self.manipulator.moveTo(position, self.scanVelocity)
-            accumulator.append(await self.dataSource.readDataSet())
+            if self.dataSource.is_multi_dataset_source:
+                dataSets = await self.dataSource.readDataSet()
+            else:
+                dataSets = [await self.dataSource.readDataSet()]
+
+            for dataSet in dataSets:
+                if dataSet.dataType in accumulator_dict:
+                    accumulator_dict[dataSet.dataType].append(dataSet)
+                else:
+                    accumulator_dict[dataSet.dataType] = [dataSet]
+
         self.manipulator.unobserve(updater, 'value')
         await self.dataSource.stop()
 
-        axes = accumulator[0].axes.copy()
-        axes.insert(0, axis)
-        data = np.array([dset.data.magnitude for dset in accumulator])
-        data = data * accumulator[0].data.units
+        accumulated_datasets = []
+        for key in accumulator_dict.keys():
+            accumulator = accumulator_dict[key]
+            axes = accumulator[0].axes.copy()
+            axes.insert(0, axis)
+            data = np.array([dset.data.magnitude for dset in accumulator])
+            data = data * accumulator[0].data.units
+            accumulated_datasets.append(DataSet(data, axes))
 
-        return DataSet(data, axes)
+        if self.dataSource.is_multi_dataset_source:
+            return accumulated_datasets
+        else:
+            return accumulated_datasets[0]
 
     @action("Stop")
     async def stop(self):

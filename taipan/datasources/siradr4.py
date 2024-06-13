@@ -387,6 +387,7 @@ class SiRadBackend(ComponentBase):
         self.config_observers()
         self.datasetQueue = Queue()
         self.config_changed = False
+        self.system_info()
 
     async def __aenter__(self):
         await super().__aenter__()
@@ -685,7 +686,7 @@ class SiRadR4(DataSource):
 
     def __init__(self, port=None, baudrate=230400, objectName=None, loop=None):
         super().__init__(objectName, loop)
-
+        self.is_multi_dataset_source = True
         self.backend = SiRadBackend(port, baudrate, loop)
         self.dataset_checker = ensure_weakly_binding_future(self.get_dataset)
         self._setAveragesReachedFuture = asyncio.Future()

@@ -19,7 +19,7 @@ along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 import time
 
-from common import ComponentBase, Scan, action, TabularMeasurementsSiradr4_2M
+from common import ComponentBase, Scan, action, TabularMeasurements2M
 from common.save import DataSaver
 from common.units import Q_
 from common.traits import DataSet as DataSetTrait
@@ -38,22 +38,21 @@ else:
     comport = None
 
 
-class AppRoot(TabularMeasurementsSiradr4_2M):
-
+class AppRoot(TabularMeasurements2M):
     dataSaver = Instance(DataSaver)
 
     nMeasurements = Int(1, min=1).tag(name="No. of measurements", priority=99)
     progress = Float(0, min=0, max=1, read_only=True).tag(name="Progress")
 
-    current_amp_data = DataSetTrait(read_only=True).tag(name="Live amplitude data",
+    current_amp_data = DataSetTrait(read_only=True).tag(name="Amplitude data",
                                                         data_label="Amplitude",
                                                         axes_labels=["Frequency"],
                                                         simple_plot=True)
-    current_phi_data = DataSetTrait(read_only=True).tag(name="Live phase data",
+    current_phi_data = DataSetTrait(read_only=True).tag(name="Phase data",
                                                         data_label="Phase",
                                                         axes_labels=["Frequency"],
                                                         simple_plot=True)
-    current_cfar_data = DataSetTrait(read_only=True).tag(name="Live CFAR data",
+    current_cfar_data = DataSetTrait(read_only=True).tag(name="CFAR data",
                                                          data_label="CFAR",
                                                          axes_labels=["Frequency"],
                                                          simple_plot=True)
@@ -87,10 +86,10 @@ class AppRoot(TabularMeasurementsSiradr4_2M):
 
     @action("Take Tabular measurements")
     async def takeTabularScan(self):
-        self.set_trait('progress2',0)#progress trait changes added by Cornelius for additional progress Information
+        self.set_trait('progress2', 0)  #progress trait changes added by Cornelius for additional progress Information
         for x in range(self.nMeasurements):
             dataset = await self.readDataSet()
-            self.set_trait('progress2',(x+1)/self.nMeasurements)
+            self.set_trait('progress2', (x + 1) / self.nMeasurements)
 
     @action("Stop")
     async def stop(self):

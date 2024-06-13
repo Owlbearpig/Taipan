@@ -189,7 +189,6 @@ class MPLCanvas(QtWidgets.QGroupBox):
             ftline.set_data([], [])
             return
 
-        # data.data -= np.mean(data.data)
         line.set_data(data.axes[0].magnitude, data.data.magnitude)
         freqs, dBdata = self.get_ft_data(data)
         ftline.set_data(freqs, dBdata)

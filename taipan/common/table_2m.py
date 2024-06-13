@@ -26,6 +26,7 @@ from copy import deepcopy
 from common.traits import Quantity, Path
 from common.units import Q_
 import csv
+from pathlib import Path as Path_
 
 
 class TabularMeasurements2M(DataSource):
@@ -55,6 +56,7 @@ class TabularMeasurements2M(DataSource):
 
     tableFile = Path(None, is_file=True, is_dir=False, must_exist=True, allow_none=True).tag(
         name="Table file")
+    tableFile.default_value = Path_("/home/alex/PycharmProjects/taipan/table1.txt")
 
     currentMeasurementName = Unicode(read_only=True).tag(name="Current")
 
@@ -112,27 +114,41 @@ class TabularMeasurements2M(DataSource):
         self.add_traits(**newTraits)
 
     async def _doSteppedScan(self, names, axis1, axis2):
-        accumulator = []
+        accumulator_dict = {}
         await self.dataSource.start()
 
         for i, (name, position1, position2) in enumerate(zip(names, axis1, axis2)):
             self.set_trait('currentMeasurementName', name)
             await self.manipulator1.moveTo(position1, self.positioningVelocityM1)
             await self.manipulator2.moveTo(position2, self.positioningVelocityM2)
-            accumulator.append(await self.dataSource.readDataSet())
+
+            if self.dataSource.is_multi_dataset_source:
+                dataSets = await self.dataSource.readDataSet()
+            else:
+                dataSets = [await self.dataSource.readDataSet()]
+
+            for dataSet in dataSets:
+                if dataSet.dataType in accumulator_dict:
+                    accumulator_dict[dataSet.dataType].append(dataSet)
+                else:
+                    accumulator_dict[dataSet.dataType] = [dataSet]
             self.set_trait('progress', (i + 1) / len(axis1))
 
         self.set_trait('currentMeasurementName', '')
 
         await self.dataSource.stop()
 
-        axes = accumulator[0].axes.copy()
-        axes.insert(0, axis2)
-        axes.insert(0, axis1)
-        data = np.array([dset.data.magnitude for dset in accumulator])
-        data = data * accumulator[0].data.units
+        accumulated_datasets = []
+        for key in accumulator_dict.keys():
+            accumulator = accumulator_dict[key]
+            axes = accumulator[0].axes.copy()
+            axes.insert(0, axis2)
+            axes.insert(0, axis1)
+            data = np.array([dset.data.magnitude for dset in accumulator])
+            data = data * accumulator[0].data.units
+            accumulated_datasets.append(DataSet(data, axes))
 
-        return DataSet(data, axes)
+        return accumulated_datasets
 
     @action("Stop")
     async def stop(self):
@@ -154,7 +170,6 @@ class TabularMeasurements2M(DataSource):
 
         if self.tableFile is None:
             raise RuntimeError("No table file specified!")
-
 
         def check_limits(manip, row_val_, row_idx):
             manip_units = manip.trait_metadata('value', 'preferred_units')
@@ -208,10 +223,15 @@ class TabularMeasurements2M(DataSource):
             await self.manipulator1.waitForTargetReached()
             await self.manipulator2.waitForTargetReached()
 
-            dataSet = await self._doSteppedScan(names, axis1, axis2)
+            dataSets = await self._doSteppedScan(names, axis1, axis2)
 
-            self._dataSetReady(dataSet)
-            return dataSet
+            for ds in dataSets:
+                self._dataSetReady(ds)
+
+            if self.is_multi_dataset_source:
+                return dataSets
+            else:
+                return dataSets[0]
 
         finally:
             self._loop.create_task(self.dataSource.stop())

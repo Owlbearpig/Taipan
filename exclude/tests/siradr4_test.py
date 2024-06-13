@@ -64,7 +64,6 @@ class AppRoot(ComponentBase):
         super().__init__(objectName="Test setup", loop=loop)
         self.ds = SiRadR4(objectName="Si-Radar R4", port=comport)
         self.manip = DummyManipulator()
-
         self.dataSaver = DataSaver(objectName="Data Saver")
         self.dataSaver.registerManipulator(self.manip, "Position")
         self.dataSaver.fileNameTemplate = "{date}-{name}-{dataType}-{Position}"
