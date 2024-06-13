@@ -15,14 +15,6 @@ import enum
 from multiprocessing import Process, Queue
 from dummy import DummySerial
 
-"""
-# TODO
-1. continuous update of I, ...
-2. handle data frames
-3. 
-
-"""
-
 
 class SerialConnection:
     def __init__(self, port, baudrate, enableDebug=True):
