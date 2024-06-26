@@ -58,7 +58,8 @@ class AppRoot(ComponentBase):
     current_cfar_data = DataSetTrait(read_only=True).tag(name="Live CFAR data",
                                                          data_label="CFAR",
                                                          axes_labels=["Frequency"],
-                                                         simple_plot=True)
+                                                         simple_plot=True,
+                                                         visible=False)
 
     def __init__(self, loop=None):
         super().__init__(objectName="Test setup", loop=loop)

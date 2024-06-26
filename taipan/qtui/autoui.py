@@ -461,6 +461,11 @@ def generate_component_ui(name, component):
     for name, trait in traits:
         if not isinstance(trait, DataSetTrait):
             continue
+
+        is_visible = trait.metadata.get('visible', True)
+        if not is_visible:
+            continue
+
         prettyName = _prettyName(trait, name)
 
         plotBox.addWidget(create_plot_area(component, name, prettyName, trait))

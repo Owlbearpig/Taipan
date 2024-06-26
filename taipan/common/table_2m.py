@@ -26,7 +26,6 @@ from copy import deepcopy
 from common.traits import Quantity, Path
 from common.units import Q_
 import csv
-from pathlib import Path as Path_
 
 
 class TabularMeasurements2M(DataSource):
@@ -56,7 +55,6 @@ class TabularMeasurements2M(DataSource):
 
     tableFile = Path(None, is_file=True, is_dir=False, must_exist=True, allow_none=True).tag(
         name="Table file")
-    tableFile.default_value = Path_("/home/alex/PycharmProjects/taipan/table1.txt")
 
     currentMeasurementName = Unicode(read_only=True).tag(name="Current")
 
