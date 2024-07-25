@@ -14,8 +14,8 @@ from common.traits import DataSet as DataSetTrait
 from datasources.tem_fiberstretcher import TEMFiberStretcher
 import os
 
-if os.name == 'unix':
-    tem_port1 = '/dev/serial/by-id/usb-TEM_USB__-__Serial_cable-if00-port0'  # '/dev/ttyUSB1'
+if os.name == 'posix':
+    tem_port1 = '/dev/serial/by-id/usb-TEM_USB__-__Serial_cable-if00-port0'  # '/dev/ttyUSB0'
     tem_port2 = '/dev/serial/by-id/usb-TEM_USB__-__Serial_cable-if01-port0'  # '/dev/ttyUSB1'
 else:
     tem_port1 = 'COM5'

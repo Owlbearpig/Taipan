@@ -111,7 +111,7 @@ class AioSerial(serial.Serial):
     @property
     def loop(self) -> Optional[asyncio.AbstractEventLoop]:
         return self._loop if self._loop else asyncio.get_running_loop() \
-                if sys.version_info >= (3, 7) else asyncio.get_event_loop()
+            if sys.version_info >= (3, 7) else asyncio.get_event_loop()
 
     @loop.setter
     def loop(self, value: Optional[asyncio.AbstractEventLoop]):
@@ -202,8 +202,7 @@ class AioSerial(serial.Serial):
                 raise
 
 
-@asyncio.coroutine
-def create_serial_connection(loop, protocol_factory, *args, **kwargs):
+async def create_serial_connection(loop, protocol_factory, *args, **kwargs):
     ser = AioSerial(loop=loop, *args, **kwargs)
     protocol = protocol_factory()
     transport = AioSerialTransport(loop, protocol, ser)
