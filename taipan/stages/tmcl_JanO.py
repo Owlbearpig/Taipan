@@ -77,8 +77,7 @@ class TMCL(Manipulator):
                               name="Microstepping")
     direction = EnumTrait(Direction, Direction.Negative).tag(
                               name="Direction")
-    
-    targetValue = Quantity(Q_(0, "mm"), min=Q_(-15, "mm"), max=Q_(14, "mm")).tag(name='Target value')
+
     value = Quantity(Q_(0, "mm"), read_only=True).tag(name="Value")
     velocity = Quantity(Q_(1, "mm")).tag(name="Velocity")
 
@@ -95,11 +94,6 @@ class TMCL(Manipulator):
         self.axis = axis
         
         self.implementation = implementation # JanO
-        if implementation != 'Linear_mm':
-            print("Limits only implemented for linear implementation. Comment out targetValue trait")
-            
-
-        self.implementation = implementation  # JanO
 
         if implementation is None:
             self.setPreferredUnits(ureg.deg, ureg.deg / ureg.s)
@@ -201,6 +195,7 @@ class TMCL(Manipulator):
     async def __aexit__(self, *args):
         await super().__aexit__(*args)
         self._updateFuture.cancel()
+        self.comm.close()
 
     async def _update(self):
         while True:
@@ -225,8 +220,6 @@ class TMCL(Manipulator):
         
         velocity = velocity.magnitude/self.convFactor3
         val = self._DirectionMap[self.direction] * self._angle2steps(val.to(self.unit).magnitude)
-
-        velocity = velocity.magnitude / self.convFactor3
         accel = self.angularAcceleration.magnitude
 
         if not self._isMovingFuture.done():
@@ -277,7 +270,7 @@ if __name__ == '__main__':
 
 
     async def run():
-        async with TMCL('/dev/ttyUSB0') as stepper:
+        async with TMCL('/dev/ttyUSB0', implementation="Rotator") as stepper:
             print("moving.")
             await stepper.moveTo(Q_(360, 'deg'))
             await stepper.moveTo(Q_(0, 'deg'))

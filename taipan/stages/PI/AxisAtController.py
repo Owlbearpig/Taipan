@@ -133,7 +133,6 @@ class AxisAtController(Manipulator):
         if not movFut.done() and not self.isMoving:
             movFut.set_result(None)
 
-
     async def send(self, command, *args, includeAxis=True):
         """ Send a command to the controller. The axis ID will automatically
         appended, unless specified otherwise. If the command is a request,
@@ -213,6 +212,12 @@ class AxisAtController(Manipulator):
 
         self._isMovingFuture = asyncio.Future()
         await self._isMovingFuture
+
+        while round(self.value.magnitude) != round(val.to('mm').magnitude):
+            await self.send("MOV", val.to('mm').magnitude)
+
+            self._isMovingFuture = asyncio.Future()
+            await self._isMovingFuture
 
         return self.isOnTarget
 

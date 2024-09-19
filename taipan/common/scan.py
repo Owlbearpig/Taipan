@@ -248,10 +248,7 @@ class Scan(DataSource):
             data = data * accumulator[0].data.units
             accumulated_datasets.append(DataSet(data, axes))
 
-        if self.dataSource.is_multi_dataset_source:
-            return accumulated_datasets
-        else:
-            return accumulated_datasets[0]
+        return accumulated_datasets
 
     @action("Stop")
     async def stop(self):
