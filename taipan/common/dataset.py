@@ -23,7 +23,7 @@ from .units import Q_
 
 class DataSet:
 
-    def __init__(self, data=None, axes=None, dataSource_inst=None):
+    def __init__(self, data=None, axes=None, dataSource_inst=None, dataType=None):
         super().__init__()
         if data is None:
             data = Q_(np.array(0.0))
@@ -32,12 +32,12 @@ class DataSet:
         self.data = data
         self.axes = axes
         self.dataSource_inst = dataSource_inst
+        self.dataType = dataType
 
     @property
     def isConsistent(self):
         return len(self.axes) == self.data.ndim and \
-            all([len(ax) == shape
-                 for (ax, shape) in zip(self.axes, self.data.shape)])
+            all([len(ax) == shape for (ax, shape) in zip(self.axes, self.data.shape)])
 
     def checkConsistency(self):
         if not self.isConsistent:

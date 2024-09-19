@@ -189,7 +189,6 @@ class MPLCanvas(QtWidgets.QGroupBox):
             ftline.set_data([], [])
             return
 
-        # data.data -= np.mean(data.data)
         line.set_data(data.axes[0].magnitude, data.data.magnitude)
         freqs, dBdata = self.get_ft_data(data)
         ftline.set_data(freqs, dBdata)
@@ -435,3 +434,186 @@ class MPLMSCanvas(MPLCanvas):
 
             self._replot()
         self._redraw()
+
+
+class SimpleMPLMSCanvas(QtWidgets.QGroupBox):
+
+    dataSet = None
+    prevDataSet = None
+    _prevAxesLabels = None
+    _axesLabels = None
+    _prevDataLabel = None
+    _dataLabel = None
+
+    _lastPlotTime = 0
+    _isLiveData = False
+
+    def __init__(self, parent=None):
+        style_mpl()
+
+        super().__init__(parent)
+
+        dpi = QtWidgets.qApp.primaryScreen().logicalDotsPerInch()
+        self.fig = Figure(dpi=dpi)
+        self.fig.patch.set_alpha(0)
+
+        self.axes = self.fig.add_subplot(1, 1, 1)
+
+        self.canvas = FigureCanvasQTAgg(self.fig)
+        self.mpl_toolbar = NavigationToolbar2QT(self.canvas, self)
+
+        self.mpl_toolbar.addSeparator()
+
+        self.autoscaleAction = self.mpl_toolbar.addAction("Auto-scale")
+        self.autoscaleAction.setCheckable(True)
+        self.autoscaleAction.setChecked(True)
+        self.autoscaleAction.triggered.connect(self._autoscale)
+
+        vbox = QtWidgets.QVBoxLayout(self)
+        vbox.addWidget(self.mpl_toolbar)
+        vbox.addWidget(self.canvas)
+        vbox.setContentsMargins(0, 0, 0, 0)
+        vbox.setStretch(0, 1)
+        vbox.setStretch(1, 1)
+
+        self.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
+                           QtWidgets.QSizePolicy.Expanding)
+        self.canvas.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
+                                  QtWidgets.QSizePolicy.Expanding)
+        self.updateGeometry()
+
+        self.fig.tight_layout()
+
+        self._lines = self.axes.plot([], [], [], [], animated=True)
+        self._lines[0].set_alpha(0.25)
+        self.axes.legend(['Previous', 'Current'])
+        self.axes.set_title('Data')
+        self._redraw()
+
+        # Use a timer with a timeout of 0 to initiate redrawing of the canvas.
+        # This ensures that the eventloop has run once more and prevents
+        # artifacts.
+        self._redrawTimer = QtCore.QTimer(self)
+        self._redrawTimer.setSingleShot(True)
+        self._redrawTimer.setInterval(100)
+        self._redrawTimer.timeout.connect(self._redraw)
+
+        # will be disconnected in drawDataSet() when live data is detected.
+        self._redraw_id = self.canvas.mpl_connect('draw_event',
+                                                  self._redraw_artists)
+
+    def _redraw_artists(self, *args):
+        if not self._isLiveData:
+            self.axes.draw_artist(self._lines[0])
+        self.axes.draw_artist(self._lines[1])
+
+    def _redraw(self):
+        self.fig.tight_layout()
+        self.canvas.draw()
+        self.background = self.fig.canvas.copy_from_bbox(self.axes.bbox)
+        self._redraw_artists()
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self._redrawTimer.start()
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._redrawTimer.start()
+
+    def _dataSetToLines(self, data, line):
+        if data is None:
+            line.set_data([], [])
+            return
+
+        # data.data -= np.mean(data.data)
+        line.set_data(data.axes[0].magnitude, data.data.magnitude)
+
+    def _autoscale(self, *, redraw=True):
+        prev_xlim = self.axes.get_xlim()
+        prev_ylim = self.axes.get_ylim()
+
+        self.axes.relim()
+        self.axes.autoscale()
+
+        need_redraw = (prev_xlim != self.axes.get_xlim() or
+                       prev_ylim != self.axes.get_ylim())
+
+        if need_redraw and redraw:
+            self._redraw()
+
+        return need_redraw
+
+    def _replot(self, redraw_axes=False, redraw_axes_labels=False,
+                redraw_data_label=False):
+        if not self._isLiveData:
+            self._dataSetToLines(self.prevDataSet, self._lines[0])
+        self._dataSetToLines(self.dataSet, self._lines[1])
+        if self._axesLabels and redraw_axes_labels:
+            self.axes.set_xlabel('{} [{:C~}]'.format(
+                self._axesLabels[0],
+                self.dataSet.axes[0].units))
+
+        if self._dataLabel and redraw_data_label:
+            self.axes.set_ylabel('{} [{:C~}]'.format(
+                self._dataLabel,
+                self.dataSet.data.units))
+
+        axis_limits_changed = False
+        if self.autoscaleAction.isChecked():
+            axis_limits_changed = self._autoscale(redraw=False)
+
+        # check whether a full redraw is necessary or if simply redrawing
+        # the data lines is enough
+        if (redraw_axes or redraw_axes_labels or
+                redraw_data_label or axis_limits_changed):
+            self._redraw()
+        else:
+            self.canvas.restore_region(self.background)
+            self._redraw_artists()
+            self.canvas.blit(self.axes.bbox)
+
+    def drawDataSet(self, newDataSet, axes_labels, data_label):
+        plotTime = time.perf_counter()
+
+        looksLikeLiveData = plotTime - self._lastPlotTime < 1
+
+        if looksLikeLiveData != self._isLiveData:
+            if looksLikeLiveData:
+                self.canvas.mpl_disconnect(self._redraw_id)
+            else:
+                self._redraw_id = self.canvas.mpl_connect('draw_event',
+                                                          self._redraw_artists)
+
+        self._isLiveData = looksLikeLiveData
+
+        # artificially limit the replot rate to 5 Hz
+        if (plotTime - self._lastPlotTime < 0.2):
+            return
+
+        self._lastPlotTime = plotTime
+
+        self.prevDataSet = self.dataSet
+        self.dataSet = newDataSet
+
+        redraw_axes = (self.prevDataSet is None or
+                       len(self.prevDataSet.axes) != len(self.dataSet.axes))
+        if not redraw_axes:
+            for x, y in zip(self.prevDataSet.axes, self.dataSet.axes):
+                if x.units != y.units:
+                    redraw_axes = True
+                    break
+
+        redraw_axes_labels = (self._axesLabels != axes_labels or
+                              self.prevDataSet and self.dataSet and
+                              self.prevDataSet.axes[0].units !=
+                              self.dataSet.axes[0].units)
+        redraw_data_label = (self._dataLabel != data_label or
+                             self.prevDataSet and self.dataSet and
+                             self.prevDataSet.data.units !=
+                             self.dataSet.data.units)
+
+        self._axesLabels = axes_labels
+        self._dataLabel = data_label
+
+        self._replot(redraw_axes, redraw_axes_labels, redraw_data_label)

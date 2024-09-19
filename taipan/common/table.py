@@ -98,25 +98,39 @@ class TabularMeasurements(DataSource):
         self.add_traits(**newTraits)
 
     async def _doSteppedScan(self, names, axis):
-        accumulator = []
+        accumulator_dict = {}
         await self.dataSource.start()
 
         for i, (name, position) in enumerate(zip(names, axis)):
             self.set_trait('currentMeasurementName', name)
             await self.manipulator.moveTo(position, self.positioningVelocity)
-            accumulator.append(await self.dataSource.readDataSet())
+
+            if self.dataSource.is_multi_dataset_source:
+                dataSets = await self.dataSource.readDataSet()
+            else:
+                dataSets = [await self.dataSource.readDataSet()]
+
+            for dataSet in dataSets:
+                if dataSet.dataType in accumulator_dict:
+                    accumulator_dict[dataSet.dataType].append(dataSet)
+                else:
+                    accumulator_dict[dataSet.dataType] = [dataSet]
             self.set_trait('progress', (i + 1) / len(axis))
 
         self.set_trait('currentMeasurementName', '')
 
         await self.dataSource.stop()
 
-        axes = accumulator[0].axes.copy()
-        axes.insert(0, axis)
-        data = np.array([dset.data.magnitude for dset in accumulator])
-        data = data * accumulator[0].data.units
+        accumulated_datasets = []
+        for key in accumulator_dict.keys():
+            accumulator = accumulator_dict[key]
+            axes = accumulator[0].axes.copy()
+            axes.insert(0, axis)
+            data = np.array([dset.data.magnitude for dset in accumulator])
+            data = data * accumulator[0].data.units
+            accumulated_datasets.append(DataSet(data, axes))
 
-        return DataSet(data, axes)
+        return accumulated_datasets
 
     @action("Stop")
     async def stop(self):
@@ -169,10 +183,15 @@ class TabularMeasurements(DataSource):
             await self.dataSource.stop()
             await self.manipulator.waitForTargetReached()
 
-            dataSet = await self._doSteppedScan(names, axis)
+            dataSets = await self._doSteppedScan(names, axis)
 
-            self._dataSetReady(dataSet)
-            return dataSet
+            for ds in dataSets:
+                self._dataSetReady(ds)
+
+            if self.is_multi_dataset_source:
+                return dataSets
+            else:
+                return dataSets[0]
 
         finally:
             self._loop.create_task(self.dataSource.stop())

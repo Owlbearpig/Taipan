@@ -27,7 +27,7 @@ try:
     from .pyqtgraphplotter import PyQtGraphPlotter
     usePyQtGraph = True
 except:
-    from .mplcanvas import MPLCanvas, MPLMSCanvas
+    from .mplcanvas import MPLCanvas, MPLMSCanvas, SimpleMPLMSCanvas
     usePyQtGraph = False
 
 import asyncio
@@ -69,6 +69,11 @@ def create_spinbox_entry(component, name, trait):
     layout = QtWidgets.QHBoxLayout()
     spinbox = ChangeIndicatorSpinBox(is_double_spinbox=not is_integer,
                                      actual_value_getter=get_value)
+
+    if not is_integer:
+        prec = trait.get_metadata("precision")  # changed
+        spinbox.setDecimals(prec if prec else 3)
+
     spinbox.setToolTip(trait.help)
 
     if is_integer:
@@ -198,6 +203,8 @@ def create_plot_area(component, name, prettyName, trait):
     else:
         if trait.metadata.get('is_multisource_plot', False):
             canvas = MPLMSCanvas(trait)
+        elif trait.metadata.get('simple_plot', False):
+            canvas = SimpleMPLMSCanvas()
         else:
             canvas = MPLCanvas()
 

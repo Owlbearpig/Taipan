@@ -59,7 +59,8 @@ class DataSaver(DataSink):
                                     "are:\n"
                                     "{name}: The main file name\n"
                                     "{date}: The current date and time\n"
-                                    "{dataSource}: The name of the datasource").tag(
+                                    "{dataSource}: The name of the datasource\n"
+                                    "{dataType}: The type of the data").tag(
                                name="File name template")
     mainFileName = Unicode('data').tag(name="Main file name")
 
@@ -154,6 +155,9 @@ class DataSaver(DataSink):
 
         if dataset.dataSource_inst:
             self._attributes["dataSource"] = (dataset.dataSource_inst, "objectName")
+
+        if dataset.dataType:
+            self._attributes["dataType"] = (dataset, "dataType")
 
         filename = None
         if self.fileFormat == self.Formats.Text:

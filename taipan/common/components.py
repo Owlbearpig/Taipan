@@ -242,6 +242,7 @@ class DataSource(ComponentBase):
     def __init__(self, objectName: str = None, loop: asyncio.BaseEventLoop = None):
         super().__init__(objectName=objectName, loop=loop)
         self._dataSetReadyCallbacks = []
+        self.is_multi_dataset_source = False
 
     async def start(self):
         pass
