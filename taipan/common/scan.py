@@ -195,27 +195,28 @@ class Scan(DataSource):
         finally:
             self.manipulator.unobserve(updater, 'value')
 
-        dataSet = await self.dataSource.readDataSet()
-        dataSet.checkConsistency()
-        dataSet.axes = dataSet.axes.copy()
-        dataSet.axes[0] = axis
+        dataSets = [*(await self.dataSource.readDataSet())]
+        for dataSet in dataSets:
+            dataSet.checkConsistency()
+            dataSet.axes = dataSet.axes.copy()
+            dataSet.axes[0] = axis
 
-        expectedLength = len(dataSet.axes[0])
+            expectedLength = len(dataSet.axes[0])
 
-        # Oops, somehow the received amount of data does not match our
-        # expectation
-        if dataSet.data.shape[0] != expectedLength:
-            warnings.warn("Length of recorded data set does not match "
-                          "expectation. Actual length: %d, expected "
-                          "length: %d - trimming." %
-                          (dataSet.data.shape[0], expectedLength))
-            if (dataSet.data.shape[0] < expectedLength):
-                dataSet.axes[0].resize(dataSet.data.shape[0])
-            else:
-                dataSet.data = dataSet.data.copy()
-                dataSet.data.resize((expectedLength,) + dataSet.data.shape[1:])
+            # Oops, somehow the received amount of data does not match our
+            # expectation
+            if dataSet.data.shape[0] != expectedLength:
+                warnings.warn("Length of recorded data set does not match "
+                              "expectation. Actual length: %d, expected "
+                              "length: %d - trimming." %
+                              (dataSet.data.shape[0], expectedLength))
+                if (dataSet.data.shape[0] < expectedLength):
+                    dataSet.axes[0].resize(dataSet.data.shape[0])
+                else:
+                    dataSet.data = dataSet.data.copy()
+                    dataSet.data.resize((expectedLength,) + dataSet.data.shape[1:])
 
-        return dataSet, axis
+        return dataSets, axis
 
     async def _doSteppedScan(self, axis):
         accumulator_dict = {}
@@ -247,10 +248,7 @@ class Scan(DataSource):
             data = data * accumulator[0].data.units
             accumulated_datasets.append(DataSet(data, axes))
 
-        if self.dataSource.is_multi_dataset_source:
-            return accumulated_datasets
-        else:
-            return accumulated_datasets[0]
+        return accumulated_datasets
 
     @action("Stop")
     async def stop(self):
@@ -310,12 +308,17 @@ class Scan(DataSource):
                     * stepUnits)
 
             if self.continuousScan:
-                dataSet, axis = await self._doContinuousScan(axis)
+                dataSets, axis = await self._doContinuousScan(axis)
             else:
-                dataSet = await self._doSteppedScan(axis)
+                dataSets = await self._doSteppedScan(axis)
 
-            self._dataSetReady(dataSet)
-            return dataSet
+            for dataSet in dataSets:
+                self._dataSetReady(dataSet)
+
+            if self.dataSource.is_multi_dataset_source:
+                return dataSets
+            else:
+                return dataSets[0]
 
         except asyncio.CancelledError:
             logging.warning('Scan "{}" was cancelled'.format(self.objectName))

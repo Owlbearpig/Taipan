@@ -556,3 +556,6 @@ class TMCLCommunicator(object):
         Not yet implemented
         """
         raise NotImplementedError("yet!")
+
+    def close(self):
+        self._ser.close()

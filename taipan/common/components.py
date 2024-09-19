@@ -329,11 +329,11 @@ class Manipulator(ComponentBase):
     def set_limits(self, min_=None, max_=None):
         units, min_magn, max_magn = None, "-inf", "inf"
         class_traits = self.class_traits()
-        if min_:
+        if min_ is not None:
             class_traits["targetValue"].min = min_
             units = min_.units
             min_magn = min_.magnitude
-        if max_:
+        if max_ is not None:
             class_traits["targetValue"].max = max_
             units = max_.units
             max_magn = max_.magnitude
