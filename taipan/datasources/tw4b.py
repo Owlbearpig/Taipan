@@ -110,7 +110,9 @@ class TW4B(DataSource):
     serial_number = Unicode('Undefined', read_only=True).tag(name="Serial no.")
     identification = Unicode('Undefined', read_only=True).tag(name="Identification")
     firmware_version = Unicode('Undefined', read_only=True).tag(name="Firmware ver.")
-
+    P2Pval = Unicode('Undefined',read_only=True).tag(name="P2P val")
+    max_pos = Quantity(Q_(0, 'ps'), read_only=True).tag(name="Arg max")
+    
     currentData = DataSetTrait(read_only=True).tag(name="Live data",
                                                    data_label="Amplitude",
                                                    axes_labels=["Time"])
@@ -146,14 +148,21 @@ class TW4B(DataSource):
 
             while not self.pulseQueue.empty():
                 pulse, begin = self.pulseQueue.get()
-                pulse = Q_(pulse, 'nA')
+                offset = np.mean(pulse[:10])
+                p2p=np.max(pulse)-np.min(pulse)
+                self.set_trait('P2Pval', str(np.round(p2p, 3)))
+                
+                pulse = Q_(pulse-offset, 'nA')
 
                 start_ps = _fix2float(begin)
                 axis = np.arange(len(pulse)) * 0.05 + start_ps
+                self.set_trait('max_pos', Q_(axis[np.argmax(pulse)], 'ps'))
+                
                 axis = Q_(axis, 'ps')
 
                 data = DataSet(pulse, [axis])
-
+                
+                
                 self.set_trait('currentData', data)
                 self.set_trait('acq_current_avg', min(self.acq_current_avg + 1,
                                                       self.acq_avg))
