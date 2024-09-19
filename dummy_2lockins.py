@@ -25,7 +25,7 @@ from common.units import Q_, ureg
 from traitlets import Instance, Float, Bool, Int
 from dummy import DummyManipulator, DummyContinuousDataSource, DummyLockIn
 from pathlib import Path
-from pint import Quantity
+#from pint import Quantity
 import thz_context  # important for unit conversion
 
 """
@@ -50,8 +50,8 @@ class AppRoot(MultiDataSourceScan):
         manipulator.objectName = "PI C-863"
         self.manipulator = manipulator
 
-        self.lockin1 = DummyLockIn(objectName="DS1")
-        self.lockin2 = DummyLockIn(objectName="DS2")
+        self.lockin1 = DummyLockIn(objectName="DS11")
+        self.lockin2 = DummyLockIn(objectName="DS22")
 
         self.manipulator.connect_trigger(self.lockin1)
         self.manipulator.connect_trigger(self.lockin2)

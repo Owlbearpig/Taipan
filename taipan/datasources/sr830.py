@@ -345,7 +345,7 @@ class SR830(DataSource):
                      group='Configuration')
 
     def __init__(self, resource, objectName=None, loop=None):
-        super().__init__(objectName=None, loop=None)
+        super().__init__(objectName=objectName, loop=None)
         self.resource = resource
         self.resource.timeout = 1000
         self.observe(self.setParameter, traitlets.All)

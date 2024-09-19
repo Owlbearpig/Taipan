@@ -80,7 +80,7 @@ class TMCL(Manipulator):
     
     targetValue = Quantity(Q_(0, "mm"), min=Q_(-15, "mm"), max=Q_(14, "mm")).tag(name='Target value')
     value = Quantity(Q_(0, "mm"), read_only=True).tag(name="Value")
-    velocity = Quantity(Q_(1, "mm")).tag(name="Velocity")
+    velocity = Quantity(Q_(1, "mm/s")).tag(name="Velocity")
 
     referenceable = BoolTrait(False, read_only=True, help="Whether the Stage has a "  # added by CM
                                                           "Reference switch").tag(name="Referenceable")
@@ -226,7 +226,6 @@ class TMCL(Manipulator):
         velocity = velocity.magnitude/self.convFactor3
         val = self._DirectionMap[self.direction] * self._angle2steps(val.to(self.unit).magnitude)
 
-        velocity = velocity.magnitude / self.convFactor3
         accel = self.angularAcceleration.magnitude
 
         if not self._isMovingFuture.done():
