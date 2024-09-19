@@ -396,8 +396,10 @@ class IselIT116(Manipulator):
             currentPosition = int(currentPosition, 16)
 
             self.set_trait('value', Q_(currentPosition/self.stepsPerRev, 'cm'))
-
-            self._isMovingFuture.set_result(None)
+            try:
+                self._isMovingFuture.set_result(None)
+            except asyncio.exceptions.InvalidStateError:
+                pass
 
     async def initializeControlUnit(self):
         """

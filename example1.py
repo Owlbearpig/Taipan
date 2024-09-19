@@ -27,8 +27,8 @@ from common.traits import Quantity
 from traitlets import Instance, Float, Bool, Int
 from dummy import DummyManipulator, DummyContinuousDataSource
 from pathlib import Path
-
-
+import enum
+import traitlets
 
 """
 Example take measurements using dummy source
@@ -36,11 +36,18 @@ Measurement parameters set on two dummy manipulators
 """
 
 
+
+
 class AppRoot(ComponentBase):
+    class CurveBufferTriggerOutput(enum.Enum):
+        PerCurve = 0
+        PerPoint = 1
 
     someDataSet = DataSetTrait().tag(name="Current measurement",
                                      data_label="Amplitude",
                                      axes_labels=["Time"])
+
+    bufferTriggerOutput = traitlets.Enum(CurveBufferTriggerOutput, command="TRIGOUT", group="Data Curve Buffer")
 
     dataSaver = Instance(DataSaver)
     ds = Instance(DummyContinuousDataSource)
