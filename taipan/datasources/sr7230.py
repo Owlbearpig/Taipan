@@ -24,7 +24,7 @@ import asyncio
 import enum
 import traitlets
 import logging
-
+from traitlets.traitlets import Enum
 
 class SR7230(DataSource):
     """
@@ -314,7 +314,8 @@ class SR7230(DataSource):
                                command="NOISEMODE")
     fastMode = traitlets.Bool(default_value=True, read_only=False, group="Signal Channel Output Filters",
                               command="FASTMODE")
-    filterTimeConstant = traitlets.Enum(FilterTimeConstant, group="Signal Channel Output Filters", command="TC")
+    filterTimeConstant = traitlets.Enum(FilterTimeConstant, default_value=FilterTimeConstant.TimeConstant_50ms,
+                                        group="Signal Channel Output Filters", command="TC")
     synchronousTimeConstantControl = traitlets.Bool(default_value=True, group="Signal Channel Output Filters",
                                                     command="SYNC")
     lowPassFilterSlope = traitlets.Enum(LowPassFilterSlope, default_value=LowPassFilterSlope.FilterSlope_12db_octave,

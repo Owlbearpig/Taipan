@@ -77,7 +77,8 @@ class TMCL(Manipulator):
                               name="Microstepping")
     direction = EnumTrait(Direction, Direction.Negative).tag(
                               name="Direction")
-
+    
+    targetValue = Quantity(Q_(0, "mm"), min=Q_(-15, "mm"), max=Q_(14, "mm")).tag(name='Target value')
     value = Quantity(Q_(0, "mm"), read_only=True).tag(name="Value")
     velocity = Quantity(Q_(1, "mm/s")).tag(name="Velocity")
 
@@ -225,7 +226,6 @@ class TMCL(Manipulator):
         velocity = velocity.magnitude/self.convFactor3
         val = self._DirectionMap[self.direction] * self._angle2steps(val.to(self.unit).magnitude)
 
-        velocity = velocity.magnitude / self.convFactor3
         accel = self.angularAcceleration.magnitude
 
         if not self._isMovingFuture.done():

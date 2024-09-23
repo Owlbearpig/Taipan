@@ -1,19 +1,32 @@
+import time
+
 import numpy as np
+import traitlets
 import struct
 from common import DataSource, action, ComponentBase, DataSet
 from common.traits import DataSet as DataSetTrait, Quantity, Q_
-from traitlets import Unicode, Integer, Bool, Enum, Instance
-from asyncioext import ensure_weakly_binding_future
+from traitlets import Unicode, Integer, Bool, Enum, observe, Instance, All, Float
+from asyncioext import threaded_async, ensure_weakly_binding_future
 from serial import Serial
 from threading import Lock
 import logging
 import asyncio
 import enum
 from multiprocessing import Process, Queue
+from dummy import DummySerial
+
+"""
+# TODO
+1. continuous update of I, ...
+2. handle data frames
+3. 
+
+"""
 
 
 class SerialConnection:
     def __init__(self, port, baudrate, enableDebug=True):
+        # self.serial = DummySerial()
         self.serial = Serial()
         self.port = port
         self.baudrate = baudrate
@@ -374,6 +387,7 @@ class SiRadBackend(ComponentBase):
         self.config_observers()
         self.datasetQueue = Queue()
         self.config_changed = False
+        self.system_info()
 
     async def __aenter__(self):
         await super().__aenter__()
@@ -411,8 +425,6 @@ class SiRadBackend(ComponentBase):
         self.update_s_config()
         self.update_pf_config()
         self.update_b_config()
-
-        self.system_info()
 
     def update_s_config(self, change=None):
         self.config_changed = True
@@ -537,7 +549,7 @@ class SiRadBackend(ComponentBase):
     def parse_info_frame(self, frame, *args):
         ic_id = frame[2:26]
 
-        rfe_min_freq = 1e-3 * int(frame[28:33], 16)
+        rfe_min_freq = 1e-3 * int(frame[28:33], 16)  # TODO check conversion factor (GHz)
         rfe_max_freq = 1e-3 * int(frame[33:38], 16)
 
         self.set_trait("microcontroller_UID", ic_id)
@@ -664,8 +676,7 @@ class SiRadR4(DataSource):
     current_cfar_data = DataSetTrait(read_only=True).tag(name="Live CFAR data",
                                                          data_label="CFAR",
                                                          axes_labels=["Frequency"],
-                                                         simple_plot=True,
-                                                         visible=False)
+                                                         simple_plot=True)
     backend = Instance(SiRadBackend)
 
     acq_on = Bool(False, read_only=True).tag(name="Acquistion active")
