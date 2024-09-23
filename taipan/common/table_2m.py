@@ -56,7 +56,6 @@ class TabularMeasurements2M(DataSource):
 
     tableFile = Path(None, is_file=True, is_dir=False, must_exist=True, allow_none=True).tag(
         name="Table file")
-    tableFile.default_value = Path_("/home/alex/PycharmProjects/taipan/table1.txt")
 
     currentMeasurementName = Unicode(read_only=True).tag(name="Current")
 

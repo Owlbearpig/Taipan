@@ -293,11 +293,11 @@ class TW4B(DataSource):
         if self.ip is None:
             raise Exception("No suitable device found for identifier {}"
                             .format(self.name_or_ip))
-
+        
         self.control_reader, self.control_writer = \
             await asyncio.open_connection(host=self.ip, port=6341,
                                           loop=self._loop)
-
+        
         self.pulseQueue = Queue()
         self.dataReaderProcess = Process(target=read_pulse_data,
                                          args=(self.ip, self.pulseQueue))
@@ -312,18 +312,16 @@ class TW4B(DataSource):
         
         await self.singleUpdate()
         self._statusUpdater = ensure_weakly_binding_future(self.updateStatus)
-    
+
     async def __aenter__(self):
-        retries = 10
-        for i in range(1, retries):
-            try:
-                await self.device_init()
-                break
-            except asyncio.streams.IncompleteReadError:
-                if i == retries-1:
-                    raise TW4BException("Initialization failed")
-                print(f"Initialization failed, retrying: {i}/{retries}")
-                await asyncio.sleep(1)
+        await asyncio.sleep(0.5)
+        try:
+            await self.device_init()
+        except asyncio.streams.IncompleteReadError as e:
+            self.dataReaderProcess.terminate()
+            self.control_writer.close()
+            print(f"Initialization failed. Retrying...")
+            await self.device_init()
         
         return self
 
