@@ -76,7 +76,7 @@ def read_pulse_data(ip, q):
              amplitude, length) = struct.unpack('>IIIIIIIII', header)
 
             if (magic1 != expected_magic1 or
-                magic2 != expected_magic2):
+                    magic2 != expected_magic2):
                 logging.warning("Corrupted pulse received! "
                                 "Buffer overrun?")
                 continue
@@ -94,8 +94,8 @@ def read_pulse_data(ip, q):
     q.close()
     loop.close()
 
-class TW4B(DataSource):
 
+class TW4B(DataSource):
     discoverer = None
 
     busy = Bool(False, read_only=True).tag(name="Busy")
@@ -110,9 +110,9 @@ class TW4B(DataSource):
     serial_number = Unicode('Undefined', read_only=True).tag(name="Serial no.")
     identification = Unicode('Undefined', read_only=True).tag(name="Identification")
     firmware_version = Unicode('Undefined', read_only=True).tag(name="Firmware ver.")
-    P2Pval = Unicode('Undefined',read_only=True).tag(name="P2P val")
+    P2Pval = Unicode('Undefined', read_only=True).tag(name="P2P val")
     max_pos = Quantity(Q_(0, 'ps'), read_only=True).tag(name="Arg max")
-    
+
     currentData = DataSetTrait(read_only=True).tag(name="Live data",
                                                    data_label="Amplitude",
                                                    axes_labels=["Time"])
@@ -139,7 +139,7 @@ class TW4B(DataSource):
         if self._setBusyFuture:
             self._setBusyFuture.cancel()
         self._setBusyFuture = self._loop.call_later(
-                                  0.1, lambda: self.set_trait('busy', True))
+            0.1, lambda: self.set_trait('busy', True))
 
     async def readPulseFromQueue(self):
         while True:
@@ -149,25 +149,24 @@ class TW4B(DataSource):
             while not self.pulseQueue.empty():
                 pulse, begin = self.pulseQueue.get()
                 offset = np.mean(pulse[:10])
-                p2p=np.max(pulse)-np.min(pulse)
+                p2p = np.max(pulse) - np.min(pulse)
                 self.set_trait('P2Pval', str(np.round(p2p, 3)))
-                
-                pulse = Q_(pulse-offset, 'nA')
+
+                pulse = Q_(pulse - offset, 'nA')
 
                 start_ps = _fix2float(begin)
                 axis = np.arange(len(pulse)) * 0.05 + start_ps
                 self.set_trait('max_pos', Q_(axis[np.argmax(pulse)], 'ps'))
-                
+
                 axis = Q_(axis, 'ps')
 
                 data = DataSet(pulse, [axis])
-                
-                
+
                 self.set_trait('currentData', data)
                 self.set_trait('acq_current_avg', min(self.acq_current_avg + 1,
                                                       self.acq_avg))
                 if (not self._setAveragesReachedFuture.done() and
-                    self.acq_current_avg >= self.acq_avg):
+                        self.acq_current_avg >= self.acq_avg):
                     self._setAveragesReachedFuture.set_result(True)
 
     async def read_message(self):
@@ -202,7 +201,7 @@ class TW4B(DataSource):
         self.set_trait('laser_set', float(status['Laser-Set']))
         self.set_trait('acq_on', status['Acquisition'] == 'ON')
         self.set_trait('acq_range', Q_(float(status['Acq-Range/ps']), 'ps'))
-#        self.set_trait('acq_begin', Q_(float(status['Acq-Begin/ps']), 'ps'))
+        #        self.set_trait('acq_begin', Q_(float(status['Acq-Begin/ps']), 'ps'))
         self._traitChangesDueToStatusUpdate = False
 
     @observe('laser_on')
@@ -252,6 +251,7 @@ class TW4B(DataSource):
         async def _impl():
             await self.query('ACQUISITION : START')
             await self.reset_avg()
+
         self._loop.create_task(_impl())
 
     @action("Stop acquisition")
@@ -264,7 +264,7 @@ class TW4B(DataSource):
         self.set_trait('acq_current_avg', 0)
         if self._setAveragesReachedFuture.done():
             self._setAveragesReachedFuture = asyncio.Future()
-    
+
     async def device_init(self):
         print("Initializing TW4B...")
 
@@ -304,15 +304,15 @@ class TW4B(DataSource):
         self.dataReaderProcess.start()
 
         self.pulseReader = ensure_weakly_binding_future(self.readPulseFromQueue)
-        
+
         ok = await self.read_message()
-        
+
         if ok != 'OK':
             raise TW4BException("Initialization failed")
-        
+
         await self.singleUpdate()
         self._statusUpdater = ensure_weakly_binding_future(self.updateStatus)
-    
+
     async def __aenter__(self):
         retries = 10
         for i in range(1, retries):
@@ -320,11 +320,11 @@ class TW4B(DataSource):
                 await self.device_init()
                 break
             except asyncio.streams.IncompleteReadError:
-                if i == retries-1:
+                if i == retries - 1:
                     raise TW4BException("Initialization failed")
                 print(f"Initialization failed, retrying: {i}/{retries}")
                 await asyncio.sleep(1)
-        
+
         return self
 
     async def __aexit__(self, *args):
