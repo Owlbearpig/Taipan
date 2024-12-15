@@ -319,7 +319,8 @@ class TW4B(DataSource):
             try:
                 await self.device_init()
                 break
-            except asyncio.streams.IncompleteReadError:
+            except asyncio.streams.IncompleteReadError as e:
+                print(e)
                 if i == retries-1:
                     raise TW4BException("Initialization failed")
                 print(f"Initialization failed, retrying: {i}/{retries}")
