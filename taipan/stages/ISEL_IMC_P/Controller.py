@@ -25,28 +25,19 @@ import time
 from threading import Lock
 import pyvisa
 import traitlets
-
 from asyncioext import ensure_weakly_binding_future, threaded_async
 from common import ComponentBase, ureg, Q_, action
 
+# logging.basicConfig(level=logging.DEBUG)
 
-class Connection(ComponentBase):
+class Controller(ComponentBase):
     class AxisCount(enum.Enum):
         X = 1
         X_Y = 3
         X_Y_Z = 7
         A = 8  # ACHTUNG: Die A-Achse muss immer separat initialisiert werden. (??)
 
-    class AxisDirection(enum.Enum):
-        """
-        Bit0 --> X-Achse
-        Bit1 --> Y-Achse
-        00 --> Beide Normal
-        11--> Beide Invertiert
-        weitere Möglichkeiten 01, 10
-        """
-        Normal = 00
-        Inverse = 11
+    axis_idx_map = {1:0, 2:1, 4:2, 8:3}
 
     DEFAULT_TIMEOUT = 1000
     MOVEMENT_TIMEOUT = 100000
@@ -56,12 +47,9 @@ class Connection(ComponentBase):
     controlUnitInfo = traitlets.Unicode(read_only=True, name="Control Unit Info", group="Instrument Info")
 
     #Parameters
-    axisDirection = traitlets.Enum(AxisDirection, name="Axis Direction", group="Parameters",
-                                   default_value=AxisDirection.Normal, command="@0ID")
-
     parameterTraits = ["referenceSpeed", "acceleration", "startStopFrequency", "axisDirection", "referenceDirection"]
 
-    def __init__(self, comport, baudRate=19200, axis_cnt=AxisCount.X):
+    def __init__(self, comport, baudRate=19200):
         super().__init__()
 
         self._lock = Lock()
@@ -69,6 +57,7 @@ class Connection(ComponentBase):
 
         if os.name == 'posix':
             rm = pyvisa.ResourceManager('@py')
+            self.comport = "ASRL" + self.comport + "::INSTR"
         elif os.name == 'nt':
             rm = pyvisa.ResourceManager()
 
@@ -81,85 +70,39 @@ class Connection(ComponentBase):
         self.resource.baud_rate = baudRate
         self.resource.timeout = self.DEFAULT_TIMEOUT
 
-        self.axis_cnt = axis_cnt
+        self.registered_axes = []
+        self.axis_cnt = None
 
-        #    self.setPreferredUnits(ureg.mm, ureg.mm / ureg.s)
-
-        #     self.set_trait('status', self.Status.Idle)
-        self._isMovingFuture = asyncio.Future()
-        self._isMovingFuture.set_result(None)
+    def register_axis(self, axis):
+        for ax in self.registered_axes:
+            if ax.axis == axis.axis:
+                raise Exception(f'Axis already registered at {axis.axis}')
+        self.registered_axes.append(axis)
 
     async def __aenter__(self):
         await super().__aenter__()
         await self.initializeControlUnit()
-        await self.getControlUnitInfo()
+        # await self.getControlUnitInfo()
         return self
-
-    @action("Stop")
-    def stop(self):
-        self.resource.write_raw(bytes([253]))
-        asyncio.ensure_future(self.stopImplementation())
-
-    async def stopImplementation(self):
-        result = await self.read()
-        self.set_trait("stopped", True)
-        if result is None:
-            return
-
-        result = result[0:-2]
-        if result == "STOP":
-            self.set_trait("stopped", False)
-
-        if not self._isMovingFuture.done():
-            self._isMovingFuture.cancel()
-
-    @action("Start")
-    async def start(self):
-        """
-        Sends a start command to the device after it has been stopped.
-
-        Due to weird behavior of the device, this function first executes a break command causing the device to forget
-        the last movement command.
-        """
-
-        await self.softwareBreak()
-
-        result = (await self.query("@0S"))[0]
-        print("start result: " + result)
-        if result == "0" or result == "G":
-            self.set_trait("stopped", False)
-
-        # await asyncio.sleep(0.1)
-        await self.read()
-
-        self.set_trait("status", self.Status.Idle)
-
-    @action("Break")
-    async def softwareBreak(self):
-        self.resource.write_raw(bytes([255]))
-        await self.read()
-
-    @action("Software Reset")
-    async def softwareReset(self):
-        self.resource.write_raw(bytes([254]))
-        await self.read()
-
-    @action("Load Parameters from Flash", group="Parameters")
-    async def loadParametersFromFlash(self):
-        await self.write("@0IL")
-
-    @action("Save Parameters to Flash", group="Parameters")
-    async def saveParametersToFlash(self):
-        await self.write("@0IW")
-
-    @action("Load Default Parameters", group="Parameters")
-    async def loadDefaultParameters(self):
-        await self.write("@0IX")
 
     async def initializeControlUnit(self):
         """
         Initialisation, setting number of axes.
         """
+        if not self.registered_axes:
+            raise Exception('No registered axes. Initialization failed')
+
+        if len(self.registered_axes) == 1:
+            self.axis_cnt = self.AxisCount.X
+        elif len(self.registered_axes) == 2:
+            self.axis_cnt = self.AxisCount.X_Y
+        elif len(self.registered_axes) == 3:
+            self.axis_cnt = self.AxisCount.X_Y_Z
+        elif len(self.registered_axes) == 4:
+            self.axis_cnt = self.AxisCount.A
+        else:
+            raise Exception('Invalid number of axes registerered')
+
         await self.write(f"@0{self.axis_cnt.value}")
 
 
@@ -201,7 +144,7 @@ class Connection(ComponentBase):
 
         Returns
         -------
-        result : str
+        result : coroutine
             The read content of the receive buffer.
         """
 
@@ -209,7 +152,7 @@ class Connection(ComponentBase):
             readBytes = self.readAllBytes()
             if len(readBytes) > 0:
                 result = b''.join(readBytes).decode("utf-8")
-                print("read(): result: " + result)
+                logging.warning("read(): result: " + result)
                 return result
 
     def readAllBytes(self):
@@ -226,7 +169,7 @@ class Connection(ComponentBase):
         try:
             allBytes.append(self.resource.read_bytes(1))
         except:
-            print("readAllBytes: no bytes in buffer")
+            logging.warning("readAllBytes: no bytes in buffer")
 
         while self.resource.bytes_in_buffer > 0:
             allBytes.append(self.resource.read_bytes(1))
@@ -253,7 +196,7 @@ class Connection(ComponentBase):
 
         Returns
         -------
-        list
+        coroutine
             A list of answer strings from the device.
         """
 
@@ -263,8 +206,8 @@ class Connection(ComponentBase):
             if paramIndex != -1:
                 command = command[:paramIndex]
 
-            print('ISEL_iMC_P: query ' + str(command))
-            logging.info('{}: {}'.format(self, command))
+            logging.warning('ISEL_iMC_P query: ' + str(command))
+            # logging.info('{}: {}'.format(self, command))
 
             if timeout is not None:
                 prevTimeout = self.resource.timeout
@@ -274,7 +217,7 @@ class Connection(ComponentBase):
             answerBytes = self.readAllBytes()
             answerString = b''.join(answerBytes).decode("utf-8")
 
-            print('ISEL_iMC_P: answer: ' + answerString)
+            logging.warning('ISEL_iMC_P answer: ' + answerString)
 
             if timeout is not None:
                 self.resource.timeout = prevTimeout
@@ -325,29 +268,61 @@ class Connection(ComponentBase):
 
         asyncio.ensure_future(self.write(commandString))
 
-    async def executeMovementCommand(self, command):
-        """
-        Sends a command to the instrument that results in a movement of the axis.
+    @action("Break")
+    async def softwareBreak(self):
+        self.resource.write_raw(bytes([255]))
+        await self.read()
 
-        Since the IT116 can't process any other commands until the movement is completed, this function waits for the
-        device's response that the movement was completed. Also sets the status to moving while the stage is moving.
+    @action("Software Reset")
+    async def softwareReset(self):
+        self.connection.write_raw(bytes([254]))
+        await self.read()
 
-        Parameters
-        ----------
-        command : str
-            Movement command to send to the device.
-        """
+    @action("Load Parameters from Flash", group="Parameters")
+    async def loadParametersFromFlash(self):
+        await self.write("@0IL")
 
-        self.set_trait("status", self.Status.Moving)
-        result = (await self.query(command, self.MOVEMENT_TIMEOUT))[0]
-        self._isMovingFuture = asyncio.Future()
-        print("movement result: " + result)
-        if result == "0":
-            self.set_trait("status", self.Status.Idle)
-            await self.statusUpdate()
-        elif result == "F":
-            print("movement stopped")
-            logging.info('{}: {}'.format(self, "movement stopped. Press start"))
-            self.set_trait("status", self.Status.Error)
+    @action("Save Parameters to Flash", group="Parameters")
+    async def saveParametersToFlash(self):
+        await self.write("@0IW")
+
+    @action("Load Default Parameters", group="Parameters")
+    async def loadDefaultParameters(self):
+        await self.write("@0IX")
+
+    async def executeMovementCommand(self, axis, val, velocity):
+        ax_cnt = len(self.registered_axes)
+        positions = [str(pos) for pos in await self.getPositions()]
+        positions = positions[:ax_cnt]
+
+        empty_command = list(zip(positions, ax_cnt*[str(velocity)]))
+        empty_command = [item for tup in empty_command for item in tup]
+        logging.warning(empty_command)
+
+        try:
+            axis_idx = self.axis_idx_map[axis.value]
+        except KeyError:
+            raise Exception("Invalid axis value")
+
+        empty_command[2*axis_idx], empty_command[2*axis_idx+1] = str(val), str(velocity)
+        command = "@0M " + ",".join(empty_command)
+        logging.warning(command)
+
+        return await self.query(command, self.MOVEMENT_TIMEOUT)
+
+    async def getPositions(self, axis=None):
+        positions = ((await self.query("@0P"))[0])
+        if self.axis_cnt != self.AxisCount.A:
+            positions = positions[0:6], positions[6:12], positions[12:18]
         else:
-            self.set_trait("status", self.Status.Error)
+            positions = positions[0:6], positions[6:12], positions[12:18], positions[18:24]
+        positions = [int(pos, 16) for pos in positions]
+
+        if axis is None:
+            return positions
+        else:
+            return positions[self.axis_idx_map[axis.value]]
+
+    async def referenceAxis(self, axis):
+        return await self.query(f"@0R{axis.value}")
+

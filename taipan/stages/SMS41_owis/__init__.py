@@ -18,4 +18,4 @@ You should have received a copy of the GNU General Public License
 along with Taipan.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from .axisatcontroller import AxisAtController
+from .axisatcontroller import AxisAtController_SMS41

@@ -21,26 +21,38 @@ import pyvisa as visa
 from threading import Lock
 import traitlets
 import enum
-from common.traits import Quantity
+from common import Quantity
 import time
 from asyncioext import threaded_async, ensure_weakly_binding_future
 from common import Manipulator, Q_, ureg, action
+
+
 import logging
 
+# logging.basicConfig(level=logging.DEBUG)
+
+class Axis(enum.Enum):
+    X = 1
+    Y = 2
+    Z = 4
+    A = 8
 
 class AxisAtController(Manipulator):
-    class Axis(enum.Enum):
-        X = 0
-        Y = 1
-        Z = 2
-
-    class AxisDirection(enum.Enum):
-        Normal = 0
-        Inverse = 1
 
     class ReferenceDirection(enum.Enum):
         Normal = 0
         Inverse = 1
+
+    class AxisDirection(enum.Enum):
+        """
+        Bit0 --> X-Achse
+        Bit1 --> Y-Achse
+        00 --> Beide Normal
+        11--> Beide Invertiert
+        weitere Möglichkeiten 01, 10
+        """
+        Normal = 00
+        Inverse = 11
 
   #  class LimitSwitch1(enum.Enum):
    #     Disabled = 0
@@ -72,6 +84,8 @@ class AxisAtController(Manipulator):
     referenceSpeed = traitlets.Int(name="Reference Speed", group="Parameters", default_value=900, max=2500,
                                    command="@0d")
 
+    velocity = traitlets.Int(name="Speed", group="Absolute Movement", default_value=900)
+
     acceleration = Quantity(name="Acceleration", group="Parameters", default_value=Q_(100, "Hz/ms"),
                             min=Q_(1, "Hz/ms"), max=Q_(1000, "Hz/ms"), command="@0g")
 
@@ -84,17 +98,8 @@ class AxisAtController(Manipulator):
     referenceDirection = traitlets.Enum(ReferenceDirection, name="Reference Direction", group="Parameters",
                                         default_value=ReferenceDirection.Normal)
 
-    # Relative Movement
-
-    relativeMovementPath = traitlets.Int(name="Movement Path", group="Relative Movement", default_value=0)
-    relativeMovementSpeed = traitlets.Int(name="Speed", group="Relative Movement", default_value=900)
-
-    # Absolute Movement
-
-    absoluteMovementPosition = traitlets.Int(name="Target Position", group="Absolute Movement", default_value=0)
-    absoluteMovementSpeed = traitlets.Int(name="Speed", group="Absolute Movement", default_value=900)
-
     stopped = traitlets.Bool(name="Stopped", default_value=False, read_only=True)
+    status_disp = traitlets.Unicode(name="Status", read_only=True)
 
     parameterTraits = ["referenceSpeed", "acceleration", "startStopFrequency", "axisDirection", "referenceDirection"]
 
@@ -105,11 +110,13 @@ class AxisAtController(Manipulator):
 
         self.stepsPerRev = 2*stepsPerRev  # not sure if correct (@0P gives correct distance)
 
-        self.setPreferredUnits(ureg.mm, ureg.mm / ureg.s)
+        self.setPreferredUnits(ureg.cm, ureg.cm / ureg.s)
 
         self.set_trait('status', self.Status.Idle)
         self._isMovingFuture = asyncio.Future()
         self._isMovingFuture.set_result(None)
+
+        self.connection.register_axis(self)
 
     async def __aenter__(self):
         await super().__aenter__()
@@ -123,10 +130,13 @@ class AxisAtController(Manipulator):
 
     @action("Stop")
     def stop(self):
-        self.resource.write_raw(bytes([253]))
-        asyncio.ensure_future(self.stopImplementation())
+        pass
+        #self.connection.resource.write_raw(bytes([253]))
+        #asyncio.ensure_future(self.stopImplementation())
 
     async def stopImplementation(self):
+        pass
+        """
         result = await self.read()
         self.set_trait("stopped", True)
         if result is None:
@@ -138,6 +148,7 @@ class AxisAtController(Manipulator):
 
         if not self._isMovingFuture.done():
             self._isMovingFuture.cancel()
+        """
 
     @action("Start")
     async def start(self):
@@ -147,11 +158,12 @@ class AxisAtController(Manipulator):
         Due to weird behavior of the device, this function first executes a break command causing the device to forget
         the last movement command.
         """
-
-        await self.softwareBreak()
+        pass
+        """
+        await self.connection.softwareBreak()
 
         result = (await self.query("@0S"))[0]
-        print("start result: " + result)
+        logging.warning()("start result: " + result)
         if result == "0" or result == "G":
             self.set_trait("stopped", False)
 
@@ -159,49 +171,21 @@ class AxisAtController(Manipulator):
         await self.read()
 
         self.set_trait("status", self.Status.Idle)
-
-    @action("Break")
-    async def softwareBreak(self):
-        self.resource.write_raw(bytes([255]))
-        await self.read()
-
-    @action("Software Reset")
-    async def softwareReset(self):
-        self.connection.write_raw(bytes([254]))
-        await self.read()
-
-    @action("Load Parameters from Flash", group="Parameters")
-    async def loadParametersFromFlash(self):
-        await self.connection.write("@0IL")
-
-    @action("Save Parameters to Flash", group="Parameters")
-    async def saveParametersToFlash(self):
-        await self.connection.write("@0IW")
-
-    @action("Load Default Parameters", group="Parameters")
-    async def loadDefaultParameters(self):
-        await self.connection.write("@0IX")
+        """
 
     @action("Reference Run")
     async def referenceRun(self):
-        await self.connection.write("@0R1")
+        await self.connection.referenceAxis(self.axis)
 
     @action("Simulate Reference Run")
     async def simulateReferenceRun(self):
-        await self.connection.write("@0N1")
+        pass
+        # await self.connection.write("@0N1")
 
     @action("Set Zero Point")
     async def setZeroPointCurrentLocation(self):
-        await self.connection.write("@0n1")
-
-    @action("Move", group="Absolute Movement")
-    async def moveAbsolute(self):
-        await self.moveTo(self.absoluteMovementPosition, self.absoluteMovementSpeed)
-
-    @action("Move", group="Relative Movement")
-    async def moveRelative(self):
-        command = "@0A" + str(self.relativeMovementPath) + "," + str(self.relativeMovementSpeed)
-        await self.executeMovementCommand(command)
+        pass
+        # await self.connection.write("@0n1")
 
     async def continuousStatusUpdate(self):
         """
@@ -212,16 +196,18 @@ class AxisAtController(Manipulator):
             await asyncio.sleep(self.STATUS_UPDATE_RATE)
             await self.statusUpdate()
 
+    @traitlets.observe("status")
+    def status_change(self, change):
+        self.set_trait("status_disp", str(change["new"].name))
+
     async def statusUpdate(self):
         """
         Performs a status update and updates the class attributes according to answers from the device.
         """
-
+        logging.warning(self.status)
         if self.status != Manipulator.Status.Moving and self.status != Manipulator.Status.Error: # and not self.stopped:
-            currentPosition = (await self.connection.query("@0P"))[0]
-            # print("pos answer: " + str(currentPosition))
-            currentPosition = int(currentPosition[0:6], 16)
-
+            currentPosition = await self.connection.getPositions(self.axis)
+            logging.warning("pos answer: " + str(currentPosition))
 
             self.set_trait('value', Q_(currentPosition/self.stepsPerRev, 'cm'))
             try:
@@ -231,7 +217,7 @@ class AxisAtController(Manipulator):
 
     async def moveTo(self, val: float, velocity=None):
         if self.stopped:
-            print("Device is stopped. Can't process commands until started")
+            logging.info("Device is stopped. Can't process commands until started")
             return
 
         self.__blockTargetValueUpdate = True
@@ -249,10 +235,24 @@ class AxisAtController(Manipulator):
             velocity = velocity.to('cm/s').magnitude
             velocity *= 1600  # self.stepsPerRev ?
             velocity = int(velocity)
-            # print("speed: " + str(velocity))
+            # logging.warning()("speed: " + str(velocity))
 
-        command = ",".join([str(self.axis.value), str(val), str(velocity)])
-        await self.connection.executeMovementCommand(command)
+        self.set_trait("status", self.Status.Moving)
+
+        results = await self.connection.executeMovementCommand(self.axis, val, velocity)
+        logging.warning("movement result: " + " ".join(results))
+        result = results[0]
+        self._isMovingFuture = asyncio.Future()
+        logging.warning("movement result: " + result)
+        if result == "0":
+            self.set_trait("status", self.Status.Idle)
+            await self.statusUpdate()
+        elif result == "F":
+            logging.warning("movement stopped")
+            logging.warning('{}: {}'.format(self, "movement stopped. Press start"))
+            self.set_trait("status", self.Status.Error)
+        else:
+            self.set_trait("status", self.Status.Error)
 
         self.__blockTargetValueUpdate = False
 

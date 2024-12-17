@@ -5,7 +5,7 @@ from common import ureg, Q_
 from stages.tmcl import TMCL
 
 
-class AxisAtController(TMCL):
+class AxisAtController_SMS41(TMCL):
 
     status_str = Unicode(read_only=True, default_value=str(TMCL.status.default_value),
                          priority=0).tag(name="Status")
@@ -19,7 +19,7 @@ class AxisAtController(TMCL):
         self.unit = "mm"
         self.velocity = Q_(1000)
 
-    async def _set_important_parameters(self, store=True):
+    async def _set_important_parameters(self, store=False):
         await self._set_global_param(0, 77, 0)
         importantParams = {"max_current": (6, 70), "max_speed": (4, 1500), "standbycurrent": (7, 8),
                            "max_accel": (5, 1000), "right_limit_switch_disable": (12, 0),
@@ -30,7 +30,7 @@ class AxisAtController(TMCL):
             pm, val = importantParams[param]
             await self._set_param(pm, val)
 
-            if store:
+            if store: # should not store on every init (eprom degrades)
                 await self._store_param(pm)
 
     async def __aenter__(self):

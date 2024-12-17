@@ -26,7 +26,7 @@ from .table_2m import TabularMeasurements2M
 from .table_3m import TabularMeasurements3M
 from .units import ureg, Q_
 from .multiDataSource import MultiDataSource
-
+from .traits import Quantity
 
 class TimeoutException(Exception):
     pass
