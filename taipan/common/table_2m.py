@@ -233,7 +233,7 @@ class TabularMeasurements2M(DataSource):
 
         finally:
             self._loop.create_task(self.dataSource.stop())
-            self.manipulator1.stop()
-            self.manipulator2.stop()
+            await self.manipulator1.stop()
+            await self.manipulator2.stop()
             self.set_trait('active', False)
             self._activeFuture = None

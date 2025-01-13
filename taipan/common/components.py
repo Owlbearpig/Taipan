@@ -306,7 +306,7 @@ class Manipulator(ComponentBase):
 
         self.__blockTargetValueUpdate = False
 
-    def setPreferredUnits(self, units, velocityUnits):
+    def setPreferredUnits(self, units, velocityUnits, block_move=False):
         self.__class__ = self.__original_class
 
         allTraits = self.traits()
@@ -323,8 +323,13 @@ class Manipulator(ComponentBase):
         newVelocityTrait.metadata['preferred_units'] = velocityUnits
         newVelocityTrait.default_value = 1 * velocityUnits
 
+        if block_move:
+            self.__blockTargetValueUpdate = True
+
         self.add_traits(value=newValueTrait, targetValue=newTargetValueTrait,
                         velocity=newVelocityTrait)
+
+        self.__blockTargetValueUpdate = False
     
     def set_limits(self, min_=None, max_=None):
         units, min_magn, max_magn = None, "-inf", "inf"

@@ -25,6 +25,7 @@ from common import Quantity
 import time
 from asyncioext import threaded_async, ensure_weakly_binding_future
 from common import Manipulator, Q_, ureg, action
+from .Controller import Controller
 
 
 import logging
@@ -84,7 +85,8 @@ class AxisAtController(Manipulator):
     referenceSpeed = traitlets.Int(name="Reference Speed", group="Parameters", default_value=900, max=2500,
                                    command="@0d")
 
-    velocity = traitlets.Int(name="Speed", group="Absolute Movement", default_value=900)
+    velocity = Quantity(Q_(2, "cm/s"), name="Speed", max=Q_(10, "cm/s"),
+                        min=Q_(0, "cm/s")).tag(name="velocity")
 
     acceleration = Quantity(name="Acceleration", group="Parameters", default_value=Q_(100, "Hz/ms"),
                             min=Q_(1, "Hz/ms"), max=Q_(1000, "Hz/ms"), command="@0g")
@@ -98,21 +100,20 @@ class AxisAtController(Manipulator):
     referenceDirection = traitlets.Enum(ReferenceDirection, name="Reference Direction", group="Parameters",
                                         default_value=ReferenceDirection.Normal)
 
-    stopped = traitlets.Bool(name="Stopped", default_value=False, read_only=True)
     status_disp = traitlets.Unicode(name="Status", read_only=True)
 
     parameterTraits = ["referenceSpeed", "acceleration", "startStopFrequency", "axisDirection", "referenceDirection"]
 
-    def __init__(self, connection=None, axis=Axis.X, stepsPerRev=135):
+    def __init__(self, connection : Controller, axis=Axis.X, stepsPerRev=135):
         super().__init__()
         self.connection = connection
         self.axis = axis
 
         self.stepsPerRev = 2*stepsPerRev  # not sure if correct (@0P gives correct distance)
 
-        self.setPreferredUnits(ureg.cm, ureg.cm / ureg.s)
+        self.setPreferredUnits(ureg.cm, ureg.cm / ureg.s, block_move=True)
 
-        self.set_trait('status', self.Status.Idle)
+        self.set_trait("status", self.Status.Idle)
         self._isMovingFuture = asyncio.Future()
         self._isMovingFuture.set_result(None)
 
@@ -129,26 +130,9 @@ class AxisAtController(Manipulator):
         self._statusUpdateFuture.cancel()
 
     @action("Stop")
-    def stop(self):
-        pass
-        #self.connection.resource.write_raw(bytes([253]))
-        #asyncio.ensure_future(self.stopImplementation())
-
-    async def stopImplementation(self):
-        pass
-        """
-        result = await self.read()
-        self.set_trait("stopped", True)
-        if result is None:
-            return
-
-        result = result[0:-2]
-        if result == "STOP":
-            self.set_trait("stopped", False)
-
-        if not self._isMovingFuture.done():
-            self._isMovingFuture.cancel()
-        """
+    async def stop(self):
+        self.connection.resource.write_raw(bytes([253]))
+        self.set_trait("status", self.Status.Error)
 
     @action("Start")
     async def start(self):
@@ -158,34 +142,23 @@ class AxisAtController(Manipulator):
         Due to weird behavior of the device, this function first executes a break command causing the device to forget
         the last movement command.
         """
-        pass
-        """
         await self.connection.softwareBreak()
 
-        result = (await self.query("@0S"))[0]
-        logging.warning()("start result: " + result)
-        if result == "0" or result == "G":
-            self.set_trait("stopped", False)
+        result = await self.connection.query("@0S")
+        if not result[0]:
+            self.set_trait("status", self.Status.Idle)
 
-        # await asyncio.sleep(0.1)
-        await self.read()
-
-        self.set_trait("status", self.Status.Idle)
-        """
 
     @action("Reference Run")
     async def referenceRun(self):
+        # TODO set status moving when referencing
         await self.connection.referenceAxis(self.axis)
-
-    @action("Simulate Reference Run")
-    async def simulateReferenceRun(self):
-        pass
-        # await self.connection.write("@0N1")
+        await self.statusUpdate()
 
     @action("Set Zero Point")
     async def setZeroPointCurrentLocation(self):
-        pass
-        # await self.connection.write("@0n1")
+        await self.connection.setZero(self.axis)
+        self.set_trait("value", Q_(0, self.trait_metadata("value", "preferred_units")))
 
     async def continuousStatusUpdate(self):
         """
@@ -197,60 +170,56 @@ class AxisAtController(Manipulator):
             await self.statusUpdate()
 
     @traitlets.observe("status")
-    def status_change(self, change):
+    def statusChange(self, change):
         self.set_trait("status_disp", str(change["new"].name))
 
     async def statusUpdate(self):
         """
         Performs a status update and updates the class attributes according to answers from the device.
         """
-        logging.warning(self.status)
+        if self.connection.has_error:
+            self.set_trait("status", self.Status.Error)
+            return
         if self.status != Manipulator.Status.Moving and self.status != Manipulator.Status.Error: # and not self.stopped:
             currentPosition = await self.connection.getPositions(self.axis)
-            logging.warning("pos answer: " + str(currentPosition))
+            if not currentPosition:
+                return
+            self.set_trait("value", Q_(currentPosition/self.stepsPerRev, self.value.units))
 
-            self.set_trait('value', Q_(currentPosition/self.stepsPerRev, 'cm'))
-            try:
-                self._isMovingFuture.set_result(None)
-            except asyncio.exceptions.InvalidStateError:
-                pass
+    async def moveTo(self, val : Q_, velocity=None):
 
-    async def moveTo(self, val: float, velocity=None):
-        if self.stopped:
-            logging.info("Device is stopped. Can't process commands until started")
-            return
+        val_unit = self.trait_metadata("value", "preferred_units")
+        vel_unit = self.trait_metadata("velocity", "preferred_units")
 
         self.__blockTargetValueUpdate = True
 
         if velocity is None:
             velocity = self.velocity
 
-        if not isinstance(val, int) and not isinstance(val, float):
-            val = val.to("cm").magnitude
+        if isinstance(val, Q_):
+            val = val.to(val_unit).magnitude
             val *= self.stepsPerRev
 
-        val = int(val)
+        steps = int(val)
 
-        if not isinstance(velocity, int) and not isinstance(velocity, float):
-            velocity = velocity.to('cm/s').magnitude
+        if isinstance(velocity, Q_):
+            velocity = velocity.to(vel_unit).magnitude
             velocity *= 1600  # self.stepsPerRev ?
             velocity = int(velocity)
             # logging.warning()("speed: " + str(velocity))
-
+        logging.warning("speed: " + str(velocity))
         self.set_trait("status", self.Status.Moving)
 
-        results = await self.connection.executeMovementCommand(self.axis, val, velocity)
-        logging.warning("movement result: " + " ".join(results))
-        result = results[0]
+        move_result = await self.connection.executeMovementCommand(self.axis, steps, velocity)
         self._isMovingFuture = asyncio.Future()
-        logging.warning("movement result: " + result)
-        if result == "0":
+
+        if not move_result[0]:
+            try:
+                self._isMovingFuture.set_result(None)
+            except asyncio.exceptions.InvalidStateError:
+                pass
             self.set_trait("status", self.Status.Idle)
             await self.statusUpdate()
-        elif result == "F":
-            logging.warning("movement stopped")
-            logging.warning('{}: {}'.format(self, "movement stopped. Press start"))
-            self.set_trait("status", self.Status.Error)
         else:
             self.set_trait("status", self.Status.Error)
 

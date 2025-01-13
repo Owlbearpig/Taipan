@@ -28,7 +28,26 @@ import traitlets
 from asyncioext import ensure_weakly_binding_future, threaded_async
 from common import ComponentBase, ureg, Q_, action
 
-# logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
+
+error_map = {b"1": "Error in sent number",
+             b"2": "Endswitch triggered. Reinitialize controller",
+             b"3": "Access to undefined axis",
+             b"4": "Axis number not set (not initialized)",
+             b"5": "Syntax error",
+             b"6": "End of memory",
+             b"7": "Bad number of parameters",
+             b"8": "Cannot save command: incorrect command",
+             b"9": "Device error 9. Reinitialize controller",
+             b"A": 0, "B": 0, "C": 0,
+             b"D": "Velocity out of bounds",
+             b"E": 0,
+             b"F": "User stop",
+             b"G": "Bad data field",
+             b"H": "Cover error",
+             b"R": "Reference error",
+             b"=": 0
+             }
 
 class Controller(ComponentBase):
     class AxisCount(enum.Enum):
@@ -45,6 +64,7 @@ class Controller(ComponentBase):
 
     # Instrument Info Traitlets
     controlUnitInfo = traitlets.Unicode(read_only=True, name="Control Unit Info", group="Instrument Info")
+    has_error = False
 
     #Parameters
     parameterTraits = ["referenceSpeed", "acceleration", "startStopFrequency", "axisDirection", "referenceDirection"]
@@ -65,6 +85,8 @@ class Controller(ComponentBase):
             self.resource = rm.open_resource(self.comport)
         except pyvisa.errors.VisaIOError:
             raise Exception('Failed to open ISEL_iMC_P stage at comport: ' + self.comport)
+
+
         self.resource.read_termination = ''
         self.resource.write_termination = chr(13)  # CR
         self.resource.baud_rate = baudRate
@@ -170,20 +192,22 @@ class Controller(ComponentBase):
             allBytes.append(self.resource.read_bytes(1))
         except:
             logging.warning("readAllBytes: no bytes in buffer")
+            return []
 
         while self.resource.bytes_in_buffer > 0:
             allBytes.append(self.resource.read_bytes(1))
 
-        # some commands return "0" "handshake" before actual value
-        # this is probably the wrong way to handle it
-        if (allBytes[0] == b'0' and len(allBytes) != 1):
-            allBytes = allBytes[1:]
+        if allBytes[0] in error_map:
+            logging.warning(error_map[allBytes[0]])
+            self.has_error = True  # TODO not correctly implemented
+            return []
+        else:
+            self.has_error = False
 
-        #  print("ALL Bytes",allBytes)
-        return allBytes
+        return allBytes[1:]
 
     @threaded_async
-    def query(self, command, timeout=None):
+    def query(self, command, timeout=None, en_log=True):
         """
         Sends a command to the device and reads the answer.
 
@@ -206,7 +230,8 @@ class Controller(ComponentBase):
             if paramIndex != -1:
                 command = command[:paramIndex]
 
-            logging.warning('ISEL_iMC_P query: ' + str(command))
+            if en_log:
+                logging.info('ISEL_iMC_P query: ' + str(command))
             # logging.info('{}: {}'.format(self, command))
 
             if timeout is not None:
@@ -217,7 +242,8 @@ class Controller(ComponentBase):
             answerBytes = self.readAllBytes()
             answerString = b''.join(answerBytes).decode("utf-8")
 
-            logging.warning('ISEL_iMC_P answer: ' + answerString)
+            if en_log:
+                logging.info('ISEL_iMC_P answer: ' + answerString)
 
             if timeout is not None:
                 self.resource.timeout = prevTimeout
@@ -311,18 +337,26 @@ class Controller(ComponentBase):
         return await self.query(command, self.MOVEMENT_TIMEOUT)
 
     async def getPositions(self, axis=None):
-        positions = ((await self.query("@0P"))[0])
+        pos_query_answer = await self.query("@0P", en_log=False)
+        if not pos_query_answer[0]:
+            return
+
+        position_str = pos_query_answer[0]
+
         if self.axis_cnt != self.AxisCount.A:
-            positions = positions[0:6], positions[6:12], positions[12:18]
+            position_str = position_str[0:6], position_str[6:12], position_str[12:18]
         else:
-            positions = positions[0:6], positions[6:12], positions[12:18], positions[18:24]
-        positions = [int(pos, 16) for pos in positions]
+            position_str = position_str[0:6], position_str[6:12], position_str[12:18], position_str[18:24]
+        position_str = [int(pos, 16) for pos in position_str]
 
         if axis is None:
-            return positions
+            return position_str
         else:
-            return positions[self.axis_idx_map[axis.value]]
+            return position_str[self.axis_idx_map[axis.value]]
 
     async def referenceAxis(self, axis):
         return await self.query(f"@0R{axis.value}")
+
+    async def setZero(self, axis):
+        return await self.query(f"@0n{axis.value}")
 
